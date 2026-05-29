@@ -1,0 +1,2261 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Weryfikator Abonamentów</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #ffffff; --bg-secondary: #f5f5f4; --bg-tertiary: #f0efed;
+      --text: #1a1a18; --text-muted: #6b6b67;
+      --border: rgba(0,0,0,0.10); --border-med: rgba(0,0,0,0.22);
+      --green: #1D9E75; --green-light: #E1F5EE;
+      --red: #E24B4A;   --red-light:   #FCEBEB;
+      --amber: #BA7517; --amber-light: #FAEEDA;
+      --blue: #2563EB;  --blue-light:  #EFF6FF;
+      --teal: #0e7490;  --teal-light:  #cffafe;
+      --purple: #7C3AED; --purple-light: #EDE9FE;
+      --gray: #6b6b67;   --gray-light:   #f0efed;
+      --radius-md: 8px; --radius-lg: 12px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1c1c1a; --bg-secondary: #252523; --bg-tertiary: #2e2e2c;
+        --text: #f0efed; --text-muted: #9a9a96;
+        --border: rgba(255,255,255,0.10); --border-med: rgba(255,255,255,0.22);
+        --green-light: #083626; --red-light: #3a1515; --amber-light: #3a2206;
+        --blue-light: #0f1f45; --teal-light: #0c4a6e; --purple-light: #2d1b69;
+        --gray-light: #2e2e2c;
+      }
+    }
+
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+           background: var(--bg-tertiary); color: var(--text); font-size: 14px; min-height: 100vh; }
+
+    header { background: var(--bg); border-bottom: 0.5px solid var(--border);
+             padding: .75rem 2rem; display: flex; align-items: center; gap: 16px; }
+    header h1 { font-size: 15px; font-weight: 600; flex-shrink: 0; }
+
+    #dbStatus { display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+                font-size: 11px; color: var(--text-muted); }
+    .db-pill { display: flex; align-items: center; gap: 5px; background: var(--bg-secondary);
+               border: 0.5px solid var(--border); border-radius: 99px; padding: 3px 10px; }
+    .db-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-muted); flex-shrink: 0; }
+    .db-dot.green { background: var(--green); }
+    .db-dot.red   { background: var(--red); }
+
+    .tab-bar { display: flex; padding: 0 2rem; background: var(--bg); border-bottom: 0.5px solid var(--border); }
+    .tab-btn { padding: 10px 18px; font-size: 13px; font-weight: 500; cursor: pointer;
+               border: none; background: none; color: var(--text-muted);
+               border-bottom: 2px solid transparent; margin-bottom: -0.5px; transition: color .12s; }
+    .tab-btn:hover  { color: var(--text); }
+    .tab-btn.active { color: var(--text); border-bottom-color: var(--text); }
+
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .container { max-width: 1300px; margin: 0 auto; padding: 1.5rem 2rem; }
+
+    .section-card { background: var(--bg); border: 0.5px solid var(--border);
+                    border-radius: var(--radius-lg); padding: 1.25rem 1.5rem; margin-bottom: 1rem; }
+    .section-title { font-size: 12px; font-weight: 700; text-transform: uppercase;
+                     letter-spacing: .05em; color: var(--text-muted); margin-bottom: 1rem; }
+
+    .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: .75rem; }
+    .upload-single { margin-bottom: .75rem; }
+    .upload-zone { display: block; border: 1px dashed var(--border-med); border-radius: var(--radius-lg);
+                   padding: 1rem 1.25rem; text-align: center; background: var(--bg);
+                   cursor: pointer; transition: background .15s; }
+    .upload-zone:hover  { background: var(--bg-secondary); }
+    .upload-zone.has-file { border-color: var(--green); border-style: solid; }
+    .upload-zone .uz-icon { font-size: 22px; margin-bottom: 4px; }
+    .upload-zone .uz-hint { font-size: 11px; color: var(--text-muted); }
+    .upload-zone .uz-name { font-size: 11px; color: var(--green); margin-top: 3px; font-weight: 600; }
+
+    .btn-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    button { padding: 7px 16px; border-radius: var(--radius-md); font-size: 13px; font-weight: 500;
+             cursor: pointer; border: 0.5px solid var(--border-med);
+             background: transparent; color: var(--text); transition: background .12s; }
+    button:hover    { background: var(--bg-secondary); }
+    button.primary  { background: var(--text); color: var(--bg); border-color: transparent; }
+    button.primary:hover { opacity: .85; }
+    button.danger   { color: var(--red); border-color: var(--red); }
+    button.danger:hover  { background: var(--red-light); }
+    button.sm { padding: 4px 10px; font-size: 12px; }
+    button.ghost { border-color: var(--border-med); color: var(--text-muted); }
+    button.ghost:hover { background: var(--bg-secondary); color: var(--text); }
+    button:disabled { opacity: .4; cursor: default; }
+
+    .msg { font-size: 11px; color: var(--text-muted); margin-top: 6px; min-height: 16px; }
+    .msg.ok  { color: var(--green); }
+    .msg.err { color: var(--red); }
+
+    .month-row { display: flex; align-items: center; gap: 8px; margin-bottom: .75rem; }
+    .month-row label { font-size: 12px; color: var(--text-muted); }
+    .month-row input[type=month] { font-size: 12px; padding: 5px 10px; border-radius: var(--radius-md);
+                                   border: 0.5px solid var(--border-med); background: var(--bg); color: var(--text); height: 32px; }
+
+    /* ── KPIs ── */
+    .kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 1.25rem; }
+    .kpi { background: var(--bg-secondary); border-radius: var(--radius-md); padding: .9rem 1rem; }
+    .kpi-label { font-size: 11px; color: var(--text-muted); font-weight: 600;
+                 text-transform: uppercase; letter-spacing: .04em; margin-bottom: 4px; }
+    .kpi-value { font-size: 26px; font-weight: 600; line-height: 1.1; }
+    .kpi.green  .kpi-value { color: var(--green); }
+    .kpi.red    .kpi-value { color: var(--red); }
+    .kpi.amber  .kpi-value { color: var(--amber); }
+    .kpi.teal   .kpi-value { color: var(--teal); }
+
+    /* ── charts ── */
+    .charts-row { display: grid; gap: 12px; margin-bottom: 1.25rem; }
+    .charts-row.col2 { grid-template-columns: 1fr 1fr; }
+    .chart-card { background: var(--bg); border: 0.5px solid var(--border);
+                  border-radius: var(--radius-lg); padding: 1rem; }
+    .chart-card canvas { cursor: pointer; }
+    .chart-title { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: .75rem;
+                   text-transform: uppercase; letter-spacing: .04em; }
+    .chart-hint { font-size: 10px; color: var(--text-muted); margin-top: 4px; opacity: .7; }
+    .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
+    .legend span { display: flex; align-items: center; gap: 4px; }
+    .leg-sq { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+    /* ── filters ── */
+    .filters-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+                   background: var(--bg); border: 0.5px solid var(--border);
+                   border-radius: var(--radius-lg); padding: .75rem 1rem; margin-bottom: 1rem; }
+    .filters-bar select, .filters-bar input[type=month], .filters-bar input[type=text] {
+      font-size: 12px; padding: 5px 10px; border-radius: var(--radius-md);
+      border: 0.5px solid var(--border-med); background: var(--bg); color: var(--text); height: 32px; }
+    #fSearch { min-width: 180px; flex: 1; max-width: 280px; }
+    .filter-active { border-color: var(--blue) !important; outline: 1px solid var(--blue); }
+    .spacer { flex: 1; }
+    .export-btns { display: flex; gap: 6px; }
+    .export-btns button { padding: 6px 12px; font-size: 12px; }
+
+    /* ── table ── */
+    .table-wrap { background: var(--bg); border: 0.5px solid var(--border);
+                  border-radius: var(--radius-lg); overflow: hidden; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 960px; }
+    th { background: var(--bg-secondary); padding: 9px 12px; text-align: left;
+         font-weight: 600; font-size: 11px; text-transform: uppercase;
+         letter-spacing: .04em; color: var(--text-muted); border-bottom: 0.5px solid var(--border); white-space: nowrap; }
+    td { padding: 8px 12px; border-bottom: 0.5px solid var(--border); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--bg-secondary); }
+
+    /* status badges */
+    .badge { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+    .badge.paid     { background: var(--green-light);  color: var(--green); }
+    .badge.unpaid   { background: var(--red-light);    color: var(--red); }
+    .badge.free     { background: var(--teal-light);   color: var(--teal); }
+    .badge.only     { background: var(--amber-light);  color: var(--amber); }
+    .badge.excluded { background: var(--blue-light);   color: var(--blue); }
+    .badge.oem      { background: var(--gray-light);   color: var(--gray); }
+
+    /* device_type badges */
+    .dt-badge { display: inline-flex; align-items: center; gap: 3px; padding: 1px 7px;
+                border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: .03em;
+                cursor: pointer; transition: opacity .1s; }
+    .dt-badge:hover { opacity: .75; }
+    .dt-badge.master    { background: var(--amber-light);  color: var(--amber); }
+    .dt-badge.oem       { background: var(--gray-light);   color: var(--gray); }
+    .dt-badge.showroom  { background: var(--teal-light);   color: var(--teal); }
+    .dt-badge.showroom.expired { background: var(--red-light); color: var(--red); }
+    .dt-badge.override-set { box-shadow: 0 0 0 1.5px currentColor; }
+    .badge.showroom { background: var(--teal-light); color: var(--teal); }
+
+    /* rep color chips */
+    .rep-chip { display: inline-block; padding: 1px 6px; border-radius: 4px;
+                font-size: 10px; font-weight: 700; letter-spacing: .04em;
+                cursor: default; white-space: nowrap; }
+
+    /* override dialog */
+    dialog { border: 0.5px solid var(--border-med); border-radius: var(--radius-lg);
+             padding: 0; background: var(--bg); color: var(--text);
+             box-shadow: 0 8px 32px rgba(0,0,0,.18); max-width: 440px; width: 92%; }
+    dialog::backdrop { background: rgba(0,0,0,.4); }
+    .dialog-header { padding: 1.25rem 1.5rem .75rem; border-bottom: 0.5px solid var(--border); }
+    .dialog-body   { padding: 1rem 1.5rem; }
+    .dialog-footer { padding: .75rem 1.5rem 1.25rem; display:flex; justify-content:flex-end; }
+
+    .row-count { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+
+    /* bulk action bar */
+    #bulkBar { display:none; position:sticky; bottom:0; z-index:20;
+               background:var(--bg-secondary); border-top:2px solid var(--blue);
+               padding:8px 16px; gap:10px; align-items:center; flex-wrap:wrap;
+               font-size:12px; box-shadow:0 -2px 8px rgba(0,0,0,.12); }
+    #bulkBar.active { display:flex; }
+    /* comment tooltip */
+    .comment-cell { max-width:160px; overflow:hidden; text-overflow:ellipsis;
+                    white-space:nowrap; font-size:11px; color:var(--text-muted);
+                    cursor:default; }
+    .has-comment { color:var(--blue); font-weight:600; }
+
+    .empty-state { text-align: center; padding: 4rem 2rem; color: var(--text-muted); }
+    .empty-state .es-icon { font-size: 40px; margin-bottom: 12px; }
+    .empty-state p { font-size: 13px; }
+
+    /* ── config tab ── */
+    .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    @media (max-width: 900px) { .config-grid { grid-template-columns: 1fr; } }
+
+    .input-row { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 1rem; flex-wrap: wrap; }
+    .input-group { display: flex; flex-direction: column; gap: 4px; }
+    .input-group label { font-size: 11px; color: var(--text-muted); font-weight: 600;
+                         text-transform: uppercase; letter-spacing: .04em; }
+    .input-group input, .input-group select {
+      font-size: 13px; padding: 6px 10px; border-radius: var(--radius-md);
+      border: 0.5px solid var(--border-med); background: var(--bg); color: var(--text); height: 34px; min-width: 200px; }
+    .input-group input:focus, .input-group select:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+
+    .rep-list { display: flex; flex-direction: column; gap: 8px; }
+    .rep-card { border: 0.5px solid var(--border); border-radius: var(--radius-md);
+                padding: .75rem 1rem; background: var(--bg-secondary); }
+    .rep-header { display: flex; align-items: center; justify-content: space-between;
+                  margin-bottom: 8px; gap: 8px; flex-wrap: wrap; }
+    .rep-name { font-weight: 600; font-size: 13px; }
+    .rep-add { display: flex; gap: 6px; align-items: center; }
+    .rep-add select { font-size: 12px; padding: 4px 8px; border-radius: var(--radius-md);
+                      border: 0.5px solid var(--border-med); background: var(--bg); color: var(--text); height: 30px; max-width: 220px; }
+    .firm-tags { display: flex; flex-wrap: wrap; gap: 6px; min-height: 24px; }
+    .firm-tag { display: inline-flex; align-items: center; gap: 4px; background: var(--bg);
+                border: 0.5px solid var(--border-med); border-radius: 99px; padding: 3px 8px 3px 10px; font-size: 11px; }
+    .tag-remove { cursor: pointer; border: none; background: none; color: var(--text-muted);
+                  font-size: 14px; line-height: 1; padding: 0; width: 16px; height: 16px;
+                  display: flex; align-items: center; justify-content: center;
+                  border-radius: 50%; transition: background .1s; }
+    .tag-remove:hover { background: var(--red-light); color: var(--red); }
+
+    .config-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .config-table th { text-align: left; padding: 7px 10px; font-size: 11px; font-weight: 600;
+                       text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted);
+                       border-bottom: 0.5px solid var(--border); }
+    th[title], .kpi[title] { cursor: help; }
+    th[title]:hover { color: var(--blue); transition: color .15s; }
+    .config-table td { padding: 7px 10px; border-bottom: 0.5px solid var(--border); vertical-align: middle; }
+    .config-table tr:last-child td { border-bottom: none; }
+    .config-table tr:hover td { background: var(--bg-secondary); }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📊 Weryfikator Abonamentów</h1>
+  <div id="dbStatus">
+    <div class="db-pill"><span class="db-dot" id="dbDot"></span><span id="dbDevices">Łączenie…</span></div>
+    <div class="db-pill" id="dbMonthsPill" style="display:none"><span id="dbMonths"></span></div>
+  </div>
+</header>
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('import')">⬆ Import</button>
+  <button class="tab-btn"        onclick="switchTab('report')">📊 Raport</button>
+  <button class="tab-btn"        onclick="switchTab('monitor')">📈 Monitoring</button>
+  <button class="tab-btn"        onclick="switchTab('firstpay')">🆕 Nowe płatności</button>
+  <button class="tab-btn"        onclick="switchTab('config')">⚙ Konfiguracja</button>
+</div>
+
+<!-- ══════════════════ IMPORT TAB ══════════════════ -->
+<div class="tab-panel active" id="tab-import">
+<div class="container">
+
+  <div class="section-card">
+    <div class="section-title">🏭 Baza produkcji — zestawienie urządzeń</div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:.75rem">
+      Wgraj jeden lub więcej plików (upsert). Klasyfikacja automatyczna:
+      <strong>OEM</strong> = maszyna zawiera "OEM" · <strong>Master</strong> = model kończy się na "M" · <strong>Slave</strong> = pozostałe
+    </p>
+    <div class="upload-grid">
+      <div>
+        <label class="upload-zone" id="zoneP">
+          <div class="uz-icon">📂</div>
+          <div class="uz-hint">Kliknij lub przeciągnij .xlsx / .csv / .ods<br>(możesz wgrać wiele plików naraz)</div>
+          <div class="uz-name" id="nameP">Nie wybrano pliku</div>
+          <input type="file" id="fileP" accept=".xlsx,.xls,.csv,.ods" multiple style="display:none">
+        </label>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="primary" id="btnProd" disabled onclick="importProduction()">⬆ Importuj produkcję</button>
+    </div>
+    <div class="msg" id="msgProd"></div>
+  </div>
+
+  <div class="section-card">
+    <div class="section-title">💳 Płatności — miesięczny import</div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:.75rem">
+      Obsługuje format IDS (FS_DataWystawienia), tabelę przestawną lub miesięczne zestawienie.
+    </p>
+    <div class="upload-single">
+      <label class="upload-zone" id="zonePay">
+        <div class="uz-icon">📂</div>
+        <div class="uz-hint">Kliknij lub przeciągnij .xlsx / .csv / .ods</div>
+        <div class="uz-name" id="namePay">Nie wybrano pliku</div>
+        <input type="file" id="filePay" accept=".xlsx,.xls,.csv,.ods" style="display:none">
+      </label>
+    </div>
+    <div class="month-row">
+      <label for="yearMonth">Miesiąc płatności (tylko dla pliku miesięcznego):</label>
+      <input type="month" id="yearMonth">
+    </div>
+    <div class="btn-row">
+      <button class="primary" id="btnPay" disabled onclick="importPayments()">⬆ Importuj płatności</button>
+      <button class="danger" onclick="confirmClearPayments()">🗑 Wyczyść miesiąc…</button>
+    </div>
+    <div class="msg" id="msgPay"></div>
+  </div>
+
+</div>
+</div>
+
+<!-- ══════════════════ REPORT TAB ══════════════════ -->
+<div class="tab-panel" id="tab-report">
+<div class="container">
+
+  <div class="btn-row" style="margin-bottom:1rem">
+    <button class="primary" onclick="loadReport()">🔄 Wczytaj / Odśwież raport</button>
+    <span class="msg" id="msgReport" style="margin:0"></span>
+  </div>
+
+  <div id="dashboard" style="display:none">
+
+    <!-- KPIs -->
+    <div class="kpi-grid">
+      <div class="kpi"       title="Łączna liczba urządzeń w bazie — z pliku produkcji oraz z pliku płatności (FULL OUTER JOIN)">
+        <div class="kpi-label">Łącznie urządzeń</div>  <div class="kpi-value" id="kpiTotal">—</div></div>
+      <div class="kpi green" title="Urządzenia typu master z co najmniej jedną zarejestrowaną płatnością abonamentu">
+        <div class="kpi-label">Opłacone</div>           <div class="kpi-value" id="kpiPaid">—</div></div>
+      <div class="kpi red"   title="Urządzenia typu master bez żadnej płatności abonamentu — potencjalne zaległości">
+        <div class="kpi-label">Brak opłaty (master)</div><div class="kpi-value" id="kpiUnpaid">—</div></div>
+      <div class="kpi teal"  title="Urządzenia typu OEM lub należące do firm wykluczonych z abonamentu — nie są wliczane do bilansu">
+        <div class="kpi-label">Bez opłat (OEM/wykl.)</div><div class="kpi-value" id="kpiNoBill">—</div></div>
+      <div class="kpi amber" title="Opłacone masterów ÷ (Opłacone + Brak opłaty) × 100%&#10;— ile procent aktywnych masterów ma zarejestrowaną płatność">
+        <div class="kpi-label">% pokrycia masterów</div><div class="kpi-value" id="kpiPct">—</div></div>
+    </div>
+
+    <!-- Charts row 1 -->
+    <div class="charts-row col2">
+      <div class="chart-card">
+        <div class="chart-title">Status abonamentów</div>
+        <div class="legend" id="pieLegend"></div>
+        <div style="position:relative;height:200px"><canvas id="chartPie"></canvas></div>
+        <div class="chart-hint">💡 Kliknij segment aby przefiltrować tabelę</div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Urządzenia wg miesiąca produkcji</div>
+        <div class="legend">
+          <span><span class="leg-sq" style="background:#1D9E75"></span>Opłacone</span>
+          <span><span class="leg-sq" style="background:#E24B4A"></span>Brak opłaty</span>
+        </div>
+        <div style="position:relative;height:200px"><canvas id="chartBar"></canvas></div>
+        <div class="chart-hint">💡 Kliknij słupek aby zobaczyć dany miesiąc</div>
+      </div>
+    </div>
+
+    <!-- Charts row 2 -->
+    <div class="charts-row col2">
+      <div class="chart-card">
+        <div class="chart-title">Abonament wg handlowca</div>
+        <div class="legend">
+          <span><span class="leg-sq" style="background:#1D9E75"></span>Opłacone</span>
+          <span><span class="leg-sq" style="background:#E24B4A"></span>Brak opłaty</span>
+        </div>
+        <div style="position:relative;height:240px"><canvas id="chartRep"></canvas></div>
+        <div class="chart-hint">💡 Kliknij aby przefiltrować wg handlowca</div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Typy urządzeń</div>
+        <div class="legend" id="typeLegend"></div>
+        <div style="position:relative;height:240px"><canvas id="chartType"></canvas></div>
+        <div class="chart-hint">💡 Kliknij aby przefiltrować wg typu</div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filters-bar" id="filtersBar">
+      <input type="text" id="fSearch" oninput="onFilterChange()" placeholder="🔍 Szukaj: SN, firma, maszyna, klient…" autocomplete="off">
+      <select id="fStatus" onchange="onFilterChange()">
+        <option value="">Wszystkie statusy</option>
+        <option value="paid">Opłacone</option>
+        <option value="unpaid">Brak opłaty</option>
+        <option value="only">Brak w produkcji</option>
+        <option value="excluded">Wykluczone (firma)</option>
+        <option value="showroom">Showroom</option>
+        <option value="oem">OEM</option>
+      </select>
+      <select id="fDeviceType" onchange="onFilterChange()">
+        <option value="">Wszystkie typy</option>
+        <option value="master">Master</option>
+        <option value="showroom">Showroom</option>
+        <option value="oem">OEM</option>
+      </select>
+      <select id="fRep"      onchange="onFilterChange()"><option value="">Wszyscy handlowcy</option></select>
+      <select id="fCustomer" onchange="onFilterChange()"><option value="">Wszyscy klienci</option></select>
+      <select id="fOperator" onchange="onFilterChange()"><option value="">Wszyscy operatorzy</option></select>
+      <input type="month" id="fDateFrom" onchange="onFilterChange()" title="Data produkcji od">
+      <input type="month" id="fDateTo"   onchange="onFilterChange()" title="Data produkcji do">
+      <select id="fOverdue" onchange="onFilterChange()" title="Zaległość w płatności abonamentu (tylko mastery)">
+        <option value="">Wszystkie zaległości</option>
+        <option value="1">Zaległość &gt; 1 mies.</option>
+        <option value="3">Zaległość &gt; 3 mies.</option>
+        <option value="6">Zaległość &gt; 6 mies.</option>
+        <option value="12">Zaległość &gt; 12 mies.</option>
+        <option value="24">Zaległość &gt; 24 mies.</option>
+      </select>
+      <button class="ghost sm" onclick="clearFilters()" title="Wyczyść wszystkie filtry">✕ Wyczyść</button>
+      <div class="spacer"></div>
+      <div class="export-btns">
+        <button onclick="exportCSV()">📄 CSV</button>
+        <button onclick="exportXLSX()">📊 XLSX</button>
+      </div>
+    </div>
+
+    <!-- legenda handlowców -->
+    <div id="repLegend" style="display:none;padding:6px 16px 4px;flex-wrap:wrap;gap:6px;align-items:center;border-bottom:0.5px solid var(--border)"></div>
+
+    <!-- Bulk action bar (appears when rows are selected) -->
+    <div id="bulkBar">
+      <span id="bulkCount" style="font-weight:600"></span>
+      <span style="color:var(--text-muted)">zaznaczonych — zmień typ na:</span>
+      <button class="ghost sm" onclick="bulkChangeType('master')">🔵 Master</button>
+      <button class="ghost sm" onclick="bulkChangeType('oem')">⚪ OEM</button>
+      <button class="ghost sm" onclick="bulkChangeType('')">🔄 Auto</button>
+      <button class="ghost sm" style="margin-left:auto" onclick="clearSelection()">✕ Odznacz</button>
+    </div>
+
+    <div class="table-wrap" id="tableWrap">
+      <table>
+        <thead><tr>
+          <th style="width:32px;text-align:center">
+            <input type="checkbox" id="chkAll" title="Zaznacz wszystkie"
+                   onchange="toggleSelectAll(this.checked)"
+                   style="width:14px;height:14px;cursor:pointer">
+          </th>
+          <th title="Status abonamentu:&#10;• Opłacone — urządzenie ma co najmniej jedną płatność w bazie&#10;• Brak opłaty — jest w produkcji, ale brak jakiejkolwiek płatności&#10;• OEM — typ urządzenia to OEM (producent, nie naliczamy abonamentu)&#10;• Wykluczone — firma ręcznie wykluczona z abonamentu (patrz Konfiguracja)&#10;• Brak w prod. — płatność istnieje, ale nie ma urządzenia w bazie produkcji">Status</th>
+          <th title="Typ urządzenia:&#10;• master — urządzenie główne (podlega abonamentowi)&#10;• oem — producent / demonstracyjne (bez abonamentu)&#10;• showroom — urządzenie wystawowe (tymczasowo bez abonamentu)&#10;&#10;Typ wykrywany automatycznie z nazwy maszyny (zawiera 'OEM') lub ustawiany ręcznie przez kliknięcie ikony 🔧 w wierszu.">Typ</th>
+          <th title="Unikalny numer seryjny urządzenia z pliku produkcji (lub z pliku płatności, jeśli brak w produkcji)">Numer seryjny</th>
+          <th title="Nazwa klienta z pliku płatności IDS — firma, która opłaca abonament (może różnić się od firmy z produkcji)">Klient</th>
+          <th title="Nazwa firmy z pliku produkcji — firma, u której zainstalowano urządzenie">Firma (produkcja)</th>
+          <th title="Model urządzenia z pliku produkcji">Maszyna</th>
+          <th title="Handlowcy przypisani do tej firmy — konfigurowane ręcznie w zakładce Konfiguracja">Handlowcy</th>
+          <th title="Operator urządzenia z pliku produkcji">Operator</th>
+          <th title="Data produkcji urządzenia z pliku produkcji (format YYYY-MM-DD)">Data prod.</th>
+          <th title="Miesiąc pierwszej zarejestrowanej płatności abonamentu (format YYYY-MM)">Pierwsza opłata</th>
+          <th title="Miesiąc ostatniej zarejestrowanej płatności abonamentu (format YYYY-MM)">Ostatnia opłata</th>
+          <th title="Łączna liczba miesięcy, za które zarejestrowano płatność abonamentu&#10;(może być więcej niż okres od pierwszej do ostatniej opłaty, jeśli brak przerw)">Mies.</th>
+          <th title="Notatka tekstowa przypisana do urządzenia — kliknij 🔧 w wierszu aby edytować">💬</th>
+        </tr></thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+    <div id="paginationBar" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+         padding:8px 4px;font-size:12px;color:var(--text-muted)">
+      <button id="pgPrev" class="ghost sm" onclick="goPage(-1)" disabled>‹ Poprzednia</button>
+      <span id="pgInfo"></span>
+      <button id="pgNext" class="ghost sm" onclick="goPage(+1)" disabled>Następna ›</button>
+      <span style="margin-left:auto;display:flex;align-items:center;gap:6px">
+        Wiersze:
+        <input id="pgSize" type="number" min="10" max="5000" value="100"
+               onchange="onPageSizeChange()"
+               style="width:64px;height:26px;font-size:12px;text-align:center;
+                      border:0.5px solid var(--border-med);border-radius:var(--radius-sm);
+                      background:var(--bg);color:var(--text);padding:0 6px">
+        na stronę
+      </span>
+      <span id="rowCount" style="color:var(--text-muted)"></span>
+    </div>
+
+  </div>
+
+  <div class="empty-state" id="emptyState">
+    <div class="es-icon">📭</div>
+    <p>Kliknij „Wczytaj raport" aby pobrać dane z bazy.</p>
+  </div>
+
+</div>
+</div>
+
+<!-- ══════════════════ MONITOR TAB ══════════════════ -->
+<div class="tab-panel" id="tab-monitor">
+<div class="container">
+
+  <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:1.25rem">
+    <div>
+      <div style="font-size:15px;font-weight:600;margin-bottom:2px">📈 Monitoring nowych masterów</div>
+      <div style="font-size:12px;color:var(--text-muted)">Sprawdź które mastery zaczęły płacić abonament i kiedy</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap">
+      <label style="font-size:12px;color:var(--text-muted)">Klient:</label>
+      <select id="monFirma" onchange="renderMonitoring()"
+              style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);
+                     border:0.5px solid var(--border-med);background:var(--bg);color:var(--text);min-width:180px">
+        <option value="">Wszyscy klienci</option>
+      </select>
+      <label style="font-size:12px;color:var(--text-muted)">Produkcja od:</label>
+      <input type="month" id="monProdFrom"
+             style="height:32px;font-size:12px;padding:5px 10px;border-radius:var(--radius-md);
+                    border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+      <button class="primary" onclick="renderMonitoring()" style="height:32px">Zastosuj</button>
+    </div>
+    <span class="msg" id="msgMonitor" style="margin:0"></span>
+  </div>
+
+  <div id="monitorContent">
+    <div class="empty-state">
+      <div class="es-icon">📈</div>
+      <p>Wybierz datę początkową i kliknij „Zastosuj".</p>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<!-- ══════════════════ OVERRIDE DIALOG ══════════════════ -->
+<dialog id="overrideModal">
+  <div class="dialog-header">
+    <div style="font-size:15px;font-weight:600;margin-bottom:6px">🔧 Zmień typ urządzenia</div>
+    <div style="font-size:12px;color:var(--text-muted)">
+      SN: <strong id="ovSN">—</strong> &nbsp;·&nbsp; Maszyna: <strong id="ovMaszyna">—</strong>
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:4px" id="ovCurrentInfo"></div>
+  </div>
+  <div class="dialog-body" style="display:flex;flex-direction:column;gap:8px">
+    <button id="ovBtnMaster" onclick="applyOverride('master')" style="text-align:left;padding:10px 14px">
+      <strong style="color:var(--amber)">🔵 Master</strong>
+      <span style="display:block;font-size:11px;color:var(--text-muted);margin-top:2px">Wymaga abonamentu miesięcznego</span>
+    </button>
+    <button id="ovBtnOem" onclick="applyOverride('oem')" style="text-align:left;padding:10px 14px">
+      <strong style="color:var(--gray)">⚪ OEM</strong>
+      <span style="display:block;font-size:11px;color:var(--text-muted);margin-top:2px">Nie podlega abonamentowi</span>
+    </button>
+    <button id="ovBtnShowroom" onclick="toggleShowroomPicker()" style="text-align:left;padding:10px 14px">
+      <strong style="color:var(--teal)">🏪 Master Showroom</strong>
+      <span style="display:block;font-size:11px;color:var(--text-muted);margin-top:2px">Zwolniony z abonamentu do określonej daty</span>
+    </button>
+    <div id="ovShowroomRow" style="display:none;padding:8px 12px;background:var(--bg-secondary);
+         border-radius:var(--radius-md);border:0.5px solid var(--teal)">
+      <label style="font-size:12px;color:var(--text-muted);display:block;margin-bottom:6px">
+        Zwolniony z abonamentu <strong>do końca miesiąca:</strong>
+      </label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="month" id="ovShowroomUntil"
+               style="font-size:12px;padding:5px 10px;border-radius:var(--radius-md);
+                      border:0.5px solid var(--border-med);background:var(--bg);color:var(--text);height:32px">
+        <button class="primary" style="height:32px;font-size:12px;padding:0 14px"
+                onclick="applyOverride('showroom')">✓ Zastosuj Showroom</button>
+      </div>
+    </div>
+    <button id="ovBtnAuto" onclick="applyOverride('')" style="text-align:left;padding:10px 14px;border-style:dashed">
+      <strong>🔄 Auto (reset)</strong>
+      <span style="display:block;font-size:11px;color:var(--text-muted);margin-top:2px">Wykryj automatycznie na podstawie nazwy maszyny</span>
+    </button>
+  </div>
+  <div style="padding:0 1.5rem .75rem">
+    <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">
+      💬 Komentarz (opcjonalny)
+    </label>
+    <textarea id="ovComment" rows="3" placeholder="Notatka do urządzenia…"
+              style="width:100%;box-sizing:border-box;resize:vertical;font-size:12px;
+                     padding:7px 10px;border-radius:var(--radius-md);
+                     border:0.5px solid var(--border-med);background:var(--bg);color:var(--text);
+                     font-family:inherit"></textarea>
+  </div>
+  <div class="dialog-footer" style="gap:8px">
+    <button class="ghost" onclick="document.getElementById('overrideModal').close()">Anuluj</button>
+    <button class="primary" style="font-size:12px;padding:0 16px;height:32px"
+            onclick="saveComment()">💾 Zapisz komentarz</button>
+  </div>
+</dialog>
+
+<!-- ══════════════════ FIRSTPAY TAB ══════════════════ -->
+<div class="tab-panel" id="tab-firstpay">
+<div class="container">
+
+  <div class="section-card" style="margin-bottom:1rem">
+    <div class="section-title">🆕 Pierwsze płatności IDS</div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:1rem">
+      Urządzenia, których <strong>pierwsza płatność abonamentu</strong> wpłynęła w wybranym miesiącu.
+    </p>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Od miesiąca</label>
+        <input type="month" id="fpMonth" style="height:34px">
+      </div>
+      <div id="fpMonthToWrap">
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Do miesiąca</label>
+        <input type="month" id="fpMonthTo" style="height:34px" placeholder="(opcjonalnie)">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Handlowiec</label>
+        <select id="fpRep" style="height:34px"><option value="">Wszyscy handlowcy</option></select>
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Klient</label>
+        <select id="fpCustomer" onchange="applyFpFilter()" style="height:34px;min-width:200px">
+          <option value="">Wszyscy klienci</option>
+        </select>
+      </div>
+      <button class="primary" style="height:34px" onclick="runFirstPaySearch()">🔍 Pokaż</button>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);
+                    height:34px;cursor:pointer;user-select:none">
+        <input type="checkbox" id="fpGapsOnly" onchange="applyFpFilter()"
+               style="width:14px;height:14px;cursor:pointer">
+        Tylko z przerwami
+      </label>
+    </div>
+    <div class="msg" id="msgFp" style="margin-top:.75rem"></div>
+  </div>
+
+  <div id="fpResults" style="display:none">
+
+    <!-- Summary bar -->
+    <div id="fpSummary" style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;
+         padding:10px 16px;background:var(--bg);border:0.5px solid var(--border);
+         border-radius:var(--radius-md);margin-bottom:1rem;font-size:13px"></div>
+
+    <!-- Table -->
+    <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th style="width:32px" title="Rozwiń historię płatności dla urządzenia"></th>
+        <th title="Numer seryjny urządzenia i model maszyny z pliku produkcji">Numer seryjny / Model</th>
+        <th title="Firma z pliku produkcji — u której zainstalowano urządzenie">Firma (produkcja)</th>
+        <th title="Klient z pliku płatności IDS — firma opłacająca abonament">Klient</th>
+        <th title="Handlowcy przypisani do tej firmy w Konfiguracji">Handlowcy</th>
+        <th title="Data produkcji urządzenia z pliku produkcji">Data prod.</th>
+        <th title="Łączna liczba miesięcy, za które zarejestrowano płatność abonamentu&#10;⚠ Ikona 'przerwa' pojawia się gdy liczba opłat jest mniejsza niż oczekiwana (od 1. do ostatniej płatności)">Mies. łącznie</th>
+      </tr></thead>
+      <tbody id="fpBody"></tbody>
+    </table>
+    </div>
+
+  </div>
+
+</div>
+</div>
+
+<!-- ══════════════════ CONFIG TAB ══════════════════ -->
+<div class="tab-panel" id="tab-config">
+<div class="container">
+
+  <!-- Overrides panel (full width) -->
+  <div class="section-card" style="margin-bottom:1rem">
+    <div class="section-title">🔧 Ręczne nadpisania typów urządzeń</div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:1rem">
+      Urządzenia gdzie automatyczna klasyfikacja jest błędna. Kliknij odznakę
+      <span class="dt-badge master" style="cursor:default">Master ✎</span> lub
+      <span class="dt-badge oem" style="cursor:default">OEM ✎</span>
+      w tabeli Raportu aby zmienić typ. Poniżej lista aktywnych nadpisań.
+    </p>
+    <div class="msg" id="msgOverrides"></div>
+    <table class="config-table" id="overridesTable" style="margin-top:.5rem">
+      <thead><tr>
+        <th title="Numer seryjny urządzenia">SN</th>
+        <th title="Firma z pliku produkcji">Firma</th>
+        <th title="Model urządzenia z pliku produkcji">Maszyna</th>
+        <th title="Ręcznie ustawiony typ urządzenia (nadpisuje automatyczne wykrywanie na podstawie nazwy maszyny)">Nadpisany typ</th>
+        <th style="width:70px"></th>
+      </tr></thead>
+      <tbody id="overridesList">
+        <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1rem">Ładowanie…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="config-grid">
+
+    <!-- Exclusions -->
+    <div class="section-card">
+      <div class="section-title">🚫 Firmy wykluczone z abonamentu</div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:1rem">
+        Firmy na tej liście mają status „Wykluczone" — nie są wliczane do bilansu opłat.<br>
+        Urządzenia OEM (maszyna zawiera „OEM") są wykluczone automatycznie.
+      </p>
+      <div class="input-row">
+        <div class="input-group">
+          <label>Nazwa firmy</label>
+          <input type="text" id="newExcFirma" list="firmsSuggestions" placeholder="Wpisz lub wybierz firmę…" autocomplete="off">
+          <datalist id="firmsSuggestions"></datalist>
+        </div>
+        <div class="input-group">
+          <label>Powód (opcjonalnie)</label>
+          <input type="text" id="newExcReason" placeholder="np. OEM, licencja">
+        </div>
+        <button class="primary" style="align-self:flex-end;height:34px" onclick="addExclusion()">+ Dodaj</button>
+      </div>
+      <div class="msg" id="msgExc"></div>
+      <table class="config-table">
+        <thead><tr>
+          <th title="Nazwa firmy wykluczonej z naliczania abonamentu — wszystkie jej urządzenia mają status 'Wykluczone'">Firma</th>
+          <th title="Powód wykluczenia (np. OEM, licencja, własność IDS)">Powód</th>
+          <th style="width:60px"></th>
+        </tr></thead>
+        <tbody id="exclusionsList">
+          <tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:1.5rem">Ładowanie…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Reps -->
+    <div class="section-card">
+      <div class="section-title">👥 Handlowcy — przypisanie firm</div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:1rem">
+        Przypisz firmy do handlowców. Firma może mieć wielu handlowców.
+      </p>
+      <div class="msg" id="msgReps"></div>
+      <div class="rep-list" id="repsList">
+        <div style="text-align:center;color:var(--text-muted);padding:1.5rem">Ładowanie…</div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+</div>
+
+<!-- ══════════════════════════════ SCRIPT ══════════════════════════════ -->
+<script>
+const API = 'http://localhost:8001';
+
+let results     = [];
+let filtered    = [];
+let currentPage = 1;
+let pageSize    = 100;
+let selectedSNs = new Set();   // for bulk selection
+let allFirms = [];
+
+let pieChart  = null, barChart = null, repChart = null, typeChart = null;
+// For click-to-filter: store what each chart bar/slice maps to
+let _pieMap  = [];   // status values per slice
+let _repMap  = [];   // rep names per bar
+let _typeMap = [];   // device_type values per bar
+let _barMap  = [];   // prod_date month values per bar
+
+// ── tab switching ──────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.currentTarget.classList.add('active');
+  if (name === 'report')   loadReport();
+  if (name === 'monitor')  loadMonitoringTab();
+  if (name === 'firstpay') loadFirstPayTab();
+  if (name === 'config')   loadConfig();
+}
+
+// ── db status bar ──────────────────────────────────────────────────────
+async function refreshStatus() {
+  try {
+    const r = await fetch(`${API}/status`);
+    if (!r.ok) throw 0;
+    const d = await r.json();
+    document.getElementById('dbDot').className = 'db-dot green';
+    document.getElementById('dbDevices').textContent = `${d.devices} urządzeń w bazie`;
+    const mp = document.getElementById('dbMonthsPill');
+    if (d.months.length) {
+      mp.style.display = 'flex';
+      const range = d.months.length > 1
+        ? `${d.months[0]} — ${d.months[d.months.length-1]} (${d.months.length} mies.)`
+        : d.months[0];
+      document.getElementById('dbMonths').textContent = '📅 ' + range;
+    } else { mp.style.display = 'none'; }
+  } catch {
+    document.getElementById('dbDot').className = 'db-dot red';
+    document.getElementById('dbDevices').textContent = 'Brak połączenia z API';
+  }
+}
+refreshStatus();
+
+// ── helpers ────────────────────────────────────────────────────────────
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+// YYYY-MM-DD → "DD.MM.YYYY"  |  YYYY-MM → "MM.YYYY"  |  '' → '—'
+function fmtDate(d) {
+  if (!d || d === '') return '—';
+  const s = String(d);
+  if (s.length >= 10 && s[4] === '-' && s[7] === '-') {
+    // Full date YYYY-MM-DD
+    const [y, mo, dy] = s.slice(0,10).split('-');
+    return `${dy}.${mo}.${y}`;
+  }
+  if (s.length >= 7 && s[4] === '-') {
+    // Month only YYYY-MM (legacy)
+    const [y, mo] = s.slice(0,7).split('-');
+    return `${mo}.${y}`;
+  }
+  return s.slice(0,7);
+}
+function setMsg(id, text, type='') {
+  const el = document.getElementById(id);
+  el.textContent = text; el.className = 'msg' + (type ? ' '+type : '');
+}
+
+const STATUS_LABELS = { paid:'Opłacone', unpaid:'Brak opłaty',
+                        only:'Brak w prod.', excluded:'Wykluczone',
+                        showroom:'Showroom', oem:'OEM' };
+const DT_LABELS     = { master:'Master', oem:'OEM', showroom:'Showroom' };
+
+function statusBadge(s) { return `<span class="badge ${s}">${STATUS_LABELS[s]||s}</span>`; }
+
+// ── rep color chips ────────────────────────────────────────────────────
+const REP_PALETTE = [
+  '#2563EB', // niebieski
+  '#16a34a', // zielony
+  '#dc2626', // czerwony
+  '#9333ea', // fioletowy
+  '#d97706', // pomarańczowy
+  '#0891b2', // cyjan
+  '#db2777', // różowy
+  '#059669', // szmaragdowy
+  '#7c3aed', // indygo
+  '#b45309', // brązowy
+];
+
+let repColorMap = {}; // name → { color, initials }
+
+function getInitials(name) {
+  if (!name) return '?';
+  const parts = name.split(/[\s\-]+/).filter(Boolean);
+  if (parts.length === 1) return parts[0].slice(0, 3).toUpperCase();
+  return parts.map(p => p[0].toUpperCase()).join('');
+}
+
+function buildRepColorMap(repSet) {
+  repColorMap = {};
+  [...repSet].sort().forEach((name, i) => {
+    repColorMap[name] = {
+      color: REP_PALETTE[i % REP_PALETTE.length],
+      initials: getInitials(name),
+    };
+  });
+}
+
+function repChip(name) {
+  const info = repColorMap[name];
+  if (!info) return `<span style="font-size:11px;color:var(--text-muted)">${esc(name)}</span>`;
+  const c = info.color;
+  return `<span class="rep-chip" style="background:${c}22;color:${c};border:1px solid ${c}55" title="${esc(name)}">${esc(info.initials)}</span>`;
+}
+
+function repChips(handlowcy) {
+  if (!handlowcy) return '<span style="color:var(--text-muted)">—</span>';
+  const names = handlowcy.split(', ').map(s => s.trim()).filter(Boolean);
+  return names.map(repChip).join(' ');
+}
+
+function renderRepLegend() {
+  const el = document.getElementById('repLegend');
+  if (!el) return;
+  const entries = Object.entries(repColorMap).sort((a,b) => a[0].localeCompare(b[0]));
+  if (!entries.length) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  el.innerHTML = entries.map(([name, info]) => {
+    const c = info.color;
+    return `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--text-muted)">
+      <span class="rep-chip" style="background:${c}22;color:${c};border:1px solid ${c}55">${esc(info.initials)}</span>
+      <span>${esc(name)}</span>
+    </span>`;
+  }).join('');
+}
+
+// dt = computed type, override = raw override value ('' = auto), showroomUntil = YYYY-MM
+function dtBadge(dt, sn, override, showroomUntil='') {
+  if (!dt) return '—';
+  if (dt === 'showroom') {
+    const expired = showroomUntil && showroomUntil < nowYM();
+    const cls = 'dt-badge showroom override-set' + (expired ? ' expired' : '');
+    const untilTxt = showroomUntil ? ` do ${showroomUntil}` : '';
+    const expiredTxt = expired ? ' ⚠ wygasł!' : '';
+    const tip = `title="Showroom${untilTxt}${expiredTxt}. Kliknij aby zmienić."`;
+    return `<span class="${cls}" data-action="open-override" data-sn="${esc(sn)}" ${tip}>🏪${untilTxt}${expiredTxt} ✏</span>`;
+  }
+  const cls  = override ? 'dt-badge ' + dt + ' override-set' : 'dt-badge ' + dt;
+  const icon = override ? ' ✏' : ' ✎';
+  const tip  = override
+    ? `title="Ręcznie: ${DT_LABELS[override]||override}. Kliknij aby zmienić."`
+    : `title="Auto-wykryty. Kliknij aby nadpisać."`;
+  return `<span class="${cls}" data-action="open-override" data-sn="${esc(sn)}" ${tip}>${DT_LABELS[dt]||dt}${icon}</span>`;
+}
+
+// ── summary computation (client-side, works on any filtered set) ──────
+function computeSummary(data) {
+  let paid=0, unpaid=0, only=0, excluded=0, oem=0, showroom=0, masterPaid=0;
+  for (const r of data) {
+    if      (r.status==='paid')     { paid++;     if (r.device_type==='master') masterPaid++; }
+    else if (r.status==='unpaid')   unpaid++;
+    else if (r.status==='only')     only++;
+    else if (r.status==='excluded') excluded++;
+    else if (r.status==='oem')      oem++;
+    else if (r.status==='showroom') showroom++;
+  }
+  const noBill = oem + excluded + showroom;
+  const pct = (masterPaid+unpaid) > 0 ? Math.round(masterPaid/(masterPaid+unpaid)*100) : 0;
+  return { total:data.length, paid, unpaid, only, excluded, oem, showroom, noBill, masterPaid, pct };
+}
+
+function updateKpis(s) {
+  document.getElementById('kpiTotal').textContent  = s.total;
+  document.getElementById('kpiPaid').textContent   = s.paid;
+  document.getElementById('kpiUnpaid').textContent = s.unpaid;
+  document.getElementById('kpiNoBill').textContent = s.noBill;
+  document.getElementById('kpiPct').textContent    = s.pct + '%';
+}
+
+// ── drag-and-drop upload zones ─────────────────────────────────────────
+function setupZone(zoneId, inputId, nameId) {
+  const zone = document.getElementById(zoneId);
+  const inp  = document.getElementById(inputId);
+  inp.addEventListener('change', () => {
+    if (inp.files.length) {
+      document.getElementById(nameId).textContent = [...inp.files].map(f=>f.name).join(', ');
+      zone.classList.add('has-file'); checkImportReady();
+    }
+  });
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.background='var(--bg-tertiary)'; });
+  zone.addEventListener('dragleave', () => { zone.style.background=''; });
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.style.background='';
+    const dt = new DataTransfer();
+    [...e.dataTransfer.files].forEach(f => dt.items.add(f));
+    inp.files = dt.files;
+    document.getElementById(nameId).textContent = [...dt.files].map(f=>f.name).join(', ');
+    zone.classList.add('has-file'); checkImportReady();
+  });
+}
+setupZone('zoneP',   'fileP',   'nameP');
+setupZone('zonePay', 'filePay', 'namePay');
+
+function checkImportReady() {
+  document.getElementById('btnProd').disabled = !document.getElementById('fileP').files.length;
+  document.getElementById('btnPay').disabled  = !document.getElementById('filePay').files[0];
+}
+
+// ── import production ──────────────────────────────────────────────────
+async function importProduction() {
+  const files = document.getElementById('fileP').files;
+  if (!files.length) return;
+  document.getElementById('btnProd').disabled = true;
+  setMsg('msgProd', `⏳ Importuję ${files.length} plik(ów)…`);
+  const form = new FormData();
+  [...files].forEach(f => form.append('files', f));
+  try {
+    const r = await fetch(`${API}/import/production`, { method:'POST', body:form });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || r.statusText);
+    const warn = d.errors.length ? ` ⚠ ${d.errors.length} błędów: ${d.errors.join(' | ')}` : '';
+    setMsg('msgProd', `✓ Zaimportowano ${d.imported} urządzeń.${warn}`, d.errors.length?'':'ok');
+    refreshStatus();
+  } catch(e) { setMsg('msgProd', '❌ '+e.message, 'err'); }
+  finally    { checkImportReady(); }
+}
+
+// ── import payments ────────────────────────────────────────────────────
+async function importPayments() {
+  const file = document.getElementById('filePay').files[0];
+  if (!file) return;
+  document.getElementById('btnPay').disabled = true;
+  setMsg('msgPay', '⏳ Importuję płatności…');
+  const form = new FormData();
+  form.append('file', file);
+  const ym = document.getElementById('yearMonth').value;
+  if (ym) form.append('year_month', ym);
+  try {
+    const r = await fetch(`${API}/import/payments`, { method:'POST', body:form });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || r.statusText);
+    setMsg('msgPay', `✓ Zaimportowano ${d.inserted} rekordów. Miesiące: ${d.months.join(', ')}`, 'ok');
+    refreshStatus();
+  } catch(e) { setMsg('msgPay', '❌ '+e.message, 'err'); }
+  finally    { checkImportReady(); }
+}
+
+async function confirmClearPayments() {
+  const ym = document.getElementById('yearMonth').value;
+  if (!confirm(ym ? `Usunąć płatności za ${ym}?` : 'Usunąć WSZYSTKIE płatności? (urządzenia pozostaną)')) return;
+  try {
+    const url = ym ? `${API}/import/payments?year_month=${ym}` : `${API}/import/payments`;
+    const d = await (await fetch(url, {method:'DELETE'})).json();
+    setMsg('msgPay', `✓ Usunięto ${d.deleted} rekordów.`, 'ok');
+    refreshStatus();
+  } catch(e) { setMsg('msgPay', '❌ '+e.message, 'err'); }
+}
+
+// ── load report ────────────────────────────────────────────────────────
+async function loadReport() {
+  setMsg('msgReport', '⏳ Ładuję z bazy…');
+  document.getElementById('dashboard').style.display  = 'none';
+  document.getElementById('emptyState').style.display = 'block';
+  try {
+    const r = await fetch(`${API}/analyze`);
+    if (!r.ok) { const e=await r.json(); throw new Error(e.detail||r.statusText); }
+    const data = await r.json();
+    if (!data.results.length) { setMsg('msgReport','⚠ Baza pusta — najpierw zaimportuj dane.','err'); return; }
+    results = data.results;
+    populateFilters();
+    clearFilters(false);   // reset select values (no onChange yet)
+    document.getElementById('dashboard').style.display  = 'block';  // must be visible before Chart.js renders
+    document.getElementById('emptyState').style.display = 'none';
+    onFilterChange();      // render KPIs, charts, table with no active filters
+    setMsg('msgReport', `✓ ${data.results.length} urządzeń`, 'ok');
+  } catch(e) {
+    setMsg('msgReport', e.message.includes('fetch')
+      ? '❌ Brak połączenia z API — uruchom backend.' : '❌ '+e.message, 'err');
+  }
+}
+
+// ── populate filter dropdowns ──────────────────────────────────────────
+function populateFilters() {
+  const customers = [...new Set(results.map(r=>r.customer).filter(Boolean))].sort();
+  const operators  = [...new Set(results.map(r=>r.operator).filter(Boolean))].sort();
+  const repSet = new Set();
+  results.forEach(r => { if(r.handlowcy) r.handlowcy.split(', ').forEach(h=>repSet.add(h.trim())); });
+  buildRepColorMap(repSet);
+  renderRepLegend();
+  const reps = [...repSet].sort();
+
+  document.getElementById('fCustomer').innerHTML =
+    '<option value="">Wszyscy klienci</option>'+customers.map(c=>`<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  document.getElementById('fOperator').innerHTML =
+    '<option value="">Wszyscy operatorzy</option>'+operators.map(o=>`<option value="${esc(o)}">${esc(o)}</option>`).join('');
+  document.getElementById('fRep').innerHTML =
+    '<option value="">Wszyscy handlowcy</option>'+reps.map(h=>`<option value="${esc(h)}">${esc(h)}</option>`).join('');
+}
+
+// ── filter & update everything ─────────────────────────────────────────
+function onFilterChange() {
+  const q       = document.getElementById('fSearch').value.trim().toLowerCase();
+  const st      = document.getElementById('fStatus').value;
+  const dt      = document.getElementById('fDeviceType').value;
+  const rep     = document.getElementById('fRep').value;
+  const cu      = document.getElementById('fCustomer').value;
+  const op      = document.getElementById('fOperator').value;
+  const df      = document.getElementById('fDateFrom').value;
+  const dto     = document.getElementById('fDateTo').value;
+  const overdue = document.getElementById('fOverdue').value;
+
+  const curYM = nowYM();
+
+  filtered = results.filter(r => {
+    if (q) {
+      const hay = [r.sn, r.firma, r.maszyna, r.customer, r.operator, r.handlowcy]
+                    .join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    if (st  && r.status !== st)  return false;
+    if (dt  && r.device_type !== dt) return false;
+    if (rep && !r.handlowcy.includes(rep)) return false;
+    if (cu  && r.customer !== cu) return false;
+    if (op  && r.operator !== op) return false;
+    // prod_date may be YYYY-MM-DD or YYYY-MM — slice to YYYY-MM for comparison
+    if (df  && r.prod_date && r.prod_date.slice(0,7) < df)  return false;
+    if (dto && r.prod_date && r.prod_date.slice(0,7) > dto) return false;
+    if (overdue) {
+      const threshold = parseInt(overdue);
+      // Only meaningful for masters (not OEM / excluded / payment-only)
+      if (r.device_type !== 'master') return false;
+      if (r.status === 'oem' || r.status === 'excluded' || r.status === 'only') return false;
+      // Reference date: last_pay (lapsed) or prod_date (never paid)
+      const ref = (r.last_pay && r.last_pay !== '') ? r.last_pay.slice(0,7)
+                : (r.prod_date && r.prod_date !== '') ? r.prod_date.slice(0,7)
+                : null;
+      if (!ref) return false;
+      const gap = monthsDiff(ref, curYM);
+      if (gap === null || gap < threshold) return false;
+    }
+    return true;
+  });
+
+  // mark active filters visually
+  ['fSearch','fStatus','fDeviceType','fRep','fCustomer','fOperator','fDateFrom','fDateTo','fOverdue'].forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.toggle('filter-active', !!el.value);
+  });
+
+  const s = computeSummary(filtered);
+  updateKpis(s);
+  renderPie(filtered, s);
+  renderBar(filtered);
+  renderRepChart(filtered);
+  renderTypeChart(filtered);
+  currentPage = 1;   // reset to first page whenever filters change
+  renderTable(filtered);
+  document.getElementById('rowCount').textContent =
+    `Wyniki: ${filtered.length} z ${results.length} urządzeń`;
+}
+
+function clearFilters(reapply = true) {
+  ['fSearch','fStatus','fDeviceType','fRep','fCustomer','fOperator','fDateFrom','fDateTo','fOverdue'].forEach(id => {
+    const el = document.getElementById(id);
+    el.value = '';
+    el.classList.remove('filter-active');
+  });
+  if (reapply) onFilterChange();
+}
+
+// ── chart helper: make onClick handler ────────────────────────────────
+function makeClickHandler(mapRef, selectId, scrollToTable=true) {
+  return (evt, elements) => {
+    if (!elements.length) return;
+    const val = mapRef[elements[0].index];
+    if (val === undefined) return;
+    const sel = document.getElementById(selectId);
+    // Toggle: clicking same slice again clears filter
+    sel.value = sel.value === String(val) ? '' : String(val);
+    onFilterChange();
+    if (scrollToTable) {
+      setTimeout(() => document.getElementById('tableWrap')
+        .scrollIntoView({behavior:'smooth', block:'nearest'}), 80);
+    }
+  };
+}
+
+// ── pie chart ──────────────────────────────────────────────────────────
+function renderPie(data, s) {
+  const entries = [
+    { label:'Opłacone',    status:'paid',     val:s.paid,     color:'#1D9E75' },
+    { label:'Brak opłaty', status:'unpaid',   val:s.unpaid,   color:'#E24B4A' },
+    { label:'Bez opłat',   status:'free',     val:s.free,     color:'#0e7490' },
+    { label:'Brak w prod.',status:'only',     val:s.only,     color:'#BA7517' },
+    { label:'OEM',         status:'oem',      val:s.oem,      color:'#9ca3af' },
+    { label:'Wykluczone',  status:'excluded', val:s.excluded, color:'#2563EB' },
+  ].filter(e => e.val > 0);
+  _pieMap = entries.map(e => e.status);
+
+  document.getElementById('pieLegend').innerHTML = entries.map(e =>
+    `<span><span class="leg-sq" style="background:${e.color}"></span>${e.label}: ${e.val}</span>`
+  ).join('');
+
+  if (pieChart) pieChart.destroy();
+  pieChart = new Chart(document.getElementById('chartPie'), {
+    type: 'doughnut',
+    data: { labels: entries.map(e=>e.label),
+            datasets: [{ data: entries.map(e=>e.val), backgroundColor: entries.map(e=>e.color), borderWidth:0 }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      onClick: makeClickHandler(_pieMap, 'fStatus'),
+      onHover: (evt, els) => { evt.native.target.style.cursor = els.length ? 'pointer':'default'; },
+      plugins: {
+        legend: { display:false },
+        tooltip: { callbacks: { label: ctx => {
+          const sum = ctx.dataset.data.reduce((a,b)=>a+b,0);
+          return `${ctx.label}: ${ctx.raw} (${Math.round(ctx.raw/sum*100)}%)`;
+        }}}
+      }
+    }
+  });
+}
+
+// ── bar chart: by prod month ───────────────────────────────────────────
+function renderBar(data) {
+  const mm = {};
+  for (const r of data) {
+    if (r.status==='oem'||r.status==='excluded') continue;
+    const m = r.prod_date ? String(r.prod_date).slice(0,7) : 'Brak';
+    if (!mm[m]) mm[m] = {paid:0, unpaid:0};
+    if (r.status==='paid')   mm[m].paid++;
+    if (r.status==='unpaid') mm[m].unpaid++;
+  }
+  const labels = Object.keys(mm).sort();
+  _barMap = labels;
+
+  if (barChart) barChart.destroy();
+  barChart = new Chart(document.getElementById('chartBar'), {
+    type:'bar',
+    data: { labels,
+      datasets: [
+        { label:'Opłacone',    data:labels.map(l=>mm[l].paid),   backgroundColor:'#1D9E75', borderRadius:3 },
+        { label:'Brak opłaty', data:labels.map(l=>mm[l].unpaid), backgroundColor:'#E24B4A', borderRadius:3 }
+      ]},
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      onClick: (evt, elements) => {
+        if (!elements.length) return;
+        const month = _barMap[elements[0].index];
+        if (!month || month==='Brak') return;
+        const df = document.getElementById('fDateFrom');
+        const dt = document.getElementById('fDateTo');
+        // Toggle: clicking same month clears date filter
+        if (df.value === month && dt.value === month) {
+          df.value = ''; dt.value = '';
+        } else {
+          df.value = month; dt.value = month;
+        }
+        onFilterChange();
+        setTimeout(()=>document.getElementById('tableWrap').scrollIntoView({behavior:'smooth',block:'nearest'}),80);
+      },
+      onHover: (evt, els) => { evt.native.target.style.cursor = els.length?'pointer':'default'; },
+      scales: {
+        x: { stacked:true, ticks:{ autoSkip:false, maxRotation:45, font:{size:10} } },
+        y: { stacked:true, beginAtZero:true, ticks:{ stepSize:1 } }
+      },
+      plugins: { legend:{ display:false } }
+    }
+  });
+}
+
+// ── bar chart: by rep ──────────────────────────────────────────────────
+function renderRepChart(data) {
+  const repData = {};
+  for (const r of data) {
+    if (r.status!=='paid' && r.status!=='unpaid') continue;
+    const reps = r.handlowcy
+      ? r.handlowcy.split(', ').map(s=>s.trim()).filter(Boolean)
+      : ['Nieprzypisany'];
+    for (const rep of reps) {
+      if (!repData[rep]) repData[rep] = {paid:0, unpaid:0};
+      if (r.status==='paid')   repData[rep].paid++;
+      if (r.status==='unpaid') repData[rep].unpaid++;
+    }
+  }
+  const labels = Object.keys(repData).sort();
+  _repMap = labels;
+
+  if (repChart) repChart.destroy();
+  repChart = new Chart(document.getElementById('chartRep'), {
+    type:'bar',
+    data: { labels,
+      datasets: [
+        { label:'Opłacone',    data:labels.map(l=>repData[l].paid),   backgroundColor:'#1D9E75', borderRadius:3 },
+        { label:'Brak opłaty', data:labels.map(l=>repData[l].unpaid), backgroundColor:'#E24B4A', borderRadius:3 }
+      ]},
+    options: {
+      responsive:true, maintainAspectRatio:false, indexAxis:'y',
+      onClick: makeClickHandler(_repMap, 'fRep'),
+      onHover: (evt, els) => { evt.native.target.style.cursor = els.length?'pointer':'default'; },
+      scales: {
+        x: { stacked:true, beginAtZero:true },
+        y: { stacked:true, ticks:{ font:{size:11} } }
+      },
+      plugins: { legend:{ display:false } }
+    }
+  });
+}
+
+// ── bar chart: by device type ──────────────────────────────────────────
+function renderTypeChart(data) {
+  const types  = ['master','slave','oem',''];
+  const labels = { master:'Master', slave:'Slave', oem:'OEM', '':'Nieznany' };
+  const colors = { master:'#BA7517', slave:'#2563EB', oem:'#9ca3af', '':'#d1d5db' };
+
+  const counts = {};
+  for (const r of data) {
+    const dt = r.device_type||'';
+    if (!counts[dt]) counts[dt] = {paid:0, unpaid:0, other:0};
+    if (r.status==='paid')   counts[dt].paid++;
+    else if (r.status==='unpaid') counts[dt].unpaid++;
+    else                          counts[dt].other++;
+  }
+
+  const used = types.filter(t => counts[t] && (counts[t].paid+counts[t].unpaid+counts[t].other)>0);
+  _typeMap = used;
+
+  document.getElementById('typeLegend').innerHTML = used.map(t =>
+    `<span><span class="leg-sq" style="background:${colors[t]}"></span>${labels[t]}: ${
+      (counts[t]?.paid||0)+(counts[t]?.unpaid||0)+(counts[t]?.other||0)
+    }</span>`
+  ).join('');
+
+  if (typeChart) typeChart.destroy();
+  typeChart = new Chart(document.getElementById('chartType'), {
+    type:'bar',
+    data: { labels: used.map(t=>labels[t]),
+      datasets: [
+        { label:'Opłacone',    data:used.map(t=>counts[t]?.paid||0),   backgroundColor:'#1D9E75', borderRadius:3 },
+        { label:'Brak opłaty', data:used.map(t=>counts[t]?.unpaid||0), backgroundColor:'#E24B4A', borderRadius:3 },
+        { label:'Pozostałe',   data:used.map(t=>counts[t]?.other||0),  backgroundColor:'#9ca3af', borderRadius:3 }
+      ]},
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      onClick: makeClickHandler(_typeMap, 'fDeviceType'),
+      onHover: (evt, els) => { evt.native.target.style.cursor = els.length?'pointer':'default'; },
+      scales: {
+        x: { stacked:true, ticks:{ font:{size:11} } },
+        y: { stacked:true, beginAtZero:true }
+      },
+      plugins: { legend:{ display:false } }
+    }
+  });
+}
+
+// ── render table (with pagination) ────────────────────────────────────
+function renderTable(data) {
+  const tbody  = document.getElementById('tableBody');
+  const total  = data.length;
+  const pages  = Math.max(1, Math.ceil(total / pageSize));
+  if (currentPage > pages) currentPage = pages;
+
+  const start  = (currentPage - 1) * pageSize;
+  const end    = Math.min(start + pageSize, total);
+  const slice  = data.slice(start, end);
+
+  if (!total) {
+    tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;padding:2rem;color:var(--text-muted)">Brak wyników</td></tr>';
+  } else {
+    tbody.innerHTML = slice.map(r => {
+      const checked = selectedSNs.has(r.sn) ? ' checked' : '';
+      const comment = r.comment || '';
+      const commentCell = comment
+        ? `<td class="comment-cell has-comment" title="${esc(comment)}">${esc(comment.slice(0,30))}${comment.length>30?'…':''}</td>`
+        : `<td class="comment-cell" title="Brak komentarza">—</td>`;
+      return `<tr>
+        <td style="text-align:center;padding:6px 8px">
+          <input type="checkbox" data-sn="${esc(r.sn)}"${checked}
+                 onclick="toggleRowSelect(event,'${esc(r.sn)}')"
+                 style="width:14px;height:14px;cursor:pointer">
+        </td>
+        <td>${statusBadge(r.status)}</td>
+        <td>${dtBadge(r.device_type, r.sn, r.type_override||'', r.showroom_until||'')}</td>
+        <td style="font-family:monospace;font-size:11px">${esc(r.sn)}</td>
+        <td>${esc(r.customer||'—')}</td>
+        <td>${esc(r.firma||'—')}</td>
+        <td>${esc(r.maszyna||'—')}</td>
+        <td>${repChips(r.handlowcy)}</td>
+        <td>${esc(r.operator||'—')}</td>
+        <td>${fmtDate(r.prod_date)}</td>
+        <td>${fmtDate(r.first_pay)}</td>
+        <td>${fmtDate(r.last_pay)}</td>
+        <td style="font-weight:600">${r.total_months||'—'}</td>
+        ${commentCell}
+      </tr>`;
+    }).join('');
+  }
+
+  // update pagination controls
+  const pgInfo = document.getElementById('pgInfo');
+  const pgPrev = document.getElementById('pgPrev');
+  const pgNext = document.getElementById('pgNext');
+  if (total > 0) {
+    pgInfo.textContent = `Strona ${currentPage} z ${pages}  (${start+1}–${end} z ${total})`;
+  } else {
+    pgInfo.textContent = '';
+  }
+  pgPrev.disabled = (currentPage <= 1);
+  pgNext.disabled = (currentPage >= pages);
+  document.getElementById('paginationBar').style.display = 'flex';
+}
+
+// ── bulk selection ──────────────────────────────────────────────────────
+function toggleRowSelect(evt, sn) {
+  evt.stopPropagation();
+  if (evt.target.checked) selectedSNs.add(sn);
+  else selectedSNs.delete(sn);
+  updateBulkBar();
+}
+
+function toggleSelectAll(checked) {
+  const slice = filtered.slice((currentPage-1)*pageSize, currentPage*pageSize);
+  slice.forEach(r => checked ? selectedSNs.add(r.sn) : selectedSNs.delete(r.sn));
+  // re-render checkboxes without full table rebuild
+  document.querySelectorAll('#tableBody input[type=checkbox]').forEach(cb => {
+    cb.checked = checked;
+  });
+  updateBulkBar();
+}
+
+function clearSelection() {
+  selectedSNs.clear();
+  document.querySelectorAll('#tableBody input[type=checkbox]').forEach(cb => cb.checked = false);
+  const chkAll = document.getElementById('chkAll');
+  if (chkAll) chkAll.checked = false;
+  updateBulkBar();
+}
+
+function updateBulkBar() {
+  const bar = document.getElementById('bulkBar');
+  const cnt = selectedSNs.size;
+  document.getElementById('bulkCount').textContent = cnt;
+  bar.classList.toggle('active', cnt > 0);
+}
+
+async function bulkChangeType(dtype) {
+  if (!selectedSNs.size) return;
+  const label = dtype === 'master' ? 'Master' : dtype === 'oem' ? 'OEM' : 'Auto (reset)';
+  if (!confirm(`Zmienić typ na „${label}" dla ${selectedSNs.size} urządzeń?`)) return;
+  try {
+    const r = await fetch(`${API}/devices/bulk-type`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({sns: [...selectedSNs], device_type: dtype}),
+    });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const d = await r.json();
+    clearSelection();
+    await loadReport();   // refresh
+    alert(`Zaktualizowano ${d.updated} urządzeń.`);
+  } catch(e) {
+    alert('Błąd: ' + e.message);
+  }
+}
+
+// ── comment save ────────────────────────────────────────────────────────
+async function saveComment() {
+  const sn      = document.getElementById('ovSN').textContent;
+  const comment = document.getElementById('ovComment').value.trim();
+  if (!sn || sn === '—') return;
+  try {
+    const r = await fetch(`${API}/devices/${encodeURIComponent(sn)}/comment`, {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({comment}),
+    });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    document.getElementById('overrideModal').close();
+    await loadReport();
+  } catch(e) {
+    alert('Błąd zapisu komentarza: ' + e.message);
+  }
+}
+
+function goPage(delta) {
+  const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  currentPage = Math.max(1, Math.min(pages, currentPage + delta));
+  renderTable(filtered);
+  document.getElementById('tableWrap').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+function onPageSizeChange() {
+  const v = parseInt(document.getElementById('pgSize').value) || 100;
+  pageSize = Math.max(10, Math.min(5000, v));
+  document.getElementById('pgSize').value = pageSize;
+  currentPage = 1;
+  renderTable(filtered);
+}
+
+// ── exports ────────────────────────────────────────────────────────────
+const ST_EXP = { paid:'Oplacone', unpaid:'Brak oplaty', free:'Bez oplat',
+                 only:'Brak w prod.', excluded:'Wykluczone', oem:'OEM' };
+const DT_EXP = { master:'Master', slave:'Slave', oem:'OEM' };
+
+function exportCSV() {
+  const rows = [['Status','Typ','Numer seryjny','Klient','Firma prod.','Maszyna',
+                 'Handlowcy','Operator','Data produkcji','Pierwsza oplata','Ostatnia oplata','Miesiace']];
+  for (const r of filtered)
+    rows.push([ST_EXP[r.status]||r.status, DT_EXP[r.device_type]||r.device_type||'',
+               r.sn, r.customer, r.firma, r.maszyna, r.handlowcy, r.operator,
+               fmtDate(r.prod_date), fmtDate(r.first_pay), fmtDate(r.last_pay), r.total_months||'']);
+  const csv  = rows.map(r=>r.map(c=>'"'+String(c||'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
+  const blob = new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='raport_abonamentow.csv'; a.click();
+}
+
+function exportXLSX() {
+  const rows = filtered.map(r => ({
+    'Status':          ST_EXP[r.status]||r.status,
+    'Typ':             DT_EXP[r.device_type]||r.device_type||'',
+    'Numer seryjny':   r.sn,
+    'Klient':          r.customer||'',
+    'Firma produkcji': r.firma||'',
+    'Maszyna':         r.maszyna||'',
+    'Handlowcy':       r.handlowcy||'',
+    'Operator':        r.operator||'',
+    'Data produkcji':  fmtDate(r.prod_date),
+    'Pierwsza oplata': fmtDate(r.first_pay),
+    'Ostatnia oplata': fmtDate(r.last_pay),
+    'Miesiace':        r.total_months||''
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [14,10,16,22,22,14,24,14,14,14,14,10].map(wch=>({wch}));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Raport');
+  XLSX.writeFile(wb, 'raport_abonamentow.xlsx');
+}
+
+// ════════════════════════════════════════════════════════════
+// DEVICE TYPE OVERRIDE
+// ════════════════════════════════════════════════════════════
+
+// Click on dt-badge in table → open override dialog
+document.getElementById('tableBody').addEventListener('click', e => {
+  const badge = e.target.closest('[data-action="open-override"]');
+  if (badge) openOverrideModal(badge.dataset.sn);
+});
+
+let _overrideSN = '';
+
+function toggleShowroomPicker() {
+  const row = document.getElementById('ovShowroomRow');
+  const open = row.style.display !== 'none';
+  row.style.display = open ? 'none' : 'block';
+  document.getElementById('ovBtnShowroom').style.borderColor = open ? '' : 'var(--teal)';
+}
+
+function openOverrideModal(sn) {
+  _overrideSN = sn;
+  const r = results.find(x => x.sn === sn);
+  document.getElementById('ovSN').textContent      = sn;
+  document.getElementById('ovMaszyna').textContent = r?.maszyna || '—';
+
+  const autoType = (r?.maszyna||'').toUpperCase().includes('OEM') ? 'oem' : 'master';
+  const cur      = r?.type_override || '';
+  const curUntil = r?.showroom_until || '';
+  document.getElementById('ovCurrentInfo').textContent =
+    cur === 'showroom'
+      ? `Obecny: Showroom do ${curUntil || '?'}`
+      : cur ? `Obecny: ręczne → ${DT_LABELS[cur]||cur}` : `Obecny: auto → ${DT_LABELS[autoType]||autoType}`;
+
+  // Highlight current active choice; reset showroom picker
+  document.getElementById('ovBtnMaster').style.borderColor   = cur==='master'   ? 'var(--amber)' : '';
+  document.getElementById('ovBtnOem').style.borderColor      = cur==='oem'      ? 'var(--gray)'  : '';
+  document.getElementById('ovBtnAuto').style.borderColor     = cur===''         ? 'var(--green)' : '';
+  document.getElementById('ovBtnShowroom').style.borderColor = cur==='showroom' ? 'var(--teal)'  : '';
+
+  // Pre-fill showroom date if already set
+  const pickerRow = document.getElementById('ovShowroomRow');
+  pickerRow.style.display = cur === 'showroom' ? 'block' : 'none';
+  document.getElementById('ovShowroomUntil').value = curUntil || '';
+
+  // Pre-fill comment
+  document.getElementById('ovComment').value = r?.comment || '';
+
+  document.getElementById('overrideModal').showModal();
+}
+
+async function applyOverride(deviceType) {
+  const modal = document.getElementById('overrideModal');
+
+  let showroomUntil = '';
+  if (deviceType === 'showroom') {
+    showroomUntil = document.getElementById('ovShowroomUntil').value;
+    if (!showroomUntil) { alert('Wybierz datę zwolnienia z abonamentu.'); return; }
+  }
+
+  try {
+    const r = await fetch(`${API}/devices/${encodeURIComponent(_overrideSN)}/type`, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({device_type: deviceType, showroom_until: showroomUntil})
+    });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    modal.close();
+    // Update local cache so UI reflects change immediately
+    const rec = results.find(x => x.sn === _overrideSN);
+    if (rec) {
+      rec.type_override  = deviceType;
+      rec.showroom_until = showroomUntil;
+      rec.device_type    = deviceType || ((rec.maszyna||'').toUpperCase().includes('OEM') ? 'oem' : 'master');
+      // Recompute status
+      if (rec.device_type === 'oem') {
+        rec.status = 'oem';
+      } else if (rec.device_type === 'showroom') {
+        rec.status = 'showroom';
+      } else if (rec.status === 'oem' || rec.status === 'showroom') {
+        rec.status = rec.total_months > 0 ? 'paid' : 'unpaid';
+      }
+    }
+    onFilterChange();  // re-render with updated data
+  } catch(e) {
+    alert('Błąd: ' + e.message);
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// CONFIG TAB
+// ════════════════════════════════════════════════════════════
+
+async function loadConfig() {
+  await Promise.all([loadExclusions(), loadReps(), loadOverridesList()]);
+}
+
+async function loadOverridesList() {
+  try {
+    const data = await (await fetch(`${API}/devices/overrides`)).json();
+    const tbody = document.getElementById('overridesList');
+    if (!data.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1rem">Brak ręcznych nadpisań</td></tr>';
+      return;
+    }
+    tbody.innerHTML = data.map(d => `<tr>
+      <td style="font-family:monospace;font-size:11px">${esc(d.sn)}</td>
+      <td>${esc(d.firma||'—')}</td>
+      <td>${esc(d.maszyna||'—')}</td>
+      <td><span class="dt-badge ${d.device_type_override}">${DT_LABELS[d.device_type_override]||d.device_type_override}</span></td>
+      <td><button class="danger sm" data-action="override-reset" data-sn="${esc(d.sn)}">Reset</button></td>
+    </tr>`).join('');
+  } catch(e) { setMsg('msgOverrides','❌ '+e.message,'err'); }
+}
+
+// Event delegation for overrides list reset
+document.getElementById('overridesList').addEventListener('click', async e => {
+  const btn = e.target.closest('[data-action="override-reset"]');
+  if (!btn) return;
+  const sn = btn.dataset.sn;
+  if (!confirm(`Zresetować nadpisanie dla SN ${sn}?`)) return;
+  try {
+    await fetch(`${API}/devices/${encodeURIComponent(sn)}/type`, {
+      method: 'PATCH', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({device_type: ''})
+    });
+    setMsg('msgOverrides', `✓ Reset SN ${sn}.`, 'ok');
+    loadOverridesList();
+  } catch(e) { setMsg('msgOverrides','❌ '+e.message,'err'); }
+});
+
+// ── exclusions ─────────────────────────────────────────────────────────
+async function loadExclusions() {
+  try {
+    const data = await (await fetch(`${API}/exclusions`)).json();
+    renderExclusions(data);
+  } catch(e) { setMsg('msgExc','❌ Błąd ładowania: '+e.message,'err'); }
+}
+
+function renderExclusions(exclusions) {
+  const tbody = document.getElementById('exclusionsList');
+  if (!exclusions.length) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:1rem">Brak wykluczeń</td></tr>';
+    return;
+  }
+  tbody.innerHTML = exclusions.map(e => `<tr>
+    <td><strong>${esc(e.firma)}</strong></td>
+    <td style="color:var(--text-muted)">${esc(e.reason||'—')}</td>
+    <td><button class="danger sm" data-action="exc-remove" data-firma="${esc(e.firma)}">Usuń</button></td>
+  </tr>`).join('');
+}
+
+// Event delegation for exclusions table (avoids inline onclick escaping issues)
+document.getElementById('exclusionsList').addEventListener('click', e => {
+  const btn = e.target.closest('[data-action="exc-remove"]');
+  if (btn) removeExclusion(btn.dataset.firma);
+});
+
+async function addExclusion() {
+  const firma  = document.getElementById('newExcFirma').value.trim();
+  const reason = document.getElementById('newExcReason').value.trim();
+  if (!firma) { setMsg('msgExc','⚠ Podaj nazwę firmy.','err'); return; }
+  try {
+    const r = await fetch(`${API}/exclusions`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({firma, reason})
+    });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    document.getElementById('newExcFirma').value  = '';
+    document.getElementById('newExcReason').value = '';
+    setMsg('msgExc', `✓ Dodano „${firma}".`, 'ok');
+    loadExclusions();
+  } catch(e) { setMsg('msgExc','❌ '+e.message,'err'); }
+}
+
+async function removeExclusion(firma) {
+  if (!confirm(`Usunąć „${firma}" z wykluczeń?`)) return;
+  try {
+    await fetch(`${API}/exclusions?firma=${encodeURIComponent(firma)}`, {method:'DELETE'});
+    setMsg('msgExc', `✓ Usunięto „${firma}".`, 'ok');
+    loadExclusions();
+  } catch(e) { setMsg('msgExc','❌ '+e.message,'err'); }
+}
+
+// ── reps ───────────────────────────────────────────────────────────────
+async function loadReps() {
+  try {
+    const [repsRes, firmsRes] = await Promise.all([fetch(`${API}/reps`), fetch(`${API}/reps/firms`)]);
+    const reps  = await repsRes.json();
+    const fdata = await firmsRes.json();
+    allFirms = fdata.firms || [];
+    // Populate datalist for firm exclusion autocomplete
+    const dl = document.getElementById('firmsSuggestions');
+    dl.innerHTML = allFirms.map(f=>`<option value="${esc(f)}">`).join('');
+    renderReps(reps);
+  } catch(e) { setMsg('msgReps','❌ Błąd ładowania: '+e.message,'err'); }
+}
+
+function renderReps(reps) {
+  const container = document.getElementById('repsList');
+  if (!reps.length) { container.innerHTML='<div style="color:var(--text-muted)">Brak handlowców</div>'; return; }
+  container.innerHTML = reps.map(rep => {
+    const avail = allFirms.filter(f => !rep.firms.includes(f));
+    return `<div class="rep-card">
+      <div class="rep-header">
+        <span class="rep-name">👤 ${esc(rep.name)}</span>
+        <div class="rep-add">
+          <select id="firmAdd_${rep.id}">
+            <option value="">Dodaj firmę…</option>
+            ${avail.map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join('')}
+          </select>
+          <button class="sm primary" data-action="rep-firm-add" data-rep-id="${rep.id}">+</button>
+        </div>
+      </div>
+      <div class="firm-tags">
+        ${rep.firms.length
+          ? rep.firms.map(f=>`<span class="firm-tag">${esc(f)}<button class="tag-remove" data-action="rep-firm-remove" data-rep-id="${rep.id}" data-firma="${esc(f)}" title="Usuń">×</button></span>`).join('')
+          : '<span style="color:var(--text-muted);font-size:11px">Brak przypisanych firm</span>'}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Event delegation for reps panel
+document.getElementById('repsList').addEventListener('click', e => {
+  const rmBtn  = e.target.closest('[data-action="rep-firm-remove"]');
+  if (rmBtn) { removeFirmFromRep(+rmBtn.dataset.repId, rmBtn.dataset.firma); return; }
+  const addBtn = e.target.closest('[data-action="rep-firm-add"]');
+  if (addBtn) {
+    const sel = document.getElementById(`firmAdd_${addBtn.dataset.repId}`);
+    if (sel?.value) addFirmToRep(+addBtn.dataset.repId, sel.value);
+  }
+});
+
+async function addFirmToRep(repId, firma) {
+  try {
+    const r = await fetch(`${API}/reps/${repId}/firms`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({firma})
+    });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    setMsg('msgReps', `✓ Przypisano „${firma}".`, 'ok');
+    loadReps();
+  } catch(e) { setMsg('msgReps','❌ '+e.message,'err'); }
+}
+
+async function removeFirmFromRep(repId, firma) {
+  try {
+    await fetch(`${API}/reps/${repId}/firms?firma=${encodeURIComponent(firma)}`, {method:'DELETE'});
+    setMsg('msgReps', `✓ Odpięto „${firma}".`, 'ok');
+    loadReps();
+  } catch(e) { setMsg('msgReps','❌ '+e.message,'err'); }
+}
+
+// ════════════════════════════════════════════════════════════
+// FIRSTPAY TAB — first payments in a selected month
+// ════════════════════════════════════════════════════════════
+
+let _fpRows   = [];     // all rows for current search (before gap/customer filter)
+let _fpIsRange = false; // true when showing a date range (multiple months)
+
+async function loadFirstPayTab() {
+  // Auto-fetch if results not yet loaded
+  if (!results.length) {
+    setMsg('msgFp', '⏳ Ładuję dane z bazy…');
+    try {
+      const r = await fetch(`${API}/analyze`);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const data = await r.json();
+      results = data.results;
+      populateFilters();   // build repColorMap too
+      setMsg('msgFp', '');
+    } catch(e) {
+      setMsg('msgFp', '❌ Brak połączenia z API — uruchom backend.', 'err');
+      return;
+    }
+  }
+
+  // Default month = current
+  const fpMonth = document.getElementById('fpMonth');
+  if (!fpMonth.value) fpMonth.value = nowYM();
+
+  // Populate rep dropdown from repColorMap (already built)
+  const fpRep = document.getElementById('fpRep');
+  const repNames = Object.keys(repColorMap).sort();
+  fpRep.innerHTML = '<option value="">Wszyscy handlowcy</option>' +
+    repNames.map(n => {
+      const info = repColorMap[n];
+      return `<option value="${esc(n)}">${esc(info ? info.initials + ' — ' + n : n)}</option>`;
+    }).join('');
+
+  // Populate customer dropdown
+  const fpCustomer = document.getElementById('fpCustomer');
+  const prevCust = fpCustomer.value;
+  const customers = [...new Set(
+    results.filter(r => r.customer).map(r => r.customer)
+  )].sort((a,b) => a.localeCompare(b));
+  fpCustomer.innerHTML = '<option value="">Wszyscy klienci</option>' +
+    customers.map(c => `<option value="${esc(c)}"${c===prevCust?' selected':''}>${esc(c)}</option>`).join('');
+}
+
+async function runFirstPaySearch() {
+  const ymFrom = document.getElementById('fpMonth').value;
+  const ymTo   = (document.getElementById('fpMonthTo').value || '').trim();
+  const rep    = document.getElementById('fpRep').value;
+  const isRange = ymTo && ymTo >= ymFrom;
+
+  if (!ymFrom) { setMsg('msgFp', '⚠ Wybierz miesiąc.', 'err'); return; }
+  if (!results.length) { setMsg('msgFp', '⚠ Brak danych — przejdź do zakładki Raport.', 'err'); return; }
+
+  // Zakres: od ymFrom do ymTo (lub tylko ymFrom jeśli brak To)
+  _fpRows = results.filter(r => {
+    if (!r.first_pay) return false;
+    const fp = r.first_pay.slice(0,7);
+    return isRange ? (fp >= ymFrom && fp <= ymTo) : (fp === ymFrom);
+  });
+  if (rep) _fpRows = _fpRows.filter(r => r.handlowcy && r.handlowcy.includes(rep));
+  _fpRows.sort((a,b) => (a.first_pay||'').localeCompare(b.first_pay||'') || (a.firma||'').localeCompare(b.firma||'') || (a.sn||'').localeCompare(b.sn||''));
+
+  // Store range mode for applyFpFilter
+  _fpIsRange = isRange;
+
+  if (!_fpRows.length) {
+    const rangeLabel = isRange ? `${ymFrom} – ${ymTo}` : ymFrom;
+    setMsg('msgFp', `⚠ Brak urządzeń z pierwszą płatnością w ${rangeLabel}.`, 'err');
+    document.getElementById('fpResults').style.display = 'none';
+    return;
+  }
+  setMsg('msgFp', '');
+
+  // ── summary bar ───────────────────────────────────────────
+  const repCounts = {};
+  let noRep = 0;
+  _fpRows.forEach(r => {
+    const names = r.handlowcy ? r.handlowcy.split(', ').map(s=>s.trim()).filter(Boolean) : [];
+    if (!names.length) { noRep++; return; }
+    names.forEach(n => { repCounts[n] = (repCounts[n]||0) + 1; });
+  });
+
+  const rangeLabel = isRange
+    ? `${ymFrom} – ${ymTo}`
+    : new Date(ymFrom + '-01').toLocaleDateString('pl-PL', {month:'long', year:'numeric'});
+  let summaryHtml = `<strong style="font-size:15px">${_fpRows.length}</strong>
+    <span style="color:var(--text-muted)">nowych abonamentów &nbsp;·&nbsp; ${rangeLabel}</span>
+    <span style="flex:1"></span>`;
+  Object.entries(repCounts).sort((a,b)=>b[1]-a[1]).forEach(([n,cnt]) => {
+    const info = repColorMap[n] || {};
+    const c = info.color || '#888';
+    summaryHtml += `<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px">
+      <span class="rep-chip" style="background:${c}22;color:${c};border:1px solid ${c}55">${esc(info.initials||n)}</span>
+      <strong>${cnt}</strong>
+    </span>`;
+  });
+  if (noRep) summaryHtml += `<span style="font-size:12px;color:var(--text-muted)">bez handlowca: <strong>${noRep}</strong></span>`;
+  document.getElementById('fpSummary').innerHTML = summaryHtml;
+
+  document.getElementById('fpResults').style.display = 'block';
+  applyFpFilter();
+}
+
+// Gap detection helper: returns true if device has gaps in payment history
+function hasFpGap(r) {
+  if (!r.first_pay || !r.last_pay || !r.total_months) return false;
+  const expected = (monthsDiff(r.first_pay.slice(0,7), r.last_pay.slice(0,7)) ?? 0) + 1;
+  return r.total_months < expected;
+}
+
+function applyFpFilter() {
+  const gapsOnly   = document.getElementById('fpGapsOnly')?.checked;
+  const custFilter = document.getElementById('fpCustomer')?.value || '';
+  let rows = _fpRows;
+  if (gapsOnly)   rows = rows.filter(hasFpGap);
+  if (custFilter) rows = rows.filter(r => r.customer === custFilter);
+
+  if (rows.length === 0) {
+    document.getElementById('fpBody').innerHTML =
+      `<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--text-muted)">Brak wyników.</td></tr>`;
+    return;
+  }
+
+  // In range mode: insert month-group header rows between months
+  let rowsHtml = '';
+  if (_fpIsRange) {
+    const byMonth = {};
+    rows.forEach(r => {
+      const m = r.first_pay.slice(0,7);
+      if (!byMonth[m]) byMonth[m] = [];
+      byMonth[m].push(r);
+    });
+    for (const [m, mRows] of Object.entries(byMonth).sort()) {
+      const mFmt = new Date(m + '-01').toLocaleDateString('pl-PL', {month:'long', year:'numeric'});
+      rowsHtml += `<tr style="background:var(--bg-secondary)">
+        <td colspan="7" style="padding:8px 12px;font-weight:600;font-size:13px;
+            border-top:2px solid var(--border-med)">
+          📅 ${mFmt} &nbsp;<span style="font-size:11px;font-weight:400;color:var(--text-muted)">${mRows.length} nowych</span>
+        </td>
+      </tr>`;
+      rowsHtml += mRows.map(r => fpRowHtml(r)).join('');
+    }
+  } else {
+    rowsHtml = rows.map(r => fpRowHtml(r)).join('');
+  }
+  document.getElementById('fpBody').innerHTML = rowsHtml;
+}
+
+function fpRowHtml(r) {
+  const gapBadge = hasFpGap(r)
+    ? `<span style="font-size:10px;color:var(--red);font-weight:600;margin-left:4px">⚠ przerwa</span>`
+    : '';
+  return `
+    <tr id="fp-row-${esc(r.sn)}" style="cursor:pointer" onclick="toggleFpExpand('${esc(r.sn)}')">
+      <td style="text-align:center;font-size:13px;color:var(--text-muted)" id="fp-arrow-${esc(r.sn)}">▶</td>
+      <td style="line-height:1.4">
+        <span style="font-family:monospace;font-size:11px">${esc(r.sn)}</span>
+        ${r.maszyna ? `<br><span style="font-size:10px;color:var(--text-muted)">${esc(r.maszyna)}</span>` : ''}
+      </td>
+      <td style="font-size:12px;color:var(--text-muted)">${esc(r.firma||'—')}</td>
+      <td>${esc(r.customer||'—')}${gapBadge}</td>
+      <td>${repChips(r.handlowcy)}</td>
+      <td>${fmtDate(r.prod_date)}</td>
+      <td style="text-align:center;font-weight:600">${r.total_months||'—'}</td>
+    </tr>
+    <tr id="fp-expand-${esc(r.sn)}" style="display:none">
+      <td colspan="7" style="padding:0">
+        <div id="fp-detail-${esc(r.sn)}"
+             style="padding:10px 16px 10px 48px;background:var(--bg-secondary);
+                    border-bottom:0.5px solid var(--border)">
+          <span style="color:var(--text-muted);font-size:12px">⏳ Ładowanie historii…</span>
+        </div>
+      </td>
+    </tr>`;
+}
+
+// expand / collapse payment history for one device
+// Generate sequential list of YYYY-MM strings from `from` to `to` inclusive
+function monthRange(from, to) {
+  const months = [];
+  let [y, m] = from.split('-').map(Number);
+  const [ty, tm] = to.split('-').map(Number);
+  while (y < ty || (y === ty && m <= tm)) {
+    months.push(`${y}-${String(m).padStart(2,'0')}`);
+    m++; if (m > 12) { m = 1; y++; }
+  }
+  return months;
+}
+
+async function toggleFpExpand(sn) {
+  const expandRow = document.getElementById('fp-expand-' + sn);
+  const arrow     = document.getElementById('fp-arrow-'  + sn);
+  const detail    = document.getElementById('fp-detail-' + sn);
+  if (!expandRow) return;
+
+  const isOpen = expandRow.style.display !== 'none';
+  if (isOpen) {
+    expandRow.style.display = 'none';
+    arrow.textContent = '▶';
+    return;
+  }
+
+  expandRow.style.display = '';
+  arrow.textContent = '▼';
+
+  // Lazy load — only on first open
+  if (detail.dataset.loaded) return;
+  detail.dataset.loaded = '1';
+
+  try {
+    const resp = await fetch(`${API}/payments/${encodeURIComponent(sn)}`);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const pays = await resp.json();   // [{year_month, customer}, ...] sorted asc
+
+    if (!pays.length) {
+      detail.innerHTML = '<span style="color:var(--text-muted);font-size:12px">Brak rekordów płatności.</span>';
+      return;
+    }
+
+    // Build full timeline: first paid month → current month
+    const firstYM    = pays[0].year_month;
+    const curYM      = nowYM();
+    const paidSet    = new Map(pays.map(p => [p.year_month, p.customer]));
+    const allMonths  = monthRange(firstYM, curYM);
+    const selectedYM = document.getElementById('fpMonth').value;  // the search month
+
+    // Count gaps (missing months in the middle — not counting current if unpaid)
+    let gaps = 0;
+    for (let i = 0; i < allMonths.length - 1; i++) {   // exclude last month (might just be delay)
+      if (!paidSet.has(allMonths[i])) gaps++;
+    }
+
+    const chips = allMonths.map(ym => {
+      const isPaid    = paidSet.has(ym);
+      const isFirst   = ym === firstYM;    // green anchor
+      const isSearch  = ym === selectedYM; // matches the search month
+      const customer  = paidSet.get(ym) || '';
+      const isLast    = ym === curYM;
+
+      let bg, co, border, fw;
+      if (!isPaid) {
+        // Missing payment — red if past, muted if current month
+        bg     = isLast ? 'transparent'        : 'var(--red-light)';
+        co     = isLast ? 'var(--text-muted)'  : 'var(--red)';
+        border = isLast ? 'var(--border-med)'  : 'var(--red)';
+        fw     = '400';
+      } else if (isFirst) {
+        // First (anchor) payment — solid green
+        bg = 'var(--green)'; co = '#fff'; border = 'var(--green)'; fw = '700';
+      } else {
+        // Normal paid month
+        bg = 'var(--green-light)'; co = 'var(--green)'; border = 'var(--green)'; fw = '500';
+      }
+
+      const title = customer ? ` title="${esc(customer)}"` : '';
+      const label = isPaid ? esc(ym) : `<s style="opacity:.6">${esc(ym)}</s>`;
+      return `<span${title} style="display:inline-block;padding:2px 9px;border-radius:4px;
+              font-size:11px;font-weight:${fw};background:${bg};color:${co};
+              border:1px solid ${border};white-space:nowrap">${label}</span>`;
+    }).join(' ');
+
+    const customer = pays[0].customer || '';
+    const gapNote  = gaps > 0
+      ? `<span style="color:var(--red);font-size:11px;font-weight:600">⚠ ${gaps} przerw${gaps===1?'a':gaps<5?'y':''}!</span>`
+      : `<span style="color:var(--green);font-size:11px">✓ bez przerw</span>`;
+
+    detail.innerHTML = `
+      <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px">
+        ${customer ? `<span style="font-size:12px;color:var(--text-muted)">Klient: <strong style="color:var(--text)">${esc(customer)}</strong></span>` : ''}
+        <span style="font-size:12px;color:var(--text-muted)">${pays.length} / ${allMonths.length} mies. opłaconych</span>
+        ${gapNote}
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">${chips}</div>`;
+  } catch(e) {
+    detail.innerHTML = `<span style="color:var(--red);font-size:12px">❌ Błąd: ${esc(e.message)}</span>`;
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+// MONITORING TAB — cohort analysis of new masters
+// ════════════════════════════════════════════════════════════
+
+async function loadMonitoringTab() {
+  // Auto-fetch data if not yet loaded
+  if (!results.length) {
+    setMsg('msgMonitor', '⏳ Ładuję dane z bazy…');
+    try {
+      const r = await fetch(`${API}/analyze`);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      results = (await r.json()).results;
+      setMsg('msgMonitor', '');
+    } catch(e) {
+      setMsg('msgMonitor', '❌ Brak połączenia z API', 'err');
+      return;
+    }
+  }
+  // Default: 6 months ago
+  const inp = document.getElementById('monProdFrom');
+  if (!inp.value) {
+    const d = new Date(); d.setMonth(d.getMonth() - 6);
+    inp.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  }
+  // Wypełnij dropdown klientów (firma z danych produkcji)
+  const monFirma = document.getElementById('monFirma');
+  const prevFirma = monFirma.value;
+  const firms = [...new Set(
+    results.filter(r => r.device_type === 'master' && r.firma).map(r => r.firma)
+  )].sort((a,b) => a.localeCompare(b));
+  monFirma.innerHTML = '<option value="">Wszyscy klienci</option>' +
+    firms.map(f => `<option value="${esc(f)}"${f===prevFirma?' selected':''}>${esc(f)}</option>`).join('');
+  renderMonitoring();
+}
+
+// ── helpers ────────────────────────────────────────────────
+function monthsDiff(fromYM, toYM) {
+  if (!fromYM || !toYM) return null;
+  const [fy, fm] = String(fromYM).slice(0,7).split('-').map(Number);
+  const [ty, tm] = String(toYM).slice(0,7).split('-').map(Number);
+  return (ty - fy) * 12 + (tm - fm);
+}
+
+function nowYM() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+function monStatus(r, curYM) {
+  if (r.status === 'excluded') return 'excluded';
+  if (!r.total_months) return 'never';
+  return monthsDiff(r.last_pay?.slice(0,7), curYM) <= 2 ? 'active' : 'lapsed';
+}
+
+// ── main render ────────────────────────────────────────────
+function renderMonitoring() {
+  const prodFrom    = document.getElementById('monProdFrom').value;
+  const firmaFilter = document.getElementById('monFirma')?.value || '';
+  if (!prodFrom) { setMsg('msgMonitor','⚠ Wybierz datę.','err'); return; }
+  if (!results.length) { loadMonitoringTab(); return; }
+
+  const curYM = nowYM();
+
+  let masters = results.filter(r =>
+    r.device_type === 'master' && r.prod_date && r.prod_date.slice(0,7) >= prodFrom
+  );
+  if (firmaFilter) masters = masters.filter(r => r.firma === firmaFilter);
+
+  const contentEl = document.getElementById('monitorContent');
+
+  if (!masters.length) {
+    contentEl.innerHTML = `<div class="empty-state"><div class="es-icon">🔍</div>
+      <p>Brak masterów wyprodukowanych od <strong>${prodFrom}</strong>.</p></div>`;
+    setMsg('msgMonitor','Brak danych dla wybranego okresu','err');
+    return;
+  }
+
+  // Group by production month
+  const groups = {};
+  for (const r of masters) {
+    const m = r.prod_date.slice(0,7);
+    if (!groups[m]) groups[m] = [];
+    groups[m].push(r);
+  }
+  const sortedMonths = Object.keys(groups).sort().reverse(); // newest first
+  const latestMonth  = sortedMonths[0];
+
+  const totalActive   = masters.filter(r => monStatus(r,curYM)==='active').length;
+  const totalLapsed   = masters.filter(r => monStatus(r,curYM)==='lapsed').length;
+  const totalNever    = masters.filter(r => monStatus(r,curYM)==='never').length;
+  const totalExcluded = masters.filter(r => monStatus(r,curYM)==='excluded').length;
+  const totalBilling  = masters.length - totalExcluded; // faktycznie objęte abonamentem
+
+  let html = `
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:.25rem 0 1rem">
+      <span style="font-size:13px;color:var(--text-muted)">
+        <strong>${totalBilling}</strong> masterów (abonament) · <strong>${sortedMonths.length}</strong> miesięcy produkcji
+      </span>
+      <span class="badge paid">  ${totalActive} aktywnych</span>
+      <span class="badge only">  ${totalLapsed} z przerwą</span>
+      <span class="badge unpaid">${totalNever} bez opłat</span>
+      ${totalExcluded ? `<span class="badge excluded">${totalExcluded} wykluczone</span>` : ''}
+    </div>`;
+
+  for (const month of sortedMonths) {
+    const devices = groups[month];
+    const mSince  = monthsDiff(month, curYM) ?? 0;
+
+    const active   = devices.filter(r => monStatus(r,curYM)==='active');
+    const lapsed   = devices.filter(r => monStatus(r,curYM)==='lapsed');
+    const never    = devices.filter(r => monStatus(r,curYM)==='never');
+    const excl     = devices.filter(r => monStatus(r,curYM)==='excluded');
+    // Pokrycie liczymy tylko dla urządzeń objętych abonamentem (bez wykluczonych)
+    const billing  = devices.filter(r => monStatus(r,curYM)!=='excluded');
+    const everPaid = billing.filter(r => r.total_months > 0);
+
+    const delays  = everPaid
+      .map(r => monthsDiff(r.prod_date?.slice(0,7), r.first_pay?.slice(0,7)))
+      .filter(d => d !== null && d >= 0);
+    const avgDelay = delays.length
+      ? (delays.reduce((a,b)=>a+b,0)/delays.length).toFixed(1) : '—';
+
+    const paidPct  = billing.length ? Math.round(everPaid.length / billing.length * 100) : 0;
+    const gid      = month.replace('-','_');
+    const isOpen   = month === latestMonth;
+
+    const pBadge = paidPct >= 80 ? 'paid' : paidPct >= 40 ? 'only' : 'unpaid';
+
+    html += `
+      <div class="section-card" style="padding:0;overflow:hidden;margin-bottom:.75rem">
+        <!-- Group header (clickable) -->
+        <div data-action="toggle-mon-group" data-group-id="${gid}"
+             style="padding:.75rem 1.25rem;background:var(--bg-secondary);display:flex;align-items:center;
+                    gap:1rem;flex-wrap:wrap;cursor:pointer;user-select:none">
+          <strong style="font-size:14px;min-width:76px">📅 ${month}</strong>
+          <span style="font-size:12px;color:var(--text-muted)" title="Liczba miesięcy od daty produkcji tych urządzeń do dziś">${mSince} mies. w polu</span>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            ${billing.length ? `<span class="badge ${pBadge}" title="Urządzenia z co najmniej jedną płatnością ÷ wszystkie podlegające abonamentowi (bez OEM i wykluczonych)&#10;${everPaid.length} z ${billing.length} opłaciło abonament = ${paidPct}%">${everPaid.length}/${billing.length} płaci (${paidPct}%)</span>` : ''}
+            ${active.length  ? `<span class="badge paid"     style="font-size:10px" title="Aktywne — opłaciły bieżący lub poprzedni miesiąc abonamentu">${active.length} aktywnych</span>`:''}
+            ${lapsed.length  ? `<span class="badge only"     style="font-size:10px" title="Z przerwą — kiedyś płaciły abonament, ale nie w ostatnim/bieżącym miesiącu">${lapsed.length} z przerwą</span>`:''}
+            ${never.length   ? `<span class="badge unpaid"   style="font-size:10px" title="Bez opłat — nigdy nie zarejestrowano żadnej płatności abonamentu">${never.length} bez opłat</span>`:''}
+            ${excl.length    ? `<span class="badge excluded" style="font-size:10px" title="Wykluczone — firma ręcznie wykluczona z abonamentu lub typ urządzenia to OEM">${excl.length} wykluczone</span>`:''}
+          </div>
+          <span style="font-size:11px;color:var(--text-muted)" title="Średnia liczba miesięcy między datą produkcji a pierwszą płatnością abonamentu&#10;(tylko urządzenia, które kiedykolwiek zapłaciły; niżej = lepiej)">
+            śr. opóźn. startu: <strong>${avgDelay}</strong> mies.
+          </span>
+          <span class="toggle-arrow" style="margin-left:auto;font-size:13px;color:var(--text-muted)">${isOpen?'▼':'▶'}</span>
+        </div>
+        <!-- Device detail table -->
+        <div id="mgb_${gid}" style="display:${isOpen?'block':'none'};overflow-x:auto">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:820px">
+            <thead>
+              <tr style="background:var(--bg-tertiary)">
+                ${[
+                  ['SN',            'Numer seryjny urządzenia z pliku produkcji'],
+                  ['Maszyna',       'Model urządzenia z pliku produkcji'],
+                  ['Firma',         'Firma z pliku produkcji — u której zainstalowano urządzenie'],
+                  ['Handlowiec',    'Handlowcy przypisani do tej firmy w Konfiguracji'],
+                  ['Mies. w polu',  'Liczba miesięcy od daty produkcji do dziś\n(ile miesięcy urządzenie jest w terenie)'],
+                  ['Pierws. opłata','Miesiąc pierwszej zarejestrowanej płatności abonamentu\n— może być wcześniejszy lub późniejszy niż data produkcji'],
+                  ['Opóźn. startu', 'Różnica między datą produkcji a pierwszą płatnością\n• "w mies. produkcji" = zapłacono w tym samym miesiącu co produkcja\n• +N mies. = N miesięcy opóźnienia startu abonamentu\n• Zielony ≤2 | Pomarańczowy ≤4 | Czerwony >4'],
+                  ['Opłat',         'Całkowita liczba miesięcy, za które zarejestrowano płatność abonamentu'],
+                  ['Pokrycie',      'Opłat ÷ Mies. w polu × 100%\n— ile procent miesięcy od daty produkcji zostało opłaconych\n• Zielony ≥80% | Pomarańczowy ≥40% | Czerwony <40%'],
+                  ['Status',        'Aktywny — opłacił bieżący lub poprzedni miesiąc\nPrzerwa — kiedyś płacił, ale nie ostatnio\nBez opłat — nigdy nie zarejestrowano płatności\nWykluczone — firma wykluczona z abonamentu lub typ OEM'],
+                ].map(([h,tip])=>`<th title="${tip.replace(/\n/g,'&#10;')}" style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;
+                                      text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);
+                                      border-bottom:0.5px solid var(--border);white-space:nowrap;cursor:help">${h}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${devices
+                .slice()
+                .sort((a,b) => {
+                  const o = {never:0,lapsed:1,active:2,excluded:3};
+                  return o[monStatus(a,curYM)] - o[monStatus(b,curYM)];
+                })
+                .map(r => monRow(r, mSince, curYM))
+                .join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+  }
+
+  contentEl.innerHTML = html;
+  const clientInfo = firmaFilter ? ` · klient: ${firmaFilter}` : '';
+  setMsg('msgMonitor', `${masters.length} masterów od ${prodFrom}${clientInfo}`, 'ok');
+}
+
+// ── single device row ──────────────────────────────────────
+function monRow(r, mSince, curYM) {
+  const st  = monStatus(r, curYM);
+  const delay = r.first_pay
+    ? monthsDiff(r.prod_date?.slice(0,7), r.first_pay.slice(0,7))
+    : null;
+  const coverage = (r.total_months && mSince > 0)
+    ? Math.min(100, Math.round(r.total_months / mSince * 100)) : 0;
+
+  const SC = {
+    active:   { badge:'paid',     label:'Aktywny'    },
+    lapsed:   { badge:'only',     label:'Przerwa'    },
+    never:    { badge:'unpaid',   label:'Bez opłat'  },
+    excluded: { badge:'excluded', label:'Wykluczone' },
+  };
+
+  // Dla wykluczonych — opóźnienie i pokrycie nie mają sensu
+  const isExcluded = (st === 'excluded');
+
+  let delayTxt, delayColor;
+  if (isExcluded)      { delayTxt = '—';                         delayColor = 'var(--text-muted)'; }
+  else if (delay === null)  { delayTxt = '—';                    delayColor = 'var(--text-muted)'; }
+  else if (delay <=  0){ delayTxt = 'w mies. produkcji';         delayColor = 'var(--green)'; }
+  else if (delay <=  2){ delayTxt = `+${delay} mies.`;           delayColor = 'var(--green)'; }
+  else if (delay <=  4){ delayTxt = `+${delay} mies.`;           delayColor = 'var(--amber)'; }
+  else                 { delayTxt = `+${delay} mies. ⚠`;        delayColor = 'var(--red)'; }
+
+  const covColor = coverage >= 80 ? 'var(--green)' : coverage >= 40 ? 'var(--amber)' : 'var(--red)';
+  const covBar = isExcluded
+    ? `<span style="font-size:11px;color:var(--text-muted)">—</span>`
+    : `<div style="display:flex;align-items:center;gap:7px">
+        <div style="width:52px;height:5px;background:var(--bg-tertiary);border-radius:3px;overflow:hidden;flex-shrink:0">
+          <div style="width:${coverage}%;height:100%;background:${covColor}"></div>
+        </div>
+        <span style="font-size:11px;color:${covColor};font-weight:600">${coverage}%</span>
+      </div>`;
+
+  const rowStyle = isExcluded
+    ? 'border-bottom:0.5px solid var(--border);opacity:.6'
+    : 'border-bottom:0.5px solid var(--border)';
+
+  return `<tr style="${rowStyle}">
+    <td style="padding:7px 12px;font-family:monospace;font-size:11px">${esc(r.sn)}</td>
+    <td style="padding:7px 12px">${esc(r.maszyna||'—')}</td>
+    <td style="padding:7px 12px">${esc(r.firma||'—')}</td>
+    <td style="padding:7px 12px">${repChips(r.handlowcy)}</td>
+    <td style="padding:7px 12px;text-align:center;font-weight:600">${mSince}</td>
+    <td style="padding:7px 12px">${isExcluded ? '<span style="color:var(--text-muted)">—</span>' : r.first_pay
+      ? `<strong>${r.first_pay.slice(0,7)}</strong>`
+      : '<span style="color:var(--red)">—</span>'}</td>
+    <td style="padding:7px 12px;font-size:11px;color:${delayColor}">${delayTxt}</td>
+    <td style="padding:7px 12px;text-align:center;font-weight:600;color:${r.total_months?'inherit':'var(--text-muted)'}">${r.total_months||0}</td>
+    <td style="padding:7px 12px">${covBar}</td>
+    <td style="padding:7px 12px"><span class="badge ${SC[st].badge}">${SC[st].label}</span></td>
+  </tr>`;
+}
+
+// Toggle group expand/collapse
+document.getElementById('monitorContent').addEventListener('click', e => {
+  const hdr = e.target.closest('[data-action="toggle-mon-group"]');
+  if (!hdr) return;
+  const body  = document.getElementById('mgb_' + hdr.dataset.groupId);
+  const arrow = hdr.querySelector('.toggle-arrow');
+  if (!body) return;
+  const opening = body.style.display === 'none';
+  body.style.display = opening ? 'block' : 'none';
+  if (arrow) arrow.textContent = opening ? '▼' : '▶';
+});
+</script>
+</body>
+</html>

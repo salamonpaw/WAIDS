@@ -1,0 +1,9 @@
+{
+  "name": "subscription-checker",
+  "version": "2.0.0",
+  "description": "Weryfikator abonamentów urządzeń",
+  "scripts": {
+    "dev": "npx serve . -p 4000 --no-clipboard",
+    "start": "npx serve . -p 4000"
+  }
+}

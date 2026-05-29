@@ -1,0 +1,58 @@
+# ── Python ──────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Środowiska wirtualne
+backend/venv/
+backend/.venv/
+venv/
+.venv/
+env/
+.env/
+
+# ── Zmienne środowiskowe (NIGDY nie wgrywaj do gita!) ──────────────────
+backend/.env
+.env
+*.env
+!.env.example
+
+# ── Pliki importowane (dane klientów — poufne) ─────────────────────────
+*.xlsx
+*.xls
+*.ods
+*.csv
+uploads/
+data/
+
+# ── Logi ────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── macOS ────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V7
+.Trashes
+Icon?
+ehthumbs.db
+Thumbs.db
+
+# ── IDE / edytory ────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Node (serve dev server) ──────────────────────────────────────────────
+node_modules/
+npm-debug.log*
