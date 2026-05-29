@@ -95,6 +95,14 @@ def init_db() -> None:
                 ALTER TABLE devices
                     ADD COLUMN IF NOT EXISTS comment VARCHAR NOT NULL DEFAULT '';
             """)
+            cur.execute("""
+                ALTER TABLE payments
+                    ADD COLUMN IF NOT EXISTS amount NUMERIC(12,2) NOT NULL DEFAULT 0;
+            """)
+            cur.execute("""
+                ALTER TABLE payments
+                    ADD COLUMN IF NOT EXISTS currency VARCHAR NOT NULL DEFAULT '';
+            """)
 
             # Seed domyślnych handlowców (idempotentne)
             for name in DEFAULT_REPS:
@@ -138,7 +146,9 @@ def get_analysis(
                         MAX(customer) FILTER (WHERE customer <> '') AS customer,
                         MIN(year_month)  AS first_pay,
                         MAX(year_month)  AS last_pay,
-                        COUNT(*)         AS total_months
+                        COUNT(*)         AS total_months,
+                        SUM(amount)      AS total_amount,
+                        MAX(currency) FILTER (WHERE currency <> '') AS currency
                     FROM payments
                     GROUP BY sn
                 ),
@@ -178,9 +188,11 @@ def get_analysis(
                     COALESCE(d.prod_date,  '')   AS prod_date,
                     COALESCE(ps.first_pay, '')   AS first_pay,
                     COALESCE(ps.last_pay,  '')   AS last_pay,
-                    COALESCE(ps.total_months, 0) AS total_months,
-                    COALESCE(rs.handlowcy,  '')  AS handlowcy,
-                    COALESCE(d.comment,     '')  AS comment
+                    COALESCE(ps.total_months, 0)  AS total_months,
+                    COALESCE(ps.total_amount, 0)  AS total_amount,
+                    COALESCE(ps.currency,    '')  AS currency,
+                    COALESCE(rs.handlowcy,  '')   AS handlowcy,
+                    COALESCE(d.comment,     '')   AS comment
                 FROM devices d
                 FULL OUTER JOIN payment_summary ps ON d.sn = ps.sn
                 LEFT JOIN excluded_firms ef ON COALESCE(d.firma,'') = ef.firma
@@ -319,7 +331,8 @@ def get_payments_for_sn(sn: str) -> list:
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
-                "SELECT year_month, customer FROM payments WHERE sn = %s ORDER BY year_month",
+                "SELECT year_month, customer, amount, currency "
+                "FROM payments WHERE sn = %s ORDER BY year_month",
                 (sn,),
             )
             return [dict(r) for r in cur.fetchall()]

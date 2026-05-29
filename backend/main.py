@@ -392,25 +392,32 @@ async def import_payments(
         # Każdy wiersz = jedna faktura; data wystawienia → miesiąc płatności.
         # Kolumna ob_Ilosc wskazuje ile miesięcy obejmuje faktura (np. 12 dla
         # rocznego abonamentu) — generujemy tyle kolejnych rekordów miesięcznych.
-        qty_col = find_col(df, ["ob_ilosc", "ob_il", "ilosc", "quantity", "qty"])
-        cat_col = find_col(df, ["fs_kategoria", "fs_kat", "kategoria", "category"])
-
-        # DEBUG: log detected columns and a sample qty value
-        import logging
-        logging.warning(
-            f"[import/payments] invoice_date_col={invoice_date_col!r} "
-            f"qty_col={qty_col!r} cat_col={cat_col!r} "
-            f"all_cols={list(df.columns[:30])!r}"
-        )
-        if qty_col:
-            sample_vals = [str(v) for v in df[qty_col].dropna().head(5).tolist()]
-            logging.warning(f"[import/payments] qty sample values: {sample_vals}")
+        qty_col      = find_col(df, ["ob_ilosc", "ob_il", "ilosc", "quantity", "qty"])
+        cat_col      = find_col(df, ["fs_kategoria", "fs_kat", "kategoria", "category"])
+        # Data ostatniej spłaty — jeśli pusta, faktura nieopłacona → pomijamy
+        pay_date_col = find_col(df, ["nzf_dataostatniejsplaty", "dataostatniejsplaty",
+                                     "datazaplaty", "fs_datazaplaty", "data_zaplaty",
+                                     "ostatniasplata", "ostatniazaplata"])
+        # Kwota i waluta
+        amount_col   = find_col(df, ["nzf_wartoscpierwotnawaluta", "wartoscpierwotnawaluta",
+                                     "wartoscpierwotna", "ob_wartosc", "wartosc",
+                                     "fs_wartosc", "amount", "kwota"])
+        currency_col = find_col(df, ["nzf_idwaluty", "idwaluty", "waluta", "currency"])
 
         skipped = 0
+        skipped_unpaid = 0
         for _, row in df.iterrows():
             sn = norm_sn(row.get(sn_col, ""))
             if not sn:
                 continue
+
+            # ── WALIDACJA: data ostatniej spłaty musi być niepusta ──────────
+            if pay_date_col:
+                pay_date_val = str(row.get(pay_date_col, "")).strip()
+                if pay_date_val in ("", "nan", "None", "NaT", "NaN"):
+                    skipped_unpaid += 1
+                    continue   # faktura wystawiona ale nieopłacona — pomijamy
+
             ym_full = fmt_date(row.get(invoice_date_col, ""))
             if not ym_full:
                 skipped += 1
@@ -435,13 +442,31 @@ async def import_payments(
                 if m:
                     months_count = int(m.group(1))
 
+            # Kwota — dzielimy proporcjonalnie na miesiące
+            total_amount = 0.0
+            if amount_col:
+                try:
+                    raw = str(row.get(amount_col, "0")).replace(",", ".").replace(" ", "").replace("\xa0", "")
+                    v = float(raw)
+                    if v > 0:
+                        total_amount = v
+                except (ValueError, TypeError):
+                    pass
+            amount_per_month = round(total_amount / months_count, 2) if months_count > 1 else total_amount
+
+            currency = ""
+            if currency_col:
+                currency = str(row.get(currency_col, "")).strip()
+                if currency in ("nan", "None"):
+                    currency = ""
+
             # Generuj rekord dla każdego miesiąca objętego fakturą
             base_y, base_m = int(ym[:4]), int(ym[5:7])
             for i in range(months_count):
                 offset = base_m - 1 + i
                 rec_y = base_y + offset // 12
                 rec_m = offset % 12 + 1
-                records.append((sn, f"{rec_y}-{rec_m:02d}", customer))
+                records.append((sn, f"{rec_y}-{rec_m:02d}", customer, amount_per_month, currency))
 
     elif month_cols:
         # ── Tabela przestawna ─────────────────────────────────────────────────
@@ -455,11 +480,17 @@ async def import_payments(
                 if val and val not in ("0", "nan", "None", ""):
                     ym = fmt_date(mc) or str(mc).strip()[:7]
                     if ym:
-                        records.append((sn, ym, customer))
+                        # Kwota z wartości komórki (jeśli liczbowa)
+                        try:
+                            amt = round(float(val.replace(",", ".").replace(" ", "")), 2)
+                        except (ValueError, TypeError):
+                            amt = 0.0
+                        records.append((sn, ym, customer, amt, ""))
 
     elif year_month:
         # ── Lista miesięczna ──────────────────────────────────────────────────
-        paid_col = find_col(df, ["oplacony", "oplacone", "paid", "status", "kwota", "amount"])
+        paid_col = find_col(df, ["oplacony", "oplacone", "paid", "status"])
+        amount_col_m = find_col(df, ["kwota", "wartosc", "amount"])
         for _, row in df.iterrows():
             sn = norm_sn(row.get(sn_col, ""))
             if not sn:
@@ -469,7 +500,13 @@ async def import_payments(
                 val = str(row.get(paid_col, "")).strip().lower()
                 if val in ("0", "nie", "no", "false", "", "nan"):
                     continue
-            records.append((sn, year_month, customer))
+            amt = 0.0
+            if amount_col_m:
+                try:
+                    amt = round(float(str(row.get(amount_col_m, "0")).replace(",", ".").replace(" ", "")), 2)
+                except (ValueError, TypeError):
+                    pass
+            records.append((sn, year_month, customer, amt, ""))
 
     else:
         raise HTTPException(
@@ -482,43 +519,52 @@ async def import_payments(
         return {"inserted": 0, "months": [], "message": "Brak rekordów do importu."}
 
     # Deduplikacja po (sn, year_month) — wiele faktur dla tego SN w tym samym miesiącu
-    # zachowujemy pierwszą z niepustym klientem, resztę pomijamy
+    # zachowujemy pierwszą z niepustym klientem i wyższą kwotą
     deduped_pay: dict = {}
-    for sn, ym, customer in records:
+    for sn, ym, customer, amount, currency in records:
         key = (sn, ym)
-        if key not in deduped_pay or (customer and not deduped_pay[key][2]):
-            deduped_pay[key] = (sn, ym, customer)
+        if key not in deduped_pay:
+            deduped_pay[key] = (sn, ym, customer, amount, currency)
+        else:
+            ex = deduped_pay[key]
+            deduped_pay[key] = (
+                sn, ym,
+                ex[2] if ex[2] else customer,          # preferuj niepusty customer
+                ex[3] if ex[3] >= amount else amount,  # wyższa kwota wygrywa
+                ex[4] if ex[4] else currency,          # preferuj niepustą walutę
+            )
     deduped_list = list(deduped_pay.values())
 
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
                 execute_values(cur, """
-                    INSERT INTO payments (sn, year_month, customer)
+                    INSERT INTO payments (sn, year_month, customer, amount, currency)
                     VALUES %s
                     ON CONFLICT (sn, year_month) DO UPDATE SET
-                        customer = CASE
-                            WHEN EXCLUDED.customer <> '' THEN EXCLUDED.customer
-                            ELSE payments.customer
-                        END
+                        customer = CASE WHEN EXCLUDED.customer <> '' THEN EXCLUDED.customer
+                                        ELSE payments.customer END,
+                        amount   = CASE WHEN EXCLUDED.amount   > 0   THEN EXCLUDED.amount
+                                        ELSE payments.amount   END,
+                        currency = CASE WHEN EXCLUDED.currency <> '' THEN EXCLUDED.currency
+                                        ELSE payments.currency END
                 """, deduped_list)
     except Exception as e:
         raise HTTPException(500, f"Błąd zapisu do bazy: {e}")
 
     months = sorted({r[1] for r in deduped_list})
     fmt = "IDS" if invoice_date_col else ("pivot" if month_cols else "monthly")
+
+    skipped_unpaid_count = skipped_unpaid if invoice_date_col else 0
     return {
-        "inserted": len(deduped_list),
-        "months":   months,
-        "format":   fmt,
+        "inserted":          len(deduped_list),
+        "months":            months,
+        "format":            fmt,
         "duplicates_merged": len(records) - len(deduped_list),
-        "_debug": {
-            "invoice_date_col": invoice_date_col,
-            "qty_col":          qty_col if invoice_date_col else None,
-            "cat_col":          cat_col if invoice_date_col else None,
-            "raw_records":      len(records),
-            "columns_detected": list(df.columns[:20]),
-        }
+        "skipped_unpaid":    skipped_unpaid_count,
+        "pay_date_col":      pay_date_col if invoice_date_col else None,
+        "amount_col":        amount_col   if invoice_date_col else None,
+        "currency_col":      currency_col if invoice_date_col else None,
     }
 
 

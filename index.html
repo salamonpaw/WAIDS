@@ -449,6 +449,7 @@
           <th title="Miesiąc pierwszej zarejestrowanej płatności abonamentu (format YYYY-MM)">Pierwsza opłata</th>
           <th title="Miesiąc ostatniej zarejestrowanej płatności abonamentu (format YYYY-MM)">Ostatnia opłata</th>
           <th title="Łączna liczba miesięcy, za które zarejestrowano płatność abonamentu&#10;(może być więcej niż okres od pierwszej do ostatniej opłaty, jeśli brak przerw)">Mies.</th>
+          <th title="Łączna kwota opłaconego abonamentu (suma ze wszystkich miesięcy)&#10;Waluta pochodzi z pliku płatności IDS (nzf_IdWaluty)&#10;Dostępna po imporcie pliku IDS z kwotami">Kwota</th>
           <th title="Notatka tekstowa przypisana do urządzenia — kliknij 🔧 w wierszu aby edytować">💬</th>
         </tr></thead>
         <tbody id="tableBody"></tbody>
@@ -968,7 +969,11 @@ async function importPayments() {
     const r = await fetch(`${API}/import/payments`, { method:'POST', body:form });
     const d = await r.json();
     if (!r.ok) throw new Error(d.detail || r.statusText);
-    setMsg('msgPay', `✓ Zaimportowano ${d.inserted} rekordów. Miesiące: ${d.months.join(', ')}`, 'ok');
+    const skipNote  = d.skipped_unpaid > 0
+      ? ` · pominięto ${d.skipped_unpaid} nieopłaconych (brak daty spłaty)`
+      : (d.pay_date_col ? '' : ' · ⚠ brak kolumny daty spłaty — nie walidowano');
+    const amtNote   = d.amount_col ? '' : '';
+    setMsg('msgPay', `✓ Zaimportowano ${d.inserted} rekordów (${d.format}). Miesiące: ${d.months.join(', ')}${skipNote}`, 'ok');
     refreshStatus();
   } catch(e) { setMsg('msgPay', '❌ '+e.message, 'err'); }
   finally    { checkImportReady(); }
@@ -1282,6 +1287,14 @@ function renderTypeChart(data) {
   });
 }
 
+// ── format currency amount ──────────────────────────────────────────────
+function fmtAmount(amount, currency) {
+  if (!amount || amount === 0) return '—';
+  const fmt = new Intl.NumberFormat('pl-PL', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  const sym = (!currency || currency === 'PLN') ? ' zł' : ` ${currency}`;
+  return fmt.format(amount) + sym;
+}
+
 // ── render table (with pagination) ────────────────────────────────────
 function renderTable(data) {
   const tbody  = document.getElementById('tableBody');
@@ -1294,7 +1307,7 @@ function renderTable(data) {
   const slice  = data.slice(start, end);
 
   if (!total) {
-    tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;padding:2rem;color:var(--text-muted)">Brak wyników</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="15" style="text-align:center;padding:2rem;color:var(--text-muted)">Brak wyników</td></tr>';
   } else {
     tbody.innerHTML = slice.map(r => {
       const checked = selectedSNs.has(r.sn) ? ' checked' : '';
@@ -1302,6 +1315,10 @@ function renderTable(data) {
       const commentCell = comment
         ? `<td class="comment-cell has-comment" title="${esc(comment)}">${esc(comment.slice(0,30))}${comment.length>30?'…':''}</td>`
         : `<td class="comment-cell" title="Brak komentarza">—</td>`;
+      const amountVal = parseFloat(r.total_amount) || 0;
+      const amountCell = amountVal > 0
+        ? `<td style="text-align:right;font-size:12px;font-weight:600;color:var(--green);white-space:nowrap">${fmtAmount(amountVal, r.currency)}</td>`
+        : `<td style="text-align:right;color:var(--text-muted);font-size:11px">—</td>`;
       return `<tr>
         <td style="text-align:center;padding:6px 8px">
           <input type="checkbox" data-sn="${esc(r.sn)}"${checked}
@@ -1320,6 +1337,7 @@ function renderTable(data) {
         <td>${fmtDate(r.first_pay)}</td>
         <td>${fmtDate(r.last_pay)}</td>
         <td style="font-weight:600">${r.total_months||'—'}</td>
+        ${amountCell}
         ${commentCell}
       </tr>`;
     }).join('');
@@ -1433,11 +1451,12 @@ const DT_EXP = { master:'Master', slave:'Slave', oem:'OEM' };
 
 function exportCSV() {
   const rows = [['Status','Typ','Numer seryjny','Klient','Firma prod.','Maszyna',
-                 'Handlowcy','Operator','Data produkcji','Pierwsza oplata','Ostatnia oplata','Miesiace']];
+                 'Handlowcy','Operator','Data produkcji','Pierwsza oplata','Ostatnia oplata','Miesiace','Kwota','Waluta']];
   for (const r of filtered)
     rows.push([ST_EXP[r.status]||r.status, DT_EXP[r.device_type]||r.device_type||'',
                r.sn, r.customer, r.firma, r.maszyna, r.handlowcy, r.operator,
-               fmtDate(r.prod_date), fmtDate(r.first_pay), fmtDate(r.last_pay), r.total_months||'']);
+               fmtDate(r.prod_date), fmtDate(r.first_pay), fmtDate(r.last_pay),
+               r.total_months||'', parseFloat(r.total_amount)||'', r.currency||'']);
   const csv  = rows.map(r=>r.map(c=>'"'+String(c||'').replace(/"/g,'""')+'"').join(',')).join('\r\n');
   const blob = new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
   const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
@@ -1457,10 +1476,12 @@ function exportXLSX() {
     'Data produkcji':  fmtDate(r.prod_date),
     'Pierwsza oplata': fmtDate(r.first_pay),
     'Ostatnia oplata': fmtDate(r.last_pay),
-    'Miesiace':        r.total_months||''
+    'Miesiace':        r.total_months||'',
+    'Kwota':           parseFloat(r.total_amount)||0,
+    'Waluta':          r.currency||'',
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
-  ws['!cols'] = [14,10,16,22,22,14,24,14,14,14,14,10].map(wch=>({wch}));
+  ws['!cols'] = [14,10,16,22,22,14,24,14,14,14,14,10,14,8].map(wch=>({wch}));
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Raport');
   XLSX.writeFile(wb, 'raport_abonamentow.xlsx');
@@ -1943,7 +1964,7 @@ async function toggleFpExpand(sn) {
     // Build full timeline: first paid month → current month
     const firstYM    = pays[0].year_month;
     const curYM      = nowYM();
-    const paidSet    = new Map(pays.map(p => [p.year_month, p.customer]));
+    const paidSet    = new Map(pays.map(p => [p.year_month, p]));
     const allMonths  = monthRange(firstYM, curYM);
     const selectedYM = document.getElementById('fpMonth').value;  // the search month
 
@@ -1953,12 +1974,18 @@ async function toggleFpExpand(sn) {
       if (!paidSet.has(allMonths[i])) gaps++;
     }
 
+    // Total amount across all paid months
+    const totalAmt  = pays.reduce((s, p) => s + (parseFloat(p.amount) || 0), 0);
+    const anyAmt    = totalAmt > 0;
+    const payCurr   = pays.find(p => p.currency)?.currency || '';
+
     const chips = allMonths.map(ym => {
-      const isPaid    = paidSet.has(ym);
-      const isFirst   = ym === firstYM;    // green anchor
-      const isSearch  = ym === selectedYM; // matches the search month
-      const customer  = paidSet.get(ym) || '';
-      const isLast    = ym === curYM;
+      const p        = paidSet.get(ym);
+      const isPaid   = !!p;
+      const isFirst  = ym === firstYM;    // green anchor
+      const customer = p?.customer || '';
+      const amount   = parseFloat(p?.amount) || 0;
+      const isLast   = ym === curYM;
 
       let bg, co, border, fw;
       if (!isPaid) {
@@ -1975,14 +2002,24 @@ async function toggleFpExpand(sn) {
         bg = 'var(--green-light)'; co = 'var(--green)'; border = 'var(--green)'; fw = '500';
       }
 
-      const title = customer ? ` title="${esc(customer)}"` : '';
+      // Tooltip: customer + amount
+      const tipParts = [];
+      if (customer) tipParts.push(customer);
+      if (amount > 0) tipParts.push(fmtAmount(amount, p.currency || payCurr));
+      const titleAttr = tipParts.length ? ` title="${esc(tipParts.join(' · '))}"` : '';
+
       const label = isPaid ? esc(ym) : `<s style="opacity:.6">${esc(ym)}</s>`;
-      return `<span${title} style="display:inline-block;padding:2px 9px;border-radius:4px;
-              font-size:11px;font-weight:${fw};background:${bg};color:${co};
-              border:1px solid ${border};white-space:nowrap">${label}</span>`;
+      // Amount badge below month chip (if available)
+      const amtBadge = (isPaid && amount > 0)
+        ? `<div style="font-size:9px;text-align:center;margin-top:1px;opacity:.8">${fmtAmount(amount, p.currency || payCurr)}</div>`
+        : '';
+      return `<span${titleAttr} style="display:inline-flex;flex-direction:column;align-items:center;
+              padding:2px 9px;border-radius:4px;font-size:11px;font-weight:${fw};
+              background:${bg};color:${co};border:1px solid ${border};white-space:nowrap">
+              ${label}${amtBadge}</span>`;
     }).join(' ');
 
-    const customer = pays[0].customer || '';
+    const customer = pays.find(p => p.customer)?.customer || '';
     const gapNote  = gaps > 0
       ? `<span style="color:var(--red);font-size:11px;font-weight:600">⚠ ${gaps} przerw${gaps===1?'a':gaps<5?'y':''}!</span>`
       : `<span style="color:var(--green);font-size:11px">✓ bez przerw</span>`;
@@ -1991,6 +2028,7 @@ async function toggleFpExpand(sn) {
       <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px">
         ${customer ? `<span style="font-size:12px;color:var(--text-muted)">Klient: <strong style="color:var(--text)">${esc(customer)}</strong></span>` : ''}
         <span style="font-size:12px;color:var(--text-muted)">${pays.length} / ${allMonths.length} mies. opłaconych</span>
+        ${anyAmt ? `<span style="font-size:12px;font-weight:600;color:var(--green)">Σ ${fmtAmount(totalAmt, payCurr)}</span>` : ''}
         ${gapNote}
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:4px">${chips}</div>`;
