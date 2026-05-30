@@ -249,6 +249,10 @@
 
 <header>
   <h1>📊 Weryfikator Abonamentów</h1>
+  <span id="appVersion" title="Wersja aplikacji WAIDS"
+        style="font-size:11px;color:var(--text-muted);background:var(--bg-secondary);
+               border:0.5px solid var(--border);border-radius:99px;padding:2px 9px;
+               font-family:monospace;flex-shrink:0"></span>
   <div id="dbStatus">
     <div class="db-pill"><span class="db-dot" id="dbDot"></span><span id="dbDevices">Łączenie…</span></div>
     <div class="db-pill" id="dbMonthsPill" style="display:none"><span id="dbMonths"></span></div>
@@ -560,6 +564,30 @@
     <p>Kliknij „Wczytaj raport" aby pobrać dane z bazy.</p>
   </div>
 
+  <!-- ══ PRZYCHODY MIESIĘCZNE ══════════════════════════════════════════ -->
+  <div class="section-card" id="revenueSection" style="display:none;margin-top:1rem">
+    <div style="display:flex;align-items:center;gap:10px;cursor:pointer"
+         onclick="toggleRevenueSection()">
+      <span class="section-title" style="margin:0">💰 Przychody miesięczne</span>
+      <span id="revenueArrow" style="color:var(--text-muted);font-size:13px">▶</span>
+      <button class="ghost sm" style="margin-left:auto" onclick="event.stopPropagation();exportRevenueCSV()"
+              title="Eksportuj przychody do CSV">📄 CSV</button>
+    </div>
+    <div id="revenueBody" style="display:none;margin-top:.75rem;overflow-x:auto">
+      <table class="config-table" id="revenueTable">
+        <thead><tr>
+          <th title="Rok i miesiąc płatności (YYYY-MM)">Miesiąc</th>
+          <th title="Liczba unikalnych urządzeń z płatnością w tym miesiącu">Urządzeń</th>
+          <th title="Waluta płatności">Waluta</th>
+          <th style="text-align:right" title="Suma kwot wszystkich płatności w tym miesiącu">Suma</th>
+        </tr></thead>
+        <tbody id="revenueList">
+          <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:1rem">⏳ Ładowanie…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 </div>
 
@@ -584,6 +612,11 @@
              style="height:32px;font-size:12px;padding:5px 10px;border-radius:var(--radius-md);
                     border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
       <button class="primary" onclick="renderMonitoring()" style="height:32px">Zastosuj</button>
+      <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer"
+             title="Pokaż tylko firmy z typem IDS (abonament cykliczny). Wyklucza Licencję, OEM i Inne.">
+        <input type="checkbox" id="monIdsOnly" checked onchange="renderMonitoring()">
+        Tylko IDS
+      </label>
     </div>
     <span class="msg" id="msgMonitor" style="margin:0"></span>
   </div>
@@ -652,6 +685,58 @@
     <button class="ghost" onclick="document.getElementById('overrideModal').close()">Anuluj</button>
     <button class="primary" style="font-size:12px;padding:0 16px;height:32px"
             onclick="saveComment()">💾 Zapisz komentarz</button>
+  </div>
+</dialog>
+
+<!-- ══════════════════ FIRM CONFIG MODAL ══════════════════ -->
+<dialog id="firmConfigModal" style="border-radius:var(--radius-lg);border:0.5px solid var(--border-med);
+        background:var(--bg-secondary);color:var(--text);padding:0;width:420px;max-width:96vw">
+  <div class="dialog-header" style="padding:1rem 1.5rem .75rem;border-bottom:0.5px solid var(--border)">
+    <span style="font-weight:700;font-size:15px">⚙ Konfiguracja firmy</span>
+    <button class="ghost sm" onclick="document.getElementById('firmConfigModal').close()"
+            style="margin-left:auto;font-size:16px;padding:0 6px">✕</button>
+  </div>
+  <div style="padding:1rem 1.5rem .5rem">
+    <p id="fcmFirmaLabel" style="font-size:13px;font-weight:600;color:var(--blue);margin-bottom:1rem"></p>
+    <div class="input-group" style="margin-bottom:.75rem">
+      <label style="font-size:11px;color:var(--text-muted)">Typ firmy</label>
+      <select id="fcmType" style="height:34px">
+        <option value="ids">IDS — abonament cykliczny</option>
+        <option value="licencja">Licencja</option>
+        <option value="oem">OEM — bez opłat</option>
+        <option value="inne">Inne — bez monitorowania</option>
+      </select>
+    </div>
+    <div id="fcmLicFields" style="display:none">
+      <div class="input-group" style="margin-bottom:.75rem">
+        <label style="font-size:11px;color:var(--text-muted)">Cykl płatności</label>
+        <select id="fcmCycle" style="height:34px">
+          <option value="">— nieznany —</option>
+          <option value="monthly">Miesięczny</option>
+          <option value="quarterly">Kwartalny</option>
+          <option value="annual">Roczny</option>
+          <option value="once">Jednorazowy</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:10px">
+        <div class="input-group" style="flex:1;margin-bottom:.75rem">
+          <label style="font-size:11px;color:var(--text-muted)">Oczekiwana kwota</label>
+          <input type="number" id="fcmAmount" min="0" step="0.01" placeholder="0.00" style="height:34px">
+        </div>
+        <div class="input-group" style="width:90px;margin-bottom:.75rem">
+          <label style="font-size:11px;color:var(--text-muted)">Waluta</label>
+          <select id="fcmCurrency" style="height:34px">
+            <option value="PLN">PLN</option>
+            <option value="EUR">EUR</option>
+            <option value="USD">USD</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="dialog-footer" style="gap:8px">
+    <button class="ghost" onclick="document.getElementById('firmConfigModal').close()">Anuluj</button>
+    <button class="primary" onclick="saveFirmConfigModal()">💾 Zapisz</button>
   </div>
 </dialog>
 
@@ -787,9 +872,17 @@
     <!-- Reps -->
     <div class="section-card">
       <div class="section-title">👥 Handlowcy — przypisanie firm</div>
-      <p style="font-size:12px;color:var(--text-muted);margin-bottom:1rem">
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:.75rem">
         Przypisz firmy do handlowców. Firma może mieć wielu handlowców.
       </p>
+      <div class="input-row" style="margin-bottom:.75rem">
+        <div class="input-group">
+          <label>Dodaj nowego handlowca</label>
+          <input type="text" id="newRepName" placeholder="Imię i nazwisko…" autocomplete="off"
+                 onkeydown="if(event.key==='Enter') addSalesRep()">
+        </div>
+        <button class="primary" style="align-self:flex-end;height:34px" onclick="addSalesRep()">+ Dodaj</button>
+      </div>
       <div class="msg" id="msgReps"></div>
       <div class="rep-list" id="repsList">
         <div style="text-align:center;color:var(--text-muted);padding:1.5rem">Ładowanie…</div>
@@ -880,6 +973,9 @@ let _repMap  = [];   // rep names per bar
 let _typeMap = [];   // device_type values per bar
 let _barMap  = [];   // prod_date month values per bar
 
+let _firmConfigData = [];   // current firm config rows (for modal pre-fill)
+let _revenueData    = [];   // current monthly revenue rows (for CSV export)
+
 // ── tab switching ──────────────────────────────────────────────────────
 function switchTab(name) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -894,6 +990,14 @@ function switchTab(name) {
 
 // ── db status bar ──────────────────────────────────────────────────────
 async function refreshStatus() {
+  // Fetch app version (fire-and-forget, don't block status)
+  fetch(`${API}/version`).then(r => r.ok ? r.json() : null).then(d => {
+    if (d?.version) {
+      const el = document.getElementById('appVersion');
+      if (el) el.textContent = 'v' + d.version;
+    }
+  }).catch(() => {});
+  // Fetch DB status
   try {
     const r = await fetch(`${API}/status`);
     if (!r.ok) throw 0;
@@ -1150,6 +1254,8 @@ async function loadReport() {
     document.getElementById('emptyState').style.display = 'none';
     onFilterChange();      // render KPIs, charts, table with no active filters
     setMsg('msgReport', `✓ ${data.results.length} urządzeń`, 'ok');
+    document.getElementById('revenueSection').style.display = 'block';
+    _revenueData = [];   // reset so next open re-fetches
   } catch(e) {
     setMsg('msgReport', e.message.includes('fetch')
       ? '❌ Brak połączenia z API — uruchom backend.' : '❌ '+e.message, 'err');
@@ -1845,6 +1951,7 @@ const CYCLE_LABELS     = { monthly:'miesięczny', quarterly:'kwartalny',
 async function loadFirmConfigs() {
   try {
     const data = await (await fetch(`${API}/firm-configs`)).json();
+    _firmConfigData = data;
     renderFirmConfigTable(data);
   } catch(e) {
     setMsg('msgFirmImport', '❌ Błąd ładowania konfiguracji firm: ' + e.message, 'err');
@@ -1866,7 +1973,7 @@ function renderFirmConfigTable(configs) {
       <td>${typeBadge}</td>
       <td style="font-size:12px;color:var(--text-muted)">${cycle}</td>
       <td style="text-align:right;font-size:12px">${amount}</td>
-      <td></td>
+      <td><button class="ghost sm" onclick="openFirmConfigModal('${esc(c.firma)}')" title="Edytuj konfigurację firmy">✎</button></td>
       <td><button class="ghost sm" onclick="deleteFirmConfig('${esc(c.firma)}')" title="Usuń konfigurację tej firmy">✕</button></td>
     </tr>`;
   }).join('');
@@ -1880,6 +1987,48 @@ async function deleteFirmConfig(firma) {
     await loadFirmConfigs();
   } catch(e) { alert('Błąd: ' + e.message); }
 }
+
+function openFirmConfigModal(firma) {
+  const cfg = _firmConfigData.find(c => c.firma === firma)
+    || {firma, firm_type:'ids', cycle:'', expected_amount:0, currency:'PLN'};
+  document.getElementById('fcmFirmaLabel').textContent = firma;
+  document.getElementById('firmConfigModal').dataset.firma = firma;
+  document.getElementById('fcmType').value     = cfg.firm_type || 'ids';
+  document.getElementById('fcmCycle').value    = cfg.cycle || '';
+  document.getElementById('fcmAmount').value   = cfg.expected_amount > 0 ? cfg.expected_amount : '';
+  document.getElementById('fcmCurrency').value = cfg.currency || 'PLN';
+  const showLic = ['licencja', 'ids'].includes(cfg.firm_type || 'ids');
+  document.getElementById('fcmLicFields').style.display = showLic ? '' : 'none';
+  document.getElementById('firmConfigModal').showModal();
+}
+
+async function saveFirmConfigModal() {
+  const modal = document.getElementById('firmConfigModal');
+  const firma = modal.dataset.firma;
+  const body  = {
+    firm_type:       document.getElementById('fcmType').value,
+    cycle:           document.getElementById('fcmCycle').value,
+    expected_amount: parseFloat(document.getElementById('fcmAmount').value) || 0,
+    currency:        document.getElementById('fcmCurrency').value,
+  };
+  try {
+    const r = await fetch(`${API}/firm-configs/${encodeURIComponent(firma)}`, {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    modal.close();
+    setMsg('msgFirmImport', `✓ Zapisano konfigurację firmy „${firma}".`, 'ok');
+    await loadFirmConfigs();
+  } catch(e) { alert('Błąd zapisu: ' + e.message); }
+}
+
+// Show/hide licence fields when firm type changes in modal
+document.getElementById('fcmType').addEventListener('change', function() {
+  const showLic = ['licencja', 'ids'].includes(this.value);
+  document.getElementById('fcmLicFields').style.display = showLic ? '' : 'none';
+});
 
 async function downloadFirmsExcel() {
   try {
@@ -2025,12 +2174,13 @@ function renderReps(reps) {
     return `<div class="rep-card">
       <div class="rep-header">
         <span class="rep-name">👤 ${esc(rep.name)}</span>
-        <div class="rep-add">
+        <div class="rep-add" style="display:flex;gap:6px;align-items:center">
           <select id="firmAdd_${rep.id}">
             <option value="">Dodaj firmę…</option>
             ${avail.map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join('')}
           </select>
           <button class="sm primary" data-action="rep-firm-add" data-rep-id="${rep.id}">+</button>
+          <button class="sm danger" data-action="rep-delete" data-rep-id="${rep.id}" data-rep-name="${esc(rep.name)}" title="Usuń handlowca z systemu">🗑</button>
         </div>
       </div>
       <div class="firm-tags">
@@ -2050,7 +2200,10 @@ document.getElementById('repsList').addEventListener('click', e => {
   if (addBtn) {
     const sel = document.getElementById(`firmAdd_${addBtn.dataset.repId}`);
     if (sel?.value) addFirmToRep(+addBtn.dataset.repId, sel.value);
+    return;
   }
+  const delBtn = e.target.closest('[data-action="rep-delete"]');
+  if (delBtn) { deleteSalesRep(+delBtn.dataset.repId, delBtn.dataset.repName); return; }
 });
 
 async function addFirmToRep(repId, firma) {
@@ -2070,6 +2223,33 @@ async function removeFirmFromRep(repId, firma) {
     setMsg('msgReps', `✓ Odpięto „${firma}".`, 'ok');
     loadReps();
   } catch(e) { setMsg('msgReps','❌ '+e.message,'err'); }
+}
+
+async function addSalesRep() {
+  const inp  = document.getElementById('newRepName');
+  const name = inp.value.trim();
+  if (!name) { setMsg('msgReps', '⚠ Wpisz imię i nazwisko handlowca.', 'err'); return; }
+  try {
+    const r = await fetch(`${API}/sales-reps`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name}),
+    });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    inp.value = '';
+    setMsg('msgReps', `✓ Dodano handlowca „${name}".`, 'ok');
+    await loadReps();
+  } catch(e) { setMsg('msgReps', '❌ ' + e.message, 'err'); }
+}
+
+async function deleteSalesRep(repId, repName) {
+  if (!confirm(`Usunąć handlowca „${repName}"?\nWszystkie przypisania firm zostaną usunięte.`)) return;
+  try {
+    const r = await fetch(`${API}/sales-reps/${repId}`, {method: 'DELETE'});
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    setMsg('msgReps', `✓ Usunięto handlowca „${repName}".`, 'ok');
+    await loadReps();
+  } catch(e) { setMsg('msgReps', '❌ ' + e.message, 'err'); }
 }
 
 // ════════════════════════════════════════════════════════════
@@ -2437,6 +2617,8 @@ function renderMonitoring() {
     r.device_type === 'master' && r.prod_date && r.prod_date.slice(0,7) >= prodFrom
   );
   if (firmaFilter) masters = masters.filter(r => r.firma === firmaFilter);
+  if (document.getElementById('monIdsOnly')?.checked)
+    masters = masters.filter(r => !r.firm_type || r.firm_type === 'ids');
 
   const contentEl = document.getElementById('monitorContent');
 
@@ -2614,6 +2796,81 @@ function monRow(r, mSince, curYM) {
     <td style="padding:7px 12px">${covBar}</td>
     <td style="padding:7px 12px"><span class="badge ${SC[st].badge}">${SC[st].label}</span></td>
   </tr>`;
+}
+
+// ════════════════════════════════════════════════════════════
+// REVENUE SECTION — monthly payment totals
+// ════════════════════════════════════════════════════════════
+
+function toggleRevenueSection() {
+  const body  = document.getElementById('revenueBody');
+  const arrow = document.getElementById('revenueArrow');
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : 'block';
+  arrow.textContent  = isOpen ? '▶' : '▼';
+  if (!isOpen && !_revenueData.length) loadMonthlyRevenue();
+}
+
+async function loadMonthlyRevenue() {
+  const tbody = document.getElementById('revenueList');
+  tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:1rem">⏳ Ładowanie…</td></tr>';
+  try {
+    const data = await (await fetch(`${API}/payments/monthly-revenue`)).json();
+    _revenueData = data;
+    renderRevenueTable(data);
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="4" style="color:var(--red);padding:1rem">❌ ${esc(e.message)}</td></tr>`;
+  }
+}
+
+function renderRevenueTable(data) {
+  const tbody = document.getElementById('revenueList');
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:1rem">Brak danych o płatnościach z kwotami.</td></tr>';
+    return;
+  }
+  // Totals per currency
+  const totals = {};
+  for (const row of data) {
+    const c = row.currency || 'PLN';
+    totals[c] = (totals[c] || 0) + parseFloat(row.total || 0);
+  }
+  let html = data.map(row => {
+    const total = parseFloat(row.total || 0);
+    const curr  = row.currency || 'PLN';
+    return `<tr>
+      <td style="font-family:monospace;font-size:12px;padding:6px 12px">${esc(row.year_month)}</td>
+      <td style="text-align:center;font-size:12px;padding:6px 12px">${row.devices}</td>
+      <td style="font-size:12px;color:var(--text-muted);padding:6px 12px">${esc(curr)}</td>
+      <td style="text-align:right;font-weight:600;color:var(--green);padding:6px 12px">${fmtAmount(total, curr)}</td>
+    </tr>`;
+  }).join('');
+  // Summary rows
+  html += `<tr><td colspan="4" style="border-top:1.5px solid var(--border-med);padding:2px 0"></td></tr>`;
+  for (const [curr, sum] of Object.entries(totals)) {
+    html += `<tr style="background:var(--bg-secondary)">
+      <td colspan="2" style="font-size:12px;font-weight:700;padding:7px 12px">Łącznie</td>
+      <td style="font-size:12px;color:var(--text-muted);padding:7px 12px">${esc(curr)}</td>
+      <td style="text-align:right;font-weight:700;font-size:13px;color:var(--green);padding:7px 12px">${fmtAmount(sum, curr)}</td>
+    </tr>`;
+  }
+  tbody.innerHTML = html;
+}
+
+function exportRevenueCSV() {
+  if (!_revenueData.length) {
+    alert('Brak danych do eksportu. Kliknij sekcję „💰 Przychody miesięczne" aby załadować dane.');
+    return;
+  }
+  const lines = ['Miesiąc,Urządzenia,Waluta,Suma'];
+  for (const row of _revenueData) {
+    lines.push(`${row.year_month},${row.devices},${row.currency || 'PLN'},${parseFloat(row.total||0).toFixed(2)}`);
+  }
+  const blob = new Blob(['﻿' + lines.join('\n')], {type: 'text/csv;charset=utf-8'});
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = 'przychody_miesieczne.csv';
+  a.click();
 }
 
 // Toggle group expand/collapse

@@ -15,15 +15,18 @@ from database import (
     get_conn, get_status, get_analysis, init_db,
     get_excluded_firms, add_excluded_firm, remove_excluded_firm,
     get_reps, get_all_firms, assign_firm_to_rep, remove_firm_from_rep,
+    add_sales_rep, remove_sales_rep,
     set_device_type_override, get_type_overrides,
     get_payments_for_sn,
     set_device_comment, bulk_set_device_type,
     get_firm_configs, upsert_firm_config, delete_firm_config,
     get_firms_for_export, import_firms_table,
+    get_monthly_revenue,
     VALID_FIRM_TYPES, VALID_CYCLES,
 )
+from version import APP_VERSION
 
-app = FastAPI(title="Weryfikator Abonamentów API", version="3.0.0")
+app = FastAPI(title="Weryfikator Abonamentów API", version=APP_VERSION)
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,6 +39,12 @@ app.add_middleware(
 @app.on_event("startup")
 def startup():
     init_db()
+
+
+@app.get("/version")
+def get_version():
+    """Zwraca aktualną wersję aplikacji."""
+    return {"version": APP_VERSION}
 
 
 # ── shared helpers ────────────────────────────────────────────────────────────
@@ -782,6 +791,45 @@ def payments_for_sn(sn: str):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# ── sales rep management ──────────────────────────────────────────────────────
+
+class SalesRepIn(BaseModel):
+    name: str
+
+
+@app.post("/sales-reps")
+def create_sales_rep(body: SalesRepIn):
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(400, "Nazwa handlowca nie może być pusta")
+    try:
+        new_id = add_sales_rep(name)
+        return {"ok": True, "id": new_id, "name": name}
+    except Exception as e:
+        if "unique" in str(e).lower() or "duplicate" in str(e).lower():
+            raise HTTPException(409, f"Handlowiec '{name}' już istnieje")
+        raise HTTPException(500, str(e))
+
+
+@app.delete("/sales-reps/{rep_id}")
+def delete_sales_rep(rep_id: int):
+    try:
+        remove_sales_rep(rep_id)
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# ── monthly revenue ───────────────────────────────────────────────────────────
+
+@app.get("/payments/monthly-revenue")
+def monthly_revenue():
+    try:
+        return get_monthly_revenue()
+    except Exception as e:
+        raise HTTPException(503, str(e))
 
 
 # ── firm config ───────────────────────────────────────────────────────────────

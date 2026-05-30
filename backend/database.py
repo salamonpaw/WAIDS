@@ -318,6 +318,42 @@ def remove_firm_from_rep(rep_id: int, firma: str) -> None:
             )
 
 
+def add_sales_rep(name: str) -> int:
+    """Add a new sales rep. Returns the new id. Raises if name already exists."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO sales_reps (name) VALUES (%s) RETURNING id",
+                (name.strip(),),
+            )
+            return cur.fetchone()[0]
+
+
+def remove_sales_rep(rep_id: int) -> None:
+    """Delete a sales rep and cascade-delete all their firm assignments."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM sales_reps WHERE id = %s", (rep_id,))
+
+
+def get_monthly_revenue() -> list:
+    """Return sum of payments per year_month, grouped by currency."""
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT
+                    year_month,
+                    COALESCE(NULLIF(currency,''), 'PLN') AS currency,
+                    COUNT(DISTINCT sn)                   AS devices,
+                    SUM(amount)                          AS total
+                FROM payments
+                WHERE amount > 0
+                GROUP BY year_month, COALESCE(NULLIF(currency,''), 'PLN')
+                ORDER BY year_month, currency
+            """)
+            return [dict(r) for r in cur.fetchall()]
+
+
 # ── device type override ───────────────────────────────────────────────────────
 
 def set_device_type_override(sn: str, dtype: str, showroom_until: str = "") -> None:
