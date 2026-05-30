@@ -398,8 +398,18 @@
       <select id="fRep"      onchange="onFilterChange()"><option value="">Wszyscy handlowcy</option></select>
       <select id="fCustomer" onchange="onFilterChange()"><option value="">Wszyscy klienci</option></select>
       <select id="fOperator" onchange="onFilterChange()"><option value="">Wszyscy operatorzy</option></select>
-      <input type="month" id="fDateFrom" onchange="onFilterChange()" title="Data produkcji od">
-      <input type="month" id="fDateTo"   onchange="onFilterChange()" title="Data produkcji do">
+      <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);white-space:nowrap"
+             title="Filtruj po dacie produkcji urządzenia">
+        Prod. od:
+        <input type="month" id="fDateFrom" onchange="onFilterChange()"
+               style="margin:0" title="Data produkcji od (YYYY-MM) — pokaż tylko urządzenia wyprodukowane od tego miesiąca">
+      </label>
+      <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);white-space:nowrap"
+             title="Filtruj po dacie produkcji urządzenia">
+        do:
+        <input type="month" id="fDateTo" onchange="onFilterChange()"
+               style="margin:0" title="Data produkcji do (YYYY-MM) — pokaż tylko urządzenia wyprodukowane do tego miesiąca">
+      </label>
       <select id="fOverdue" onchange="onFilterChange()" title="Zaległość w płatności abonamentu (tylko mastery)">
         <option value="">Wszystkie zaległości</option>
         <option value="1">Zaległość &gt; 1 mies.</option>
