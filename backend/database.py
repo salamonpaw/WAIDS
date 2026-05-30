@@ -77,6 +77,17 @@ def init_db() -> None:
                     PRIMARY KEY (firma, rep_id)
                 );
 
+                -- Konfiguracja firm: typ + cykl płatności
+                -- firm_type: ids | licencja | oem | inne
+                -- cycle:     monthly | quarterly | annual | once | (puste = nieznane)
+                CREATE TABLE IF NOT EXISTS firm_config (
+                    firma            VARCHAR PRIMARY KEY,
+                    firm_type        VARCHAR NOT NULL DEFAULT 'ids',
+                    cycle            VARCHAR NOT NULL DEFAULT '',
+                    expected_amount  NUMERIC(12,2) NOT NULL DEFAULT 0,
+                    currency         VARCHAR NOT NULL DEFAULT ''
+                );
+
                 CREATE INDEX IF NOT EXISTS idx_payments_sn       ON payments(sn);
                 CREATE INDEX IF NOT EXISTS idx_devices_operator  ON devices(operator);
                 CREATE INDEX IF NOT EXISTS idx_devices_firma     ON devices(firma);
@@ -161,14 +172,17 @@ def get_analysis(
                     GROUP BY fr.firma
                 )
                 SELECT
-                    COALESCE(d.sn,       ps.sn)  AS sn,
-                    -- Status: OEM → showroom → excluded → paid → unpaid → only
+                    COALESCE(d.sn, ps.sn) AS sn,
+                    -- Status: urządzenie OEM → showroom → typ firmy (inne/licencja) → wykluczone → paid → unpaid → only
                     CASE
                         WHEN COALESCE(NULLIF(d.device_type_override,''),
                                       CASE WHEN COALESCE(d.maszyna,'') ILIKE '%OEM%'
                                            THEN 'oem' ELSE 'master' END
                              ) = 'oem'                              THEN 'oem'
                         WHEN COALESCE(d.device_type_override,'') = 'showroom' THEN 'showroom'
+                        WHEN COALESCE(fc.firm_type,'ids') = 'inne'     THEN 'inne'
+                        WHEN COALESCE(fc.firm_type,'ids') = 'licencja' THEN 'licencja'
+                        WHEN COALESCE(fc.firm_type,'ids') = 'oem'      THEN 'oem'
                         WHEN ef.firma IS NOT NULL                   THEN 'excluded'
                         WHEN d.sn IS NOT NULL AND ps.sn IS NOT NULL THEN 'paid'
                         WHEN d.sn IS NOT NULL AND ps.sn IS NULL     THEN 'unpaid'
@@ -192,11 +206,16 @@ def get_analysis(
                     COALESCE(ps.total_amount, 0)  AS total_amount,
                     COALESCE(ps.currency,    '')  AS currency,
                     COALESCE(rs.handlowcy,  '')   AS handlowcy,
-                    COALESCE(d.comment,     '')   AS comment
+                    COALESCE(d.comment,     '')   AS comment,
+                    COALESCE(fc.firm_type,        'ids') AS firm_type,
+                    COALESCE(fc.cycle,            '')    AS firm_cycle,
+                    COALESCE(fc.expected_amount,  0)     AS firm_expected_amount,
+                    COALESCE(fc.currency,         '')    AS firm_currency
                 FROM devices d
                 FULL OUTER JOIN payment_summary ps ON d.sn = ps.sn
-                LEFT JOIN excluded_firms ef ON COALESCE(d.firma,'') = ef.firma
-                LEFT JOIN rep_summary rs    ON COALESCE(d.firma,'') = rs.firma
+                LEFT JOIN excluded_firms ef  ON COALESCE(d.firma,'') = ef.firma
+                LEFT JOIN rep_summary rs     ON COALESCE(d.firma,'') = rs.firma
+                LEFT JOIN firm_config fc     ON COALESCE(d.firma,'') = fc.firma
                 ORDER BY COALESCE(d.sn, ps.sn)
             """)
             rows = [dict(r) for r in cur.fetchall()]
@@ -368,3 +387,169 @@ def bulk_set_device_type(sns: list, dtype: str, showroom_until: str = "") -> int
                  sns),
             )
             return cur.rowcount
+
+
+# ── firm config ───────────────────────────────────────────────────────────────
+
+VALID_FIRM_TYPES = {"ids", "licencja", "oem", "inne"}
+VALID_CYCLES     = {"monthly", "quarterly", "annual", "once", ""}
+
+
+def get_firm_configs() -> list:
+    """Return all firm configs."""
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT firma, firm_type, cycle, expected_amount, currency
+                FROM firm_config ORDER BY firma
+            """)
+            return [dict(r) for r in cur.fetchall()]
+
+
+def upsert_firm_config(firma: str, firm_type: str, cycle: str,
+                       expected_amount: float, currency: str) -> None:
+    firm_type = firm_type if firm_type in VALID_FIRM_TYPES else "ids"
+    cycle     = cycle     if cycle     in VALID_CYCLES     else ""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO firm_config (firma, firm_type, cycle, expected_amount, currency)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (firma) DO UPDATE SET
+                    firm_type       = EXCLUDED.firm_type,
+                    cycle           = EXCLUDED.cycle,
+                    expected_amount = EXCLUDED.expected_amount,
+                    currency        = EXCLUDED.currency
+            """, (firma, firm_type, cycle, expected_amount or 0, currency or ""))
+
+
+def delete_firm_config(firma: str) -> None:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM firm_config WHERE firma = %s", (firma,))
+
+
+def get_firms_for_export() -> list:
+    """
+    All distinct firma names (from devices) with current config + assigned reps (max 2).
+    Canonical name: prefers customer from payments when SN matches.
+    """
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                WITH device_firms AS (
+                    SELECT DISTINCT firma FROM devices WHERE firma <> ''
+                ),
+                rep_agg AS (
+                    SELECT
+                        fr.firma,
+                        ARRAY_AGG(sr.name ORDER BY sr.name) AS rep_names
+                    FROM firm_reps fr
+                    JOIN sales_reps sr ON fr.rep_id = sr.id
+                    GROUP BY fr.firma
+                )
+                SELECT
+                    df.firma,
+                    COALESCE(fc.firm_type,       'ids') AS firm_type,
+                    COALESCE(fc.cycle,           '')    AS cycle,
+                    COALESCE(fc.expected_amount, 0)     AS expected_amount,
+                    COALESCE(fc.currency,        '')    AS currency,
+                    COALESCE(ra.rep_names, ARRAY[]::text[]) AS rep_names
+                FROM device_firms df
+                LEFT JOIN firm_config fc ON df.firma = fc.firma
+                LEFT JOIN rep_agg ra     ON df.firma = ra.firma
+                ORDER BY df.firma
+            """)
+            return [dict(r) for r in cur.fetchall()]
+
+
+def import_firms_table(rows: list, mode: str = "supplement") -> dict:
+    """
+    Import firm configs + rep assignments from a parsed table.
+    rows: list of dicts with keys: firma, firm_type, cycle, expected_amount, currency,
+                                   rep1 (name), rep2 (name)
+    mode: 'overwrite'  — upsert config, replace all reps for each firma
+          'supplement' — only add missing configs, add new rep assignments (don't remove existing)
+    Returns: {updated_config, updated_reps, skipped, errors}
+    """
+    updated_config = 0
+    updated_reps   = 0
+    skipped        = 0
+    errors         = []
+
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            # Build rep name → id map
+            cur.execute("SELECT id, name FROM sales_reps")
+            rep_map = {r["name"].strip().lower(): r["id"] for r in cur.fetchall()}
+
+        for row in rows:
+            firma = str(row.get("firma", "")).strip()
+            if not firma:
+                skipped += 1
+                continue
+
+            firm_type = str(row.get("firm_type", "ids")).strip().lower()
+            if firm_type not in VALID_FIRM_TYPES:
+                firm_type = "ids"
+            cycle = str(row.get("cycle", "")).strip().lower()
+            if cycle not in VALID_CYCLES:
+                cycle = ""
+            try:
+                expected_amount = float(str(row.get("expected_amount", "0")).replace(",", ".") or 0)
+            except (ValueError, TypeError):
+                expected_amount = 0.0
+            currency = str(row.get("currency", "")).strip().upper()
+
+            # Rep names (up to 2)
+            rep_ids = []
+            for key in ("rep1", "rep2"):
+                name = str(row.get(key, "")).strip()
+                if not name:
+                    continue
+                rid = rep_map.get(name.lower())
+                if rid:
+                    rep_ids.append(rid)
+                else:
+                    errors.append(f"Handlowiec '{name}' nie istnieje — pominięto dla firmy '{firma}'")
+
+            with get_conn() as conn:
+                with conn.cursor() as cur:
+                    if mode == "overwrite":
+                        # Upsert config
+                        cur.execute("""
+                            INSERT INTO firm_config (firma, firm_type, cycle, expected_amount, currency)
+                            VALUES (%s,%s,%s,%s,%s)
+                            ON CONFLICT (firma) DO UPDATE SET
+                                firm_type       = EXCLUDED.firm_type,
+                                cycle           = EXCLUDED.cycle,
+                                expected_amount = EXCLUDED.expected_amount,
+                                currency        = EXCLUDED.currency
+                        """, (firma, firm_type, cycle, expected_amount, currency))
+                        updated_config += 1
+                        # Replace reps
+                        cur.execute("DELETE FROM firm_reps WHERE firma = %s", (firma,))
+                        for rid in rep_ids:
+                            cur.execute(
+                                "INSERT INTO firm_reps (firma, rep_id) VALUES (%s,%s) ON CONFLICT DO NOTHING",
+                                (firma, rid),
+                            )
+                            updated_reps += 1
+                    else:  # supplement
+                        # Only insert new config (don't touch existing)
+                        cur.execute("""
+                            INSERT INTO firm_config (firma, firm_type, cycle, expected_amount, currency)
+                            VALUES (%s,%s,%s,%s,%s)
+                            ON CONFLICT (firma) DO NOTHING
+                        """, (firma, firm_type, cycle, expected_amount, currency))
+                        updated_config += cur.rowcount
+                        # Add new rep assignments only
+                        for rid in rep_ids:
+                            cur.execute(
+                                "INSERT INTO firm_reps (firma, rep_id) VALUES (%s,%s) ON CONFLICT DO NOTHING",
+                                (firma, rid),
+                            )
+                            updated_reps += cur.rowcount
+
+    return {"updated_config": updated_config, "updated_reps": updated_reps,
+            "skipped": skipped, "errors": errors}

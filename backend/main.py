@@ -6,6 +6,7 @@ from typing import Annotated, List, Optional
 
 import pandas as pd
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from psycopg2.extras import execute_values
@@ -17,6 +18,9 @@ from database import (
     set_device_type_override, get_type_overrides,
     get_payments_for_sn,
     set_device_comment, bulk_set_device_type,
+    get_firm_configs, upsert_firm_config, delete_firm_config,
+    get_firms_for_export, import_firms_table,
+    VALID_FIRM_TYPES, VALID_CYCLES,
 )
 
 app = FastAPI(title="Weryfikator Abonamentów API", version="3.0.0")
@@ -778,3 +782,170 @@ def payments_for_sn(sn: str):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# ── firm config ───────────────────────────────────────────────────────────────
+
+class FirmConfigIn(BaseModel):
+    firm_type:       str   = "ids"
+    cycle:           str   = ""
+    expected_amount: float = 0.0
+    currency:        str   = ""
+
+
+@app.get("/firm-configs")
+def list_firm_configs():
+    try:
+        return get_firm_configs()
+    except Exception as e:
+        raise HTTPException(503, str(e))
+
+
+@app.put("/firm-configs/{firma}")
+def set_firm_config(firma: str, body: FirmConfigIn):
+    if body.firm_type not in VALID_FIRM_TYPES:
+        raise HTTPException(400, f"firm_type musi być jednym z: {', '.join(VALID_FIRM_TYPES)}")
+    if body.cycle not in VALID_CYCLES:
+        raise HTTPException(400, f"cycle musi być jednym z: {', '.join(VALID_CYCLES)}")
+    try:
+        upsert_firm_config(firma, body.firm_type, body.cycle, body.expected_amount, body.currency)
+        return {"ok": True, "firma": firma}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.delete("/firm-configs/{firma}")
+def remove_firm_config(firma: str):
+    try:
+        delete_firm_config(firma)
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# ── firm export / import ──────────────────────────────────────────────────────
+
+@app.get("/firms/export")
+def export_firms_excel():
+    """Generate Excel file with all firms, types, cycles, amounts, reps (max 2)."""
+    try:
+        rows = get_firms_for_export()
+    except Exception as e:
+        raise HTTPException(503, str(e))
+
+    CYCLE_PL = {"monthly": "miesięczny", "quarterly": "kwartalny",
+                "annual": "roczny", "once": "jednorazowy", "": ""}
+    TYPE_PL  = {"ids": "IDS", "licencja": "Licencja", "oem": "OEM", "inne": "Inne"}
+
+    data = []
+    for r in rows:
+        reps = r.get("rep_names") or []
+        data.append({
+            "Firma":              r["firma"],
+            "Typ firmy":          TYPE_PL.get(r["firm_type"], r["firm_type"]),
+            "Cykl płatności":     CYCLE_PL.get(r["cycle"], r["cycle"]),
+            "Oczekiwana kwota":   float(r["expected_amount"]) if r["expected_amount"] else 0,
+            "Waluta":             r["currency"] or "",
+            "Handlowiec 1":       reps[0] if len(reps) > 0 else "",
+            "Handlowiec 2":       reps[1] if len(reps) > 1 else "",
+        })
+
+    df = pd.DataFrame(data)
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Firmy")
+        ws = writer.sheets["Firmy"]
+        # Column widths
+        for i, w in enumerate([40, 12, 16, 18, 8, 28, 28], start=1):
+            ws.column_dimensions[chr(64 + i)].width = w
+        # Validation note in a second sheet
+        info = writer.book.create_sheet("Instrukcja")
+        notes = [
+            ["Kolumna",           "Dozwolone wartości"],
+            ["Typ firmy",         "IDS | Licencja | OEM | Inne"],
+            ["Cykl płatności",    "miesięczny | kwartalny | roczny | jednorazowy | (puste)"],
+            ["Oczekiwana kwota",  "liczba dziesiętna np. 120.00"],
+            ["Waluta",            "PLN | EUR | USD | (puste)"],
+            ["Handlowiec 1/2",    "Dokładna nazwa handlowca z systemu (wielkość liter ma znaczenie)"],
+        ]
+        for row in notes:
+            info.append(row)
+        info.column_dimensions["A"].width = 22
+        info.column_dimensions["B"].width = 55
+
+    buf.seek(0)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=firmy_konfiguracja.xlsx"},
+    )
+
+
+class FirmsImportIn(BaseModel):
+    mode: str = "supplement"   # supplement | overwrite
+
+
+@app.post("/firms/import")
+async def import_firms_excel(
+    file: UploadFile = File(...),
+    mode: Annotated[Optional[str], Form()] = "supplement",
+):
+    if mode not in ("supplement", "overwrite"):
+        raise HTTPException(400, "mode musi być 'supplement' lub 'overwrite'")
+
+    raw = await file.read()
+    try:
+        df = pd.read_excel(io.BytesIO(raw), dtype=str).fillna("")
+        df.columns = [str(c).strip() for c in df.columns]
+    except Exception as e:
+        raise HTTPException(422, f"Nie można odczytać pliku Excel: {e}")
+
+    TYPE_MAP = {"ids": "ids", "licencja": "licencja", "oem": "oem", "inne": "inne",
+                "IDS": "ids", "Licencja": "licencja", "OEM": "oem", "Inne": "inne"}
+    CYCLE_MAP = {
+        "miesięczny": "monthly", "monthly": "monthly",
+        "kwartalny":  "quarterly", "quarterly": "quarterly",
+        "roczny":     "annual",   "annual": "annual",
+        "jednorazowy":"once",     "once": "once",
+        "": "",
+    }
+
+    # Map column headers flexibly
+    col = lambda *keys: next((c for k in keys for c in df.columns if k.lower() in c.lower()), None)
+    firma_col    = col("firma",    "company")
+    type_col     = col("typ",      "type")
+    cycle_col    = col("cykl",     "cycle")
+    amount_col   = col("kwota",    "amount")
+    currency_col = col("waluta",   "currency")
+    rep1_col     = col("handlowiec 1", "rep1", "handlowiec1")
+    rep2_col     = col("handlowiec 2", "rep2", "handlowiec2")
+
+    if not firma_col:
+        raise HTTPException(422, "Brak kolumny 'Firma' w pliku")
+
+    rows = []
+    for _, row in df.iterrows():
+        firma = str(row.get(firma_col, "")).strip()
+        if not firma:
+            continue
+        rows.append({
+            "firma":           firma,
+            "firm_type":       TYPE_MAP.get(str(row.get(type_col, "")).strip(), "ids") if type_col else "ids",
+            "cycle":           CYCLE_MAP.get(str(row.get(cycle_col, "")).strip(), "") if cycle_col else "",
+            "expected_amount": str(row.get(amount_col, "0")).strip() if amount_col else "0",
+            "currency":        str(row.get(currency_col, "")).strip().upper() if currency_col else "",
+            "rep1":            str(row.get(rep1_col, "")).strip() if rep1_col else "",
+            "rep2":            str(row.get(rep2_col, "")).strip() if rep2_col else "",
+        })
+
+    try:
+        result = import_firms_table(rows, mode)
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+    return {
+        "ok":             True,
+        "mode":           mode,
+        "firms_processed": len(rows),
+        **result,
+    }

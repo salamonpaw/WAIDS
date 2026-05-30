@@ -167,7 +167,9 @@
     .dt-badge.showroom  { background: var(--teal-light);   color: var(--teal); }
     .dt-badge.showroom.expired { background: var(--red-light); color: var(--red); }
     .dt-badge.override-set { box-shadow: 0 0 0 1.5px currentColor; }
-    .badge.showroom { background: var(--teal-light); color: var(--teal); }
+    .badge.showroom  { background: var(--teal-light);   color: var(--teal); }
+    .badge.licencja  { background: #dbeafe; color: #1d4ed8; }
+    .badge.inne      { background: #f3e8ff; color: #7c3aed; }
 
     /* rep color chips */
     .rep-chip { display: inline-block; padding: 1px 6px; border-radius: 4px;
@@ -380,7 +382,7 @@
     <!-- Filters -->
     <div class="filters-bar" id="filtersBar">
       <input type="text" id="fSearch" oninput="onFilterChange()" placeholder="🔍 Szukaj: SN, firma, maszyna, klient…" autocomplete="off">
-      <select id="fStatus" onchange="onFilterChange()">
+      <select id="fStatus" onchange="onFilterChange()" title="Filtruj po statusie abonamentu">
         <option value="">Wszystkie statusy</option>
         <option value="paid">Opłacone</option>
         <option value="unpaid">Brak opłaty</option>
@@ -388,6 +390,15 @@
         <option value="excluded">Wykluczone (firma)</option>
         <option value="showroom">Showroom</option>
         <option value="oem">OEM</option>
+        <option value="licencja">Licencja</option>
+        <option value="inne">Inne</option>
+      </select>
+      <select id="fFirmType" onchange="onFilterChange()" title="Filtruj po typie firmy (konfigurowanym w zakładce Konfiguracja)">
+        <option value="">Wszystkie typy firm</option>
+        <option value="ids">IDS (abonament)</option>
+        <option value="licencja">Licencja</option>
+        <option value="oem">OEM</option>
+        <option value="inne">Inne</option>
       </select>
       <select id="fDeviceType" onchange="onFilterChange()">
         <option value="">Wszystkie typy</option>
@@ -727,6 +738,67 @@
 
   </div>
 
+  <!-- ══ EKSPORT / IMPORT KLIENTÓW ══════════════════════════════════════ -->
+  <div class="section-card" style="margin-top:1rem">
+    <div class="section-title">📤 Eksport / Import tabeli klientów</div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:1rem;line-height:1.6">
+      Pobierz plik Excel ze wszystkimi firmami z bazy produkcji. Uzupełnij <strong>Typ firmy</strong>,
+      <strong>Cykl płatności</strong>, <strong>Oczekiwaną kwotę</strong> oraz maksymalnie
+      <strong>2 handlowców</strong> (dokładne nazwy jak w systemie).<br>
+      Następnie wgraj uzupełniony plik. Tryb <em>Uzupełnij</em> — dodaje brakujące wpisy,
+      nie rusza istniejących. Tryb <em>Nadpisz</em> — aktualizuje wszystkie rekordy.
+    </p>
+
+    <!-- Typ firm — legenda -->
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:1rem;font-size:12px">
+      <span><span class="badge paid">IDS</span> — cykliczny abonament, monitorowany w systemie</span>
+      <span><span class="badge licencja">Licencja</span> — jednorazowa lub periodyczna, konfigurowalny cykl i kwota</span>
+      <span><span class="badge oem">OEM</span> — producent / demonstracyjne, bez opłat</span>
+      <span><span class="badge inne">Inne</span> — inny typ, bez monitorowania płatności</span>
+    </div>
+
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;margin-bottom:1rem">
+      <button class="primary" onclick="downloadFirmsExcel()" style="height:34px">
+        📥 Pobierz Excel (firmy)
+      </button>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <label style="font-size:12px;font-weight:600">Tryb importu:</label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+          <input type="radio" name="importMode" value="supplement" checked> Uzupełnij (nie ruszaj istniejących)
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+          <input type="radio" name="importMode" value="overwrite"> Nadpisz wszystkie rekordy
+        </label>
+      </div>
+      <label class="primary" style="height:34px;display:inline-flex;align-items:center;padding:0 16px;
+             border-radius:var(--radius-md);cursor:pointer;font-size:13px;font-weight:600;
+             background:var(--blue);color:#fff;gap:6px">
+        📤 Wgraj uzupełniony Excel
+        <input type="file" accept=".xlsx,.xls" style="display:none" onchange="uploadFirmsExcel(this)">
+      </label>
+    </div>
+    <div class="msg" id="msgFirmImport"></div>
+
+    <!-- podgląd tabeli firm -->
+    <div style="overflow-x:auto;margin-top:.5rem">
+      <table class="config-table" id="firmConfigTable">
+        <thead><tr>
+          <th title="Nazwa firmy z pliku produkcji">Firma</th>
+          <th title="Typ firmy: IDS / Licencja / OEM / Inne">Typ</th>
+          <th title="Cykl płatności dla licencji: miesięczny / kwartalny / roczny / jednorazowy">Cykl</th>
+          <th title="Oczekiwana kwota za jeden cykl">Kwota</th>
+          <th title="Przypisani handlowcy (maks. 2)">Handlowcy</th>
+          <th style="width:60px"></th>
+        </tr></thead>
+        <tbody id="firmConfigList">
+          <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:1rem">Ładowanie…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
 </div>
 </div>
 
@@ -808,7 +880,8 @@ function setMsg(id, text, type='') {
 
 const STATUS_LABELS = { paid:'Opłacone', unpaid:'Brak opłaty',
                         only:'Brak w prod.', excluded:'Wykluczone',
-                        showroom:'Showroom', oem:'OEM' };
+                        showroom:'Showroom', oem:'OEM',
+                        licencja:'Licencja', inne:'Inne' };
 const DT_LABELS     = { master:'Master', oem:'OEM', showroom:'Showroom' };
 
 function statusBadge(s) { return `<span class="badge ${s}">${STATUS_LABELS[s]||s}</span>`; }
@@ -1043,15 +1116,16 @@ function populateFilters() {
 
 // ── filter & update everything ─────────────────────────────────────────
 function onFilterChange() {
-  const q       = document.getElementById('fSearch').value.trim().toLowerCase();
-  const st      = document.getElementById('fStatus').value;
-  const dt      = document.getElementById('fDeviceType').value;
-  const rep     = document.getElementById('fRep').value;
-  const cu      = document.getElementById('fCustomer').value;
-  const op      = document.getElementById('fOperator').value;
-  const df      = document.getElementById('fDateFrom').value;
-  const dto     = document.getElementById('fDateTo').value;
-  const overdue = document.getElementById('fOverdue').value;
+  const q        = document.getElementById('fSearch').value.trim().toLowerCase();
+  const st       = document.getElementById('fStatus').value;
+  const dt       = document.getElementById('fDeviceType').value;
+  const ft       = document.getElementById('fFirmType').value;
+  const rep      = document.getElementById('fRep').value;
+  const cu       = document.getElementById('fCustomer').value;
+  const op       = document.getElementById('fOperator').value;
+  const df       = document.getElementById('fDateFrom').value;
+  const dto      = document.getElementById('fDateTo').value;
+  const overdue  = document.getElementById('fOverdue').value;
 
   const curYM = nowYM();
 
@@ -1063,6 +1137,7 @@ function onFilterChange() {
     }
     if (st  && r.status !== st)  return false;
     if (dt  && r.device_type !== dt) return false;
+    if (ft  && (r.firm_type || 'ids') !== ft) return false;
     if (rep && !r.handlowcy.includes(rep)) return false;
     if (cu  && r.customer !== cu) return false;
     if (op  && r.operator !== op) return false;
@@ -1086,7 +1161,7 @@ function onFilterChange() {
   });
 
   // mark active filters visually
-  ['fSearch','fStatus','fDeviceType','fRep','fCustomer','fOperator','fDateFrom','fDateTo','fOverdue'].forEach(id => {
+  ['fSearch','fStatus','fDeviceType','fFirmType','fRep','fCustomer','fOperator','fDateFrom','fDateTo','fOverdue'].forEach(id => {
     const el = document.getElementById(id);
     el.classList.toggle('filter-active', !!el.value);
   });
@@ -1104,7 +1179,7 @@ function onFilterChange() {
 }
 
 function clearFilters(reapply = true) {
-  ['fSearch','fStatus','fDeviceType','fRep','fCustomer','fOperator','fDateFrom','fDateTo','fOverdue'].forEach(id => {
+  ['fSearch','fStatus','fDeviceType','fFirmType','fRep','fCustomer','fOperator','fDateFrom','fDateTo','fOverdue'].forEach(id => {
     const el = document.getElementById(id);
     el.value = '';
     el.classList.remove('filter-active');
@@ -1590,7 +1665,86 @@ async function applyOverride(deviceType) {
 // ════════════════════════════════════════════════════════════
 
 async function loadConfig() {
-  await Promise.all([loadExclusions(), loadReps(), loadOverridesList()]);
+  await Promise.all([loadExclusions(), loadReps(), loadOverridesList(), loadFirmConfigs()]);
+}
+
+// ── firm config table ───────────────────────────────────────────────────
+const FIRM_TYPE_LABELS = { ids:'IDS', licencja:'Licencja', oem:'OEM', inne:'Inne' };
+const CYCLE_LABELS     = { monthly:'miesięczny', quarterly:'kwartalny',
+                           annual:'roczny', once:'jednorazowy', '':'—' };
+
+async function loadFirmConfigs() {
+  try {
+    const data = await (await fetch(`${API}/firm-configs`)).json();
+    renderFirmConfigTable(data);
+  } catch(e) {
+    setMsg('msgFirmImport', '❌ Błąd ładowania konfiguracji firm: ' + e.message, 'err');
+  }
+}
+
+function renderFirmConfigTable(configs) {
+  const tbody = document.getElementById('firmConfigList');
+  if (!configs.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:1rem">Brak skonfigurowanych firm — pobierz Excel, uzupełnij i wgraj.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = configs.map(c => {
+    const typeBadge = `<span class="badge ${c.firm_type}">${FIRM_TYPE_LABELS[c.firm_type]||c.firm_type}</span>`;
+    const cycle     = CYCLE_LABELS[c.cycle] || c.cycle || '—';
+    const amount    = c.expected_amount > 0 ? fmtAmount(c.expected_amount, c.currency) : '—';
+    return `<tr>
+      <td style="font-weight:500">${esc(c.firma)}</td>
+      <td>${typeBadge}</td>
+      <td style="font-size:12px;color:var(--text-muted)">${cycle}</td>
+      <td style="text-align:right;font-size:12px">${amount}</td>
+      <td></td>
+      <td><button class="ghost sm" onclick="deleteFirmConfig('${esc(c.firma)}')" title="Usuń konfigurację tej firmy">✕</button></td>
+    </tr>`;
+  }).join('');
+}
+
+async function deleteFirmConfig(firma) {
+  if (!confirm(`Usunąć konfigurację firmy „${firma}"?`)) return;
+  try {
+    const r = await fetch(`${API}/firm-configs/${encodeURIComponent(firma)}`, {method:'DELETE'});
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    await loadFirmConfigs();
+  } catch(e) { alert('Błąd: ' + e.message); }
+}
+
+async function downloadFirmsExcel() {
+  try {
+    const r = await fetch(`${API}/firms/export`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const blob = await r.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'firmy_konfiguracja.xlsx';
+    a.click();
+  } catch(e) { alert('Błąd pobierania: ' + e.message); }
+}
+
+async function uploadFirmsExcel(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const mode = document.querySelector('input[name="importMode"]:checked')?.value || 'supplement';
+  setMsg('msgFirmImport', '⏳ Importuję…');
+  const form = new FormData();
+  form.append('file', file);
+  form.append('mode', mode);
+  try {
+    const r = await fetch(`${API}/firms/import`, {method:'POST', body:form});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || r.statusText);
+    const errNote = d.errors?.length ? ` ⚠ ${d.errors.length} błędów (otwórz konsolę)` : '';
+    if (d.errors?.length) console.warn('Błędy importu firm:', d.errors);
+    setMsg('msgFirmImport',
+      `✓ Przetworzono ${d.firms_processed} firm. Zaktualizowano: ${d.updated_config} konfiguracji, ${d.updated_reps} przypisań.${errNote}`,
+      'ok');
+    await loadFirmConfigs();
+    await loadReps();   // refresh rep assignments too
+  } catch(e) { setMsg('msgFirmImport', '❌ ' + e.message, 'err'); }
+  input.value = '';   // reset file input
 }
 
 async function loadOverridesList() {
