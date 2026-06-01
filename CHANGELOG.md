@@ -6,6 +6,15 @@ wersjonowanie zgodne z [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.9.2] — 2026-06-01
+
+### Dodano
+- **Historia scaleń firm** — tabela w sekcji Scalanie firm pokazuje wszystkie wykonane scalenia (data, źródło → cel, liczba przeniesionych urządzeń); dane przechowywane w nowej tabeli `firm_merges`
+- **Endpoint `GET /firms/merges`** — zwraca historię scaleń od najnowszych
+- **Tabela `firm_merges`** — `id`, `source`, `target`, `merged_at`, `devices_affected`; tworzona automatycznie przy starcie backendu
+
+---
+
 ## [1.9.1] — 2026-06-01
 
 ### Naprawiono
