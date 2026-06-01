@@ -6,6 +6,15 @@ wersjonowanie zgodne z [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.4.0] — 2026-06-01
+
+### Wydajność
+- **Indeksy bazy danych** — dodano indeksy na `payments.sn`, `devices.sn`, `devices.firma`, `firm_config.firma`, `excluded_firms.firma`, `firm_reps.firma`; zapytanie analityczne znacznie szybsze
+- **Cache w pamięci** — wynik `/analyze` (wszystkie 3486 urządzeń) cachowany w RAM po pierwszym zapytaniu; każde kolejne wejście w Raport jest natychmiastowe
+- **Inwalidacja cache** — cache czyszczony automatycznie po każdym imporcie, zmianie typu urządzenia, edycji konfiguracji firmy, zmianie wykluczeń
+
+---
+
 ## [1.3.1] — 2026-06-01
 
 ### Naprawiono

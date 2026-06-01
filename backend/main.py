@@ -518,6 +518,7 @@ async def import_production(files: List[UploadFile] = File(...)):
         except Exception as e:
             errors.append(f"{file.filename}: {e}")
 
+    _invalidate_cache()
     return {"imported": total, "errors": errors}
 
 
@@ -754,6 +755,7 @@ async def import_payments(
         "netto_col":         netto_col    if invoice_date_col else None,
         "brutto_col":        brutto_col   if invoice_date_col else None,
     }
+    _invalidate_cache()
 
 
 @app.delete("/import/production")
@@ -763,6 +765,7 @@ def clear_production():
         with conn.cursor() as cur:
             cur.execute("DELETE FROM devices")
             deleted = cur.rowcount
+    _invalidate_cache()
     return {"deleted": deleted}
 
 
@@ -776,7 +779,23 @@ def clear_payments(year_month: Optional[str] = None):
             else:
                 cur.execute("DELETE FROM payments")
             deleted = cur.rowcount
+    _invalidate_cache()
     return {"deleted": deleted, "year_month": year_month}
+
+
+# ── in-memory cache for /analyze ─────────────────────────────────────────────
+_analyze_cache: list | None = None
+
+def _get_cached_analysis() -> list:
+    """Return cached full result, or fetch from DB if cache is empty."""
+    global _analyze_cache
+    if _analyze_cache is None:
+        _analyze_cache = get_analysis()
+    return _analyze_cache
+
+def _invalidate_cache() -> None:
+    global _analyze_cache
+    _analyze_cache = None
 
 
 @app.get("/analyze")
@@ -789,11 +808,27 @@ def analyze(
     date_from:   Optional[str] = None,
     date_to:     Optional[str] = None,
 ):
-    """Return the full joined result from the DB, with optional filters."""
+    """Return joined result with optional filters. First call hits DB, subsequent calls use cache."""
     try:
-        rows = get_analysis(status, customer, operator, rep, date_from, date_to, device_type)
+        rows = _get_cached_analysis()
     except Exception as e:
         raise HTTPException(503, f"Błąd bazy danych: {e}")
+
+    # Apply filters in Python on cached data (fast O(n) scan)
+    if status:
+        rows = [r for r in rows if r["status"] == status]
+    if customer:
+        rows = [r for r in rows if r["customer"] == customer]
+    if operator:
+        rows = [r for r in rows if r["operator"] == operator]
+    if rep:
+        rows = [r for r in rows if rep in r["handlowcy"]]
+    if device_type:
+        rows = [r for r in rows if r["device_type"] == device_type]
+    if date_from:
+        rows = [r for r in rows if r["prod_date"] and r["prod_date"] >= date_from]
+    if date_to:
+        rows = [r for r in rows if not r["prod_date"] or r["prod_date"] <= date_to]
 
     paid        = sum(1 for r in rows if r["status"] == "paid")
     unpaid      = sum(1 for r in rows if r["status"] == "unpaid")
@@ -837,6 +872,7 @@ def list_exclusions():
 def create_exclusion(body: ExclusionIn):
     try:
         add_excluded_firm(body.firma, body.reason)
+        _invalidate_cache()
         return {"ok": True}
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -846,6 +882,7 @@ def create_exclusion(body: ExclusionIn):
 def delete_exclusion(firma: str):
     try:
         remove_excluded_firm(firma)
+        _invalidate_cache()
         return {"ok": True}
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -906,6 +943,7 @@ def override_device_type(sn: str, body: DeviceTypeIn):
         raise HTTPException(400, "showroom_until (YYYY-MM) is required for showroom type")
     try:
         set_device_type_override(sn, body.device_type, body.showroom_until or "")
+        _invalidate_cache()
         return {"ok": True, "sn": sn, "device_type": body.device_type,
                 "showroom_until": body.showroom_until}
     except Exception as e:
@@ -941,6 +979,7 @@ def bulk_override_type(body: BulkTypeIn):
         raise HTTPException(400, "No SNs provided")
     try:
         count = bulk_set_device_type(body.sns, body.device_type)
+        _invalidate_cache()
         return {"ok": True, "updated": count}
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -1032,6 +1071,7 @@ def set_firm_config(firma: str, body: FirmConfigIn):
         raise HTTPException(400, f"cycle musi być jednym z: {', '.join(VALID_CYCLES)}")
     try:
         upsert_firm_config(firma, body.firm_type, body.cycle, body.expected_amount, body.currency)
+        _invalidate_cache()
         return {"ok": True, "firma": firma}
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -1041,6 +1081,7 @@ def set_firm_config(firma: str, body: FirmConfigIn):
 def remove_firm_config(firma: str):
     try:
         delete_firm_config(firma)
+        _invalidate_cache()
         return {"ok": True}
     except Exception as e:
         raise HTTPException(500, str(e))

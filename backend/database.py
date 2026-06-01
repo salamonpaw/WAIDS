@@ -133,6 +133,14 @@ def init_db() -> None:
                     ADD COLUMN IF NOT EXISTS amount_brutto NUMERIC(12,2) NOT NULL DEFAULT 0;
             """)
 
+            # ── indeksy dla wydajności ─────────────────────────────────────
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_payments_sn      ON payments(sn);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_devices_sn        ON devices(sn);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_devices_firma      ON devices(firma);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_firm_config_firma  ON firm_config(firma);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_excluded_firma     ON excluded_firms(firma);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_firm_reps_firma    ON firm_reps(firma);")
+
             # Ustawienia aplikacji (klucz-wartość)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS app_settings (
@@ -179,15 +187,8 @@ def get_status() -> dict:
 
 # ── analysis ──────────────────────────────────────────────────────────────────
 
-def get_analysis(
-    status_filter: Optional[str] = None,
-    customer_filter: Optional[str] = None,
-    operator_filter: Optional[str] = None,
-    rep_filter: Optional[str] = None,
-    date_from: Optional[str] = None,
-    date_to: Optional[str] = None,
-    device_type_filter: Optional[str] = None,
-) -> list:
+def get_analysis() -> list:
+    """Return ALL rows — filtering happens in main.py (on cached result)."""
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("""
@@ -258,24 +259,7 @@ def get_analysis(
                 LEFT JOIN firm_config fc     ON COALESCE(d.firma,'') = fc.firma
                 ORDER BY COALESCE(d.sn, ps.sn)
             """)
-            rows = [dict(r) for r in cur.fetchall()]
-
-    if status_filter:
-        rows = [r for r in rows if r["status"] == status_filter]
-    if customer_filter:
-        rows = [r for r in rows if r["customer"] == customer_filter]
-    if operator_filter:
-        rows = [r for r in rows if r["operator"] == operator_filter]
-    if rep_filter:
-        rows = [r for r in rows if rep_filter in r["handlowcy"]]
-    if device_type_filter:
-        rows = [r for r in rows if r["device_type"] == device_type_filter]
-    if date_from:
-        rows = [r for r in rows if r["prod_date"] and r["prod_date"] >= date_from]
-    if date_to:
-        rows = [r for r in rows if not r["prod_date"] or r["prod_date"] <= date_to]
-
-    return rows
+            return [dict(r) for r in cur.fetchall()]
 
 
 # ── exclusions ────────────────────────────────────────────────────────────────
