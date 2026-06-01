@@ -1498,42 +1498,73 @@ W zakładce Wyliczenia system automatycznie przeliczy:
   <!-- ══ SCALANIE FIRM ════════════════════════════════════════════════════ -->
   <div class="section-card" style="margin-top:1rem">
     <div class="section-title">🔗 Scalanie firm (deduplikacja)
-      <i class="info-icon" data-info="Połącz dwie nazwy firm w jedną — przydatne gdy ta sama firma pojawia się pod różnymi pisowniami (np. &#39;BOGMAR&#39; i &#39;Bogmar&#39;).
+      <i class="info-icon" data-info="Połącz kilka wariantów nazwy tej samej firmy w jedną.
+Przydatne gdy ta sama firma widnieje pod różnymi pisowniami, np. BOGMAR i Bogmar.
 
-Co zostanie przeniesione z Źródło → Cel:
+Jak to działa:
+1. Dodaj firmy które chcesz połączyć (min. 2)
+2. Kliknij &#39;Scal&#39; — pojawi się dialog z pytaniem o docelową nazwę
+3. Wpisz (lub wybierz) finalną nazwę i potwierdź
+
+Co zostanie przeniesione:
   • Urządzenia (devices.firma)
   • Przypisania handlowców (firm_reps)
   • Opłaty licencyjne (firm_license_fees)
-  • Konfiguracja firmy: jeśli CEL już ma konfigurację — źródłowa jest usuwana; jeśli nie — przenoszona
+  • Konfiguracja — wygrywa konfiguracja celu (jeśli istnieje)
 
-Po scaleniu Źródło zniknie z systemu — upewnij się przed wykonaniem!">i</i>
+Operacja jest nieodwracalna!">i</i>
     </div>
-    <p style="font-size:12px;color:var(--text-muted);margin-bottom:1rem;line-height:1.6">
-      Scal dwa warianty nazwy tej samej firmy. Nazwa <strong>Źródło</strong> zniknie — wszystkie
-      powiązane dane zostaną przeniesione na <strong>Cel</strong>.
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:.75rem;line-height:1.6">
+      Dodaj firmy do scalenia za pomocą pola poniżej, następnie kliknij <strong>Scal</strong> aby wybrać docelową nazwę.
     </p>
-    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
-      <div class="input-group" style="min-width:220px;flex:1">
-        <label>Źródło (nazwa która zniknie)</label>
-        <input type="text" id="mergeSource" list="mergeFirmaList1"
-               placeholder="np. BOGMAR" style="height:34px"
-               oninput="previewMerge()">
-        <datalist id="mergeFirmaList1"></datalist>
-      </div>
-      <div style="align-self:flex-end;font-size:20px;color:var(--text-muted);padding-bottom:6px">→</div>
-      <div class="input-group" style="min-width:220px;flex:1">
-        <label>Cel (nazwa która pozostanie)</label>
-        <input type="text" id="mergeTarget" list="mergeFirmaList2"
-               placeholder="np. Bogmar" style="height:34px"
-               oninput="previewMerge()">
-        <datalist id="mergeFirmaList2"></datalist>
-      </div>
-      <button id="mergeFirmsBtn" class="danger" style="height:34px;opacity:0.4;cursor:default"
-              onclick="executeMerge()" disabled>🔗 Scal firmy</button>
+
+    <!-- Input row -->
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:.75rem">
+      <input type="text" id="mergeAddInput" list="mergeFirmaList"
+             placeholder="Wpisz nazwę firmy…"
+             style="height:34px;font-size:13px;padding:0 12px;border-radius:var(--radius-md);
+                    border:0.5px solid var(--border-med);background:var(--bg);color:var(--text);
+                    flex:1;max-width:380px"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();mergeAddFirm()}"
+             autocomplete="off">
+      <datalist id="mergeFirmaList"></datalist>
+      <button onclick="mergeAddFirm()" class="primary" style="height:34px;padding:0 16px">+ Dodaj</button>
+      <button id="mergeDoBtn" onclick="openMergeDialog()"
+              style="height:34px;padding:0 16px;border-radius:var(--radius-md);
+                     background:var(--red);color:#fff;border:none;cursor:pointer;font-size:13px;
+                     font-weight:600;opacity:0.35;pointer-events:none"
+              disabled>🔗 Scal</button>
     </div>
-    <div class="msg" id="msgMerge" style="margin-top:.5rem"></div>
-    <div id="mergePreview" style="font-size:12px;color:var(--text-muted);margin-top:.5rem;line-height:1.7"></div>
+
+    <!-- Chips of firms to merge -->
+    <div id="mergeFirmChips" style="display:flex;flex-wrap:wrap;gap:6px;min-height:32px;
+                                    margin-bottom:.5rem"></div>
+    <div class="msg" id="msgMerge"></div>
   </div>
+
+  <!-- Merge confirmation dialog -->
+  <dialog id="mergeDialog" style="border-radius:var(--radius-lg);border:0.5px solid var(--border-med);
+                                   padding:1.5rem;background:var(--bg);color:var(--text);max-width:440px;width:90%">
+    <div style="font-size:15px;font-weight:600;margin-bottom:.5rem">🔗 Scal firmy</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:1rem" id="mergeDialogInfo"></div>
+    <div class="input-group" style="margin-bottom:1rem">
+      <label>Docelowa nazwa firmy (ta która pozostanie w systemie)</label>
+      <input type="text" id="mergeTargetName" list="mergeFirmaList2"
+             style="height:36px;font-size:13px" autocomplete="off">
+      <datalist id="mergeFirmaList2"></datalist>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button onclick="document.getElementById('mergeDialog').close()"
+              style="height:34px;padding:0 16px;border-radius:var(--radius-md);
+                     border:0.5px solid var(--border-med);background:transparent;
+                     color:var(--text);cursor:pointer">Anuluj</button>
+      <button onclick="executeMerge()"
+              style="height:34px;padding:0 16px;border-radius:var(--radius-md);
+                     background:var(--red);color:#fff;border:none;cursor:pointer;font-weight:600">
+        ✅ Potwierdź scalenie
+      </button>
+    </div>
+  </dialog>
 
 </div>
 
@@ -4125,6 +4156,44 @@ function renderRevTrend() {
   const nettoArr = monthly.map(r => r.netto);
   const eurArr   = monthly.map(r => r.eur);
 
+  // ── Prognoza przychodów (przerywana linia) ─────────────────────────────────
+  const today       = new Date();
+  const curYear     = today.getFullYear();
+  const curMonth    = today.getMonth() + 1;                          // 1-indexed
+  const curMonthStr = `${curYear}-${String(curMonth).padStart(2,'0')}`;
+  // Pokazuj prognozę tylko gdy widok obejmuje bieżący rok
+  const showForecast = !_revTrendYear || _revTrendYear === String(curYear);
+
+  // Średnia PLN netto z ostatnich 3 zakończonych miesięcy (przed bieżącym)
+  const histArr  = _revData.monthly.filter(r => r.month < curMonthStr);
+  const last3    = histArr.slice(-3);
+  const avgNetto = last3.length
+    ? last3.reduce((s, r) => s + (r.netto || 0), 0) / last3.length
+    : 0;
+
+  // Rozszerz etykiety o brakujące miesiące prognozy (bieżący → grudzień)
+  let allLabels = [...labels];
+  let allNetto  = [...nettoArr];
+  let allEur    = [...eurArr];
+
+  if (showForecast && avgNetto > 0) {
+    for (let m = curMonth; m <= 12; m++) {
+      const lbl = `${curYear}-${String(m).padStart(2,'0')}`;
+      if (!allLabels.includes(lbl)) {
+        allLabels.push(lbl);
+        allNetto.push(null);
+        allEur.push(null);
+      }
+    }
+  }
+
+  // Tablica prognozy: null dla historii, avgNetto dla bieżącego miesiąca i dalej
+  const forecastNetto = allLabels.map(lbl =>
+    (showForecast && avgNetto > 0 && lbl >= curMonthStr && lbl.startsWith(String(curYear)))
+      ? Math.round(avgNetto) : null
+  );
+  const hasForecast = forecastNetto.some(v => v !== null);
+
   if (chartRevTrend) chartRevTrend.destroy();
   const ctx = document.getElementById('chartRevTrend');
   if (!ctx) return;
@@ -4132,12 +4201,12 @@ function renderRevTrend() {
   chartRevTrend = new Chart(ctx, {
     type: 'bar',
     data: {
-      labels,
+      labels: allLabels,
       datasets: [
         {
           type: 'bar',
           label: 'PLN netto',
-          data: nettoArr,
+          data: allNetto,
           backgroundColor: REV_COLORS.pln + 'cc',
           borderRadius: 3,
           yAxisID: 'y',
@@ -4145,7 +4214,7 @@ function renderRevTrend() {
         {
           type: 'line',
           label: 'EUR',
-          data: eurArr,
+          data: allEur,
           borderColor: REV_COLORS.eur,
           backgroundColor: REV_COLORS.eur + '33',
           borderWidth: 2,
@@ -4154,6 +4223,20 @@ function renderRevTrend() {
           tension: 0.3,
           yAxisID: 'y2',
         },
+        ...(hasForecast ? [{
+          type: 'line',
+          label: 'Prognoza PLN',
+          data: forecastNetto,
+          borderColor: REV_COLORS.pln,
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          borderDash: [6, 4],
+          pointRadius: 4,
+          pointStyle: 'circle',
+          fill: false,
+          tension: 0,
+          yAxisID: 'y',
+        }] : []),
       ],
     },
     options: {
@@ -4165,9 +4248,12 @@ function renderRevTrend() {
           callbacks: {
             label: ctx => {
               const v = ctx.parsed.y;
-              return ctx.dataset.yAxisID === 'y2'
-                ? ` EUR: ${fmtNum(v)} €`
-                : ` PLN netto: ${fmtPLN(v)}`;
+              if (v === null || v === undefined) return null;
+              if (ctx.dataset.label === 'Prognoza PLN')
+                return ` Prognoza (śr. 3 mies.): ${fmtPLN(v)}`;
+              if (ctx.dataset.yAxisID === 'y2')
+                return ` EUR: ${fmtNum(v)} €`;
+              return ` PLN netto: ${fmtPLN(v)}`;
             }
           }
         }
@@ -4634,6 +4720,7 @@ async function deleteLicenseFee(id, firma) {
 
 // ── COMPANY MERGE ─────────────────────────────────────────────────────────────
 let _allFirmsForMerge = [];
+let _mergeFirmSet = [];   // firms added to the merge list
 
 async function loadMergeFirmaLists() {
   try {
@@ -4643,75 +4730,109 @@ async function loadMergeFirmaLists() {
     _allFirmsForMerge = (data.rows || []).map(f => f.firma).filter(Boolean).sort();
   } catch(e) { return; }
 
-  ['mergeFirmaList1','mergeFirmaList2'].forEach(id => {
+  ['mergeFirmaList','mergeFirmaList2'].forEach(id => {
     const dl = document.getElementById(id);
-    if (dl) dl.innerHTML = _allFirmsForMerge.map(f => `<option value="${f.replace(/"/g,'&quot;')}">`).join('');
+    if (dl) dl.innerHTML = _allFirmsForMerge.map(f => `<option value="${esc(f)}">`).join('');
   });
-  // Also populate license fee datalist
   const lfDl = document.getElementById('lfFirmaList');
-  if (lfDl) lfDl.innerHTML = _allFirmsForMerge.map(f => `<option value="${f.replace(/"/g,'&quot;')}">`).join('');
+  if (lfDl) lfDl.innerHTML = _allFirmsForMerge.map(f => `<option value="${esc(f)}">`).join('');
 }
 
-function previewMerge() {
-  const src = document.getElementById('mergeSource')?.value.trim();
-  const tgt = document.getElementById('mergeTarget')?.value.trim();
-  const btn = document.getElementById('mergeFirmsBtn');
-  const preview = document.getElementById('mergePreview');
+function mergeAddFirm() {
+  const inp = document.getElementById('mergeAddInput');
+  const val = inp?.value.trim();
+  if (!val) return;
+  if (_mergeFirmSet.includes(val)) { inp.value = ''; return; }
+  _mergeFirmSet.push(val);
+  inp.value = '';
+  renderMergeChips();
+}
 
-  if (!src || !tgt || src === tgt) {
-    if (btn) { btn.disabled = true; btn.style.opacity='0.4'; btn.style.cursor='default'; }
-    if (preview) preview.textContent = '';
-    return;
+function mergeRemoveFirm(idx) {
+  _mergeFirmSet.splice(idx, 1);
+  renderMergeChips();
+}
+
+function renderMergeChips() {
+  const container = document.getElementById('mergeFirmChips');
+  const btn = document.getElementById('mergeDoBtn');
+  if (!container) return;
+  container.innerHTML = _mergeFirmSet.map((f, i) => `
+    <span style="display:inline-flex;align-items:center;gap:5px;background:var(--bg-secondary);
+                 border:0.5px solid var(--border-med);border-radius:99px;padding:3px 10px 3px 12px;
+                 font-size:12px;font-weight:500">
+      ${esc(f)}
+      <button onclick="mergeRemoveFirm(${i})"
+              style="width:16px;height:16px;border-radius:50%;border:none;background:var(--border-med);
+                     color:var(--text);cursor:pointer;font-size:10px;display:flex;align-items:center;
+                     justify-content:center;flex-shrink:0">✕</button>
+    </span>`).join('');
+
+  const canMerge = _mergeFirmSet.length >= 2;
+  if (btn) {
+    btn.disabled = !canMerge;
+    btn.style.opacity = canMerge ? '1' : '0.35';
+    btn.style.pointerEvents = canMerge ? 'auto' : 'none';
   }
+}
 
-  const srcCount = _allFirmsForMerge.filter(f => f.toLowerCase() === src.toLowerCase()).length;
-  const tgtCount = _allFirmsForMerge.filter(f => f.toLowerCase() === tgt.toLowerCase()).length;
-
-  if (btn) { btn.disabled = false; btn.style.opacity='1'; btn.style.cursor='pointer'; }
-  if (preview) {
-    preview.innerHTML = `
-      <strong style="color:var(--amber)">⚠️ Podgląd operacji:</strong><br>
-      Źródło: <strong>${src}</strong> ${srcCount?'✓ znaleziono w bazie':'⚠️ nie znaleziono!'}<br>
-      Cel: <strong>${tgt}</strong> ${tgtCount?'✓ znaleziono w bazie':'⚠️ nie znaleziono!'}<br>
-      Wszystkie urządzenia i konfiguracje <strong>${src}</strong> zostaną przeniesione do <strong>${tgt}</strong>.<br>
-      Nazwa <strong style="color:var(--red)">${src}</strong> <strong>zniknie z systemu</strong>.
-    `;
+function openMergeDialog() {
+  if (_mergeFirmSet.length < 2) return;
+  const info = document.getElementById('mergeDialogInfo');
+  const nameInput = document.getElementById('mergeTargetName');
+  if (info) info.innerHTML = `Firmy do scalenia:<br>
+    ${_mergeFirmSet.map(f => `<strong>${esc(f)}</strong>`).join(' + ')}<br>
+    <span style="color:var(--amber);font-size:11px">Wszystkie dane zostaną przeniesione na docelową nazwę. Operacja nieodwracalna.</span>`;
+  if (nameInput) {
+    nameInput.value = _mergeFirmSet[0];
+    // Populate datalist with the candidate names
+    const dl2 = document.getElementById('mergeFirmaList2');
+    if (dl2) dl2.innerHTML = _mergeFirmSet.map(f => `<option value="${esc(f)}">`).join('');
   }
+  document.getElementById('mergeDialog').showModal();
 }
 
 async function executeMerge() {
-  const src = document.getElementById('mergeSource')?.value.trim();
-  const tgt = document.getElementById('mergeTarget')?.value.trim();
-  if (!src || !tgt) return;
-  if (src === tgt) { showMsg('msgMerge','Źródło i cel są identyczne','error'); return; }
-  if (!confirm(`Scalić firmę „${src}" → „${tgt}"?\n\nTo nieodwracalna operacja. Kontynuować?`)) return;
+  const target = document.getElementById('mergeTargetName')?.value.trim();
+  if (!target) { showMsg('msgMerge','Podaj docelową nazwę firmy','error'); return; }
 
-  try {
-    const r = await fetch(`${API}/firms/merge`, {
-      method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ source: src, target: tgt })
-    });
-    if (!r.ok) { const e=await r.json(); throw new Error(e.detail||r.status); }
-    const d = await r.json();
-    const aff = d.affected || {};
+  const sources = _mergeFirmSet.filter(f => f !== target);
+  if (!sources.length) { showMsg('msgMerge','Docelowa nazwa musi różnić się od źródeł','error'); return; }
+
+  document.getElementById('mergeDialog').close();
+
+  let totalDevices = 0, totalReps = 0, errors = [];
+  for (const src of sources) {
+    try {
+      const r = await fetch(`${API}/firms/merge`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ source: src, target })
+      });
+      if (!r.ok) { const e = await r.json(); throw new Error(e.detail || r.status); }
+      const d = await r.json();
+      totalDevices += (d.affected?.devices || 0);
+      totalReps    += (d.affected?.firm_reps || 0);
+    } catch(e) { errors.push(`${src}: ${e.message}`); }
+  }
+
+  if (errors.length) {
+    showMsg('msgMerge', '⚠️ Błędy: ' + errors.join('; '), 'error');
+  } else {
     showMsg('msgMerge',
-      `✅ Scalono! Urządzeń: ${aff.devices||0}, handlowców: ${aff.firm_reps||0}, konfiguracja: ${aff.firm_config||'—'}`,
+      `✅ Scalono ${sources.length} firm w „${target}". Urządzeń: ${totalDevices}, handlowców: ${totalReps}`,
       'ok');
-    document.getElementById('mergeSource').value = '';
-    document.getElementById('mergeTarget').value = '';
-    document.getElementById('mergePreview').innerHTML = '';
-    document.getElementById('mergeFirmsBtn').disabled = true;
-    document.getElementById('mergeFirmsBtn').style.opacity = '0.4';
-    // Reload firms list and config
-    await loadMergeFirmaLists();
-    if (document.getElementById('tab-config').classList.contains('active')) loadConfig();
-  } catch(e) { showMsg('msgMerge','Błąd: '+e.message,'error'); }
+  }
+
+  _mergeFirmSet = [];
+  renderMergeChips();
+  await loadMergeFirmaLists();
+  if (document.getElementById('tab-config').classList.contains('active')) loadConfig();
 }
 
 // END REVENUE ANALYTICS TAB
 
 // ── global ⓘ tooltip ──────────────────────────────────────────────────────
-// Tooltip div is defined AFTER </script> in HTML → must do lazy getElementById.
+// Tooltip div is defined AFTER the closing script tag in HTML → must do lazy getElementById.
 // Strategy: mouseover on any element — if it's an .info-icon show tooltip,
 // otherwise hide it.  No mouseout needed (avoids false-fires on subpixel moves).
 (function () {

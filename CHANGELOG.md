@@ -6,6 +6,19 @@ wersjonowanie zgodne z [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.8.0] — 2026-06-01
+
+### Dodano
+- **Prognoza przychodów** (zakładka Wyliczenia) — przerywana linia na wykresie trendu miesięcznego pokazuje przewidywany przychód PLN netto od bieżącego miesiąca do końca roku; obliczana jako średnia z ostatnich 3 zakończonych miesięcy; tooltip wyraźnie oznacza wartość jako „Prognoza (śr. 3 mies.)"
+
+### Zmieniono
+- **Scalanie firm** — przebudowany UI z pola tekstowego na podejście chip-based: firmy dodaje się przyciskiem „+ Dodaj" (jak w sekcji Handlowcy); po zebraniu ≥2 firm przycisk „🔗 Scal" otwiera dialog z pytaniem o nazwę docelową; potwierdzenie uruchamia kaskadowe scalenie przez API
+
+### Naprawiono
+- **Surowy kod JS renderował się jako tekst strony** — komentarz `// Tooltip div is defined AFTER </script> in HTML` zawierał literal `</script>`, co powodowało przedwczesne zakończenie tagu `<script>` przez parser HTML i wyświetlenie reszty skryptu jako widocznego tekstu; zmieniono na „closing script tag"
+
+---
+
 ## [1.7.1] — 2026-06-01
 
 ### Naprawiono
