@@ -6,6 +6,32 @@ wersjonowanie zgodne z [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.2.0] — 2026-06-01
+
+### Dodano
+- **Historia płatności urządzenia** w zakładce Monitoring — wyszukaj po numerze seryjnym i zobacz pełną tabelę płatności (miesiąc, klient, kwota) wraz z sumą łączną i informacją o urządzeniu
+
+### Naprawiono
+- **Scroll poziomy tabeli w Raporcie** — tabela z wieloma kolumnami teraz poprawnie wyświetla pasek przewijania poziomego zamiast ucinać kolumny
+
+---
+
+## [1.1.0] — 2026-05-31
+
+### Dodano
+- **Autoryzacja JWT** — wymagane logowanie emailem i hasłem przed dostępem do aplikacji; token przechowywany w `localStorage`, automatyczne wylogowanie po wygaśnięciu
+- **Panel administracyjny** (zakładka Konfiguracja, widoczna tylko dla admina) — lista użytkowników, dodawanie kont, resetowanie hasła, dezaktywacja konta
+- **Konto administratora** — tworzone automatycznie przy starcie z env `ADMIN_EMAIL` / `ADMIN_PASSWORD`
+- **Changelog / Release notes** — przycisk wersji w nagłówku otwiera modal z historią zmian
+- **Filtr "Tylko IDS"** w zakładce Monitoring — ukrywa firmy z typem Licencja / OEM / Inne
+- **Zakładka "Nowe płatności"** przepisana od nowa — pokazuje urządzenia wg daty produkcji (nie daty pierwszej płatności); domyślnie poprzedni miesiąc; kolumna statusu płatności; nierozliczone wyróżnione czerwonym tłem
+
+### Naprawiono
+- **Nagłówki kolumn** — błąd z cudzysłowem w atrybucie `title` (tooltips nie renderowały się poprawnie gdy nazwa zawierała `"`)
+- **Zastąpiono passlib biblioteką bcrypt** — passlib 1.7.4 niekompatybilna z bcrypt ≥ 5.0.0 (błąd przy hashowaniu hasła)
+
+---
+
 ## [1.0.0] — 2026-05-30
 
 Pierwsza oficjalnie wersjonowana wersja. Zawiera kompletny zestaw funkcji do
