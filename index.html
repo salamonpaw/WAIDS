@@ -172,6 +172,31 @@
                          text-transform:uppercase; letter-spacing:.04em; display:flex; align-items:center; gap:8px; }
     .rev-section-title span { flex:1; }
 
+    /* ── info icon + tooltip ── */
+    .info-icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 14px; height: 14px; border-radius: 50%;
+      background: var(--text-muted); color: var(--bg);
+      font-size: 9px; font-weight: 700; font-style: normal;
+      cursor: pointer; flex-shrink: 0; vertical-align: middle;
+      margin-left: 5px; line-height: 1; user-select: none;
+      transition: background .12s;
+    }
+    .info-icon:hover { background: var(--blue); }
+    #infoTooltipPopup {
+      position: fixed; z-index: 9999;
+      background: var(--bg); color: var(--text);
+      border: 0.5px solid var(--border-med);
+      border-radius: var(--radius-lg);
+      padding: .75rem 1rem;
+      box-shadow: 0 8px 32px rgba(0,0,0,.18);
+      font-size: 12px; line-height: 1.6;
+      max-width: 340px; white-space: pre-line;
+      pointer-events: none; opacity: 0;
+      transition: opacity .12s;
+    }
+    #infoTooltipPopup.visible { opacity: 1; }
+
     /* ── filters ── */
     .filters-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
                    background: var(--bg); border: 0.5px solid var(--border);
@@ -773,24 +798,55 @@
 
   <!-- KPI row -->
   <div class="rev-kpi-grid" id="revKpiGrid">
-    <div class="kpi teal"
-         title="SUMA przychodów netto w PLN za wybrany okres.&#10;&#10;Źródło: kolumna ob_CenaNetto z pliku IDS — cena netto faktury w złotówkach.&#10;Dla faktur w EUR lub USD wartość jest przeliczona przez IDS na PLN netto w momencie wystawiania faktury.&#10;Formuła: SUM(amount_netto) dla wszystkich płatności w wybranym roku.&#10;&#10;💡 Użyj filtra roku w nagłówku zakładki aby zmienić okres.">
-      <div class="kpi-label" id="revKpiNettoLbl">Przychody YTD (PLN netto)</div>
+    <div class="kpi teal">
+      <div class="kpi-label" id="revKpiNettoLbl">Przychody YTD (PLN netto)
+        <i class="info-icon" data-info="SUMA przychodów netto w PLN za wybrany okres.
+
+Źródło: kolumna ob_CenaNetto z pliku IDS — cena netto faktury w złotówkach.
+Dla faktur w EUR lub USD wartość jest przeliczona przez IDS na PLN netto w momencie wystawiania faktury.
+
+Formuła: SUM(amount_netto) dla wszystkich płatności w wybranym roku.
+
+💡 Użyj filtra roku w nagłówku zakładki aby zmienić okres.">i</i>
+      </div>
       <div class="kpi-value" id="revKpiNetto">—</div>
     </div>
-    <div class="kpi green"
-         title="SUMA przychodów w walucie EUR za wybrany okres.&#10;&#10;Źródło: kolumna ob_CenaWaluta z pliku IDS — kwota w walucie oryginalnej faktury.&#10;Dotyczy wyłącznie faktur z walutą EUR (pole nzf_IdWaluty = 'EUR').&#10;Faktury PLN, USD i inne waluty nie są tu wliczane.&#10;Formuła: SUM(amount) WHERE currency = 'EUR'.&#10;&#10;💡 Kwota w EUR nie jest przeliczana na PLN — to wartość oryginalna z faktury.">
-      <div class="kpi-label" id="revKpiEurLbl">Przychody YTD (EUR)</div>
+    <div class="kpi green">
+      <div class="kpi-label" id="revKpiEurLbl">Przychody YTD (EUR)
+        <i class="info-icon" data-info="SUMA przychodów w walucie EUR za wybrany okres.
+
+Źródło: kolumna ob_CenaWaluta z pliku IDS — kwota w walucie oryginalnej faktury.
+Dotyczy wyłącznie faktur z walutą EUR (pole nzf_IdWaluty = &#39;EUR&#39;).
+Faktury PLN, USD i inne waluty nie są tu wliczane.
+
+Formuła: SUM(amount) WHERE currency = &#39;EUR&#39;.
+
+⚠️ Kwota w EUR nie jest przeliczana na PLN — to wartość oryginalna z faktury.">i</i>
+      </div>
       <div class="kpi-value" id="revKpiEur">—</div>
     </div>
-    <div class="kpi amber"
-         title="LICZBA unikalnych urządzeń (numerów seryjnych SN) które miały co najmniej jedną zarejestrowaną płatność w wybranym okresie.&#10;&#10;Źródło: tabela payments — każdy rekord odpowiada jednemu SN + miesiąc.&#10;Formuła: COUNT(DISTINCT sn) dla płatności w wybranym roku.&#10;&#10;💡 To nie liczba urządzeń posiadanych przez firmę, lecz tych które aktywnie płacą abonament.&#10;Urządzenia bez żadnej płatności (status 'brak opłaty') nie są liczone.">
-      <div class="kpi-label" id="revKpiDevicesLbl">Płacących urządzeń (YTD)</div>
+    <div class="kpi amber">
+      <div class="kpi-label" id="revKpiDevicesLbl">Płacących urządzeń (YTD)
+        <i class="info-icon" data-info="LICZBA unikalnych urządzeń (numerów seryjnych SN) które miały co najmniej jedną zarejestrowaną płatność w wybranym okresie.
+
+Źródło: tabela payments — każdy rekord odpowiada jednemu SN + miesiąc.
+Formuła: COUNT(DISTINCT sn) dla płatności w wybranym roku.
+
+💡 To nie liczba urządzeń posiadanych przez firmę, lecz tych które aktywnie płacą abonament.
+Urządzenia bez żadnej płatności (status &#39;brak opłaty&#39;) nie są liczone.">i</i>
+      </div>
       <div class="kpi-value" id="revKpiDevices">—</div>
     </div>
-    <div class="kpi"
-         title="LICZBA unikalnych klientów (wartość pola 'Klient / Operator' z pliku IDS) którzy mieli co najmniej jedną płatność w wybranym okresie.&#10;&#10;Źródło: kolumna customer w tabeli payments — pobierana z pliku płatności IDS.&#10;Formuła: COUNT(DISTINCT customer) dla płatności w wybranym roku.&#10;&#10;💡 Klient ≠ Firma. Jedno konto firmy może mieć wiele urządzeń na różnych klientów/operatorów. Puste wartości pola klienta są pomijane.">
-      <div class="kpi-label" id="revKpiCustomersLbl">Płacących klientów (YTD)</div>
+    <div class="kpi">
+      <div class="kpi-label" id="revKpiCustomersLbl">Płacących klientów (YTD)
+        <i class="info-icon" data-info="LICZBA unikalnych klientów (wartość pola &#39;Klient / Operator&#39; z pliku IDS) którzy mieli co najmniej jedną płatność w wybranym okresie.
+
+Źródło: kolumna customer w tabeli payments — pobierana z pliku płatności IDS.
+Formuła: COUNT(DISTINCT customer) dla płatności w wybranym roku.
+
+💡 Klient ≠ Firma. Jedno konto firmy może mieć wiele urządzeń na różnych klientów/operatorów.
+Puste wartości pola klienta są pomijane.">i</i>
+      </div>
       <div class="kpi-value" id="revKpiCustomers">—</div>
     </div>
   </div>
@@ -800,9 +856,16 @@
 
     <!-- Monthly trend -->
     <div class="chart-card" id="revTrendCard">
-      <div class="chart-title"
-           title="Wykres słupkowo-liniowy pokazujący przychody miesiąc po miesiącu.&#10;&#10;Słupki (niebieskie) = PLN netto — SUM(ob_CenaNetto) per miesiąc, zawsze w złotówkach.&#10;Linia (żółta, prawa oś) = EUR — SUM(ob_CenaWaluta) dla faktur z walutą EUR.&#10;&#10;Filtruj pilkami lat powyżej lub globalnym filtrem roku w nagłówku zakładki.&#10;Kliknij ⤢ Rozwiń aby powiększyć na całą szerokość.">
-        <span>Trend miesięczny (PLN netto)</span>
+      <div class="chart-title">
+        <span>Trend miesięczny (PLN netto)
+          <i class="info-icon" data-info="Wykres słupkowo-liniowy pokazujący przychody miesiąc po miesiącu.
+
+Słupki (niebieskie) = PLN netto — SUM(ob_CenaNetto) per miesiąc, zawsze w złotówkach.
+Linia (żółta, prawa oś) = EUR — SUM(ob_CenaWaluta) dla faktur z walutą EUR.
+
+Filtruj pilkami lat lub globalnym filtrem roku w nagłówku zakładki.
+Kliknij ⤢ Rozwiń aby powiększyć na całą szerokość.">i</i>
+        </span>
         <button onclick="toggleRevTrendExpand()" id="revTrendExpandBtn"
                 style="font-size:11px;padding:2px 7px;border-radius:4px;border:0.5px solid var(--border-med);
                        background:transparent;color:var(--text-muted);cursor:pointer">⤢ Rozwiń</button>
@@ -818,8 +881,16 @@
 
     <!-- Annual bars -->
     <div class="chart-card" id="revAnnualCard">
-      <div class="chart-title"
-           title="Porównanie przychodów rok do roku.&#10;&#10;PLN netto (niebieski) = SUM(ob_CenaNetto) — wartość netto faktur w PLN.&#10;PLN brutto (zielony)  = SUM(ob_CenaBrutto) — wartość brutto faktur w PLN (z VAT).&#10;EUR (żółty, prawa oś) = SUM(ob_CenaWaluta) dla faktur z walutą EUR — nie jest przeliczane na PLN.&#10;&#10;Różnica brutto−netto = kwota VAT.&#10;Jeśli brutto = 0 oznacza że plik importu nie zawierał kolumny ob_CenaBrutto.">Przychody roczne</div>
+      <div class="chart-title">Przychody roczne
+        <i class="info-icon" data-info="Porównanie przychodów rok do roku.
+
+PLN netto (niebieski) = SUM(ob_CenaNetto) — wartość netto faktur w PLN.
+PLN brutto (zielony)  = SUM(ob_CenaBrutto) — wartość brutto faktur w PLN (z VAT).
+EUR (żółty, prawa oś) = SUM(ob_CenaWaluta) dla faktur z walutą EUR — nie jest przeliczane na PLN.
+
+Różnica brutto−netto = kwota VAT skumulowana za rok.
+Jeśli brutto = 0 oznacza że plik importu nie zawierał kolumny ob_CenaBrutto.">i</i>
+      </div>
       <div class="legend">
         <span><span class="leg-sq" style="background:#2563EB"></span>PLN netto</span>
         <span><span class="leg-sq" style="background:#F59E0B"></span>EUR</span>
@@ -835,9 +906,19 @@
 
     <!-- Top customers horizontal bar -->
     <div class="chart-card" id="revTopCard">
-      <div class="chart-title"
-           title="Ranking klientów według sumarycznego przychodu PLN netto (wszystkie lata łącznie).&#10;&#10;Klient = wartość pola 'Klient/Operator' z pliku płatności IDS.&#10;Słupki niebieskie = PLN netto (oś dolna).&#10;Słupki żółte = EUR (ukryta oś — dla porównania proporcji, nie konwertowane).&#10;&#10;Hover na słupku pokazuje: PLN netto, liczbę urządzeń i łączną liczbę płatności.&#10;Przełącznik Top 10/15/20 zmienia liczbę widocznych klientów.&#10;&#10;⚠️ Jeden klient może mieć wiele urządzeń SN z różnych firm.">
-        <span>Top klienci (PLN netto)</span>
+      <div class="chart-title">
+        <span>Top klienci (PLN netto)
+          <i class="info-icon" data-info="Ranking klientów według sumarycznego przychodu PLN netto (wszystkie lata łącznie).
+
+Klient = wartość pola &#39;Klient/Operator&#39; z pliku płatności IDS.
+Słupki niebieskie = PLN netto (oś dolna).
+Słupki żółte = EUR (ukryta oś — dla porównania proporcji, nie konwertowane na PLN).
+
+Hover na słupku → PLN netto, liczba urządzeń, łączna liczba płatności.
+Przełącznik Top 10/15/20 zmienia liczbę widocznych klientów.
+
+⚠️ Jeden klient może mieć wiele urządzeń SN z różnych firm.">i</i>
+        </span>
         <div class="top-n-btns">
           <button class="top-n-btn active" onclick="setTopN(10,this)">Top 10</button>
           <button class="top-n-btn"        onclick="setTopN(15,this)">Top 15</button>
@@ -849,12 +930,29 @@
 
     <!-- Donut + Rep -->
     <div class="chart-card">
-      <div class="chart-title"
-           title="Podział przychodów PLN netto według skonfigurowanego typu firmy (Konfiguracja → typy firm).&#10;&#10;IDS       = firma z aktywnym abonamentem IDS&#10;Licencja  = klient licencyjny (zwykle bez cyklicznych opłat)&#10;OEM       = producent/partner OEM&#10;Inne      = inne typy&#10;Brak konfiguracji = firma ma płatności, ale nie ma ustawionego typu w module Konfiguracja.&#10;&#10;Formuła: JOIN payments → devices → firm_config, GROUP BY firm_type.">Rozkład wg typu klienta</div>
+      <div class="chart-title">Rozkład wg typu klienta
+        <i class="info-icon" data-info="Podział przychodów PLN netto według skonfigurowanego typu firmy (Konfiguracja → typy firm).
+
+IDS               = firma z aktywnym abonamentem IDS
+Licencja          = klient licencyjny (zwykle bez cyklicznych opłat)
+OEM               = producent/partner OEM
+Inne              = inne typy
+Brak konfiguracji = firma ma płatności, ale nie ma ustawionego typu w module Konfiguracja.
+
+Formuła: JOIN payments → devices → firm_config, GROUP BY firm_type.">i</i>
+      </div>
       <div class="legend" id="revTypeLegend"></div>
       <div style="position:relative;height:130px"><canvas id="chartRevType"></canvas></div>
-      <div class="chart-title" style="margin-top:1rem"
-           title="Przychody PLN netto przypisane do handlowców.&#10;&#10;Przypisanie: handlowiec → firma (Konfiguracja → Handlowcy) → urządzenia tej firmy → płatności tych urządzeń.&#10;Jeśli firma ma dwóch handlowców, jej przychód jest liczony dla każdego z nich osobno (brak podziału proporcjonalnego).&#10;Firmy bez przypisanego handlowca nie pojawią się na tym wykresie.&#10;&#10;Słupki żółte = EUR (ukryta oś pomocnicza).">Przychody wg handlowca</div>
+      <div class="chart-title" style="margin-top:1rem">Przychody wg handlowca
+        <i class="info-icon" data-info="Przychody PLN netto przypisane do handlowców.
+
+Przypisanie: handlowiec → firma (Konfiguracja → Handlowcy) → urządzenia tej firmy → płatności tych urządzeń.
+
+⚠️ Jeśli firma ma dwóch handlowców, jej przychód jest liczony dla każdego z nich osobno (bez podziału proporcjonalnego — suma wszystkich handlowców może być wyższa niż total).
+
+Firmy bez przypisanego handlowca nie pojawią się na tym wykresie.
+Słupki żółte = EUR (oś pomocnicza).">i</i>
+      </div>
       <div style="position:relative;height:120px"><canvas id="chartRevRep"></canvas></div>
     </div>
 
@@ -871,21 +969,48 @@
       <table class="rev-table" id="revCustomerTable">
         <thead><tr>
           <th>#</th>
-          <th onclick="sortRevTable('customer')" class="rev-sort-icon"
-              title="Nazwa klienta/operatora z pliku płatności IDS (kolumna 'Klient' lub 'Operator').&#10;Jeden klient może mieć wiele urządzeń SN.&#10;Kliknij aby sortować alfabetycznie.">Klient ↕</th>
-          <th onclick="sortRevTable('netto')" class="rev-sort-icon num"
-              title="Łączna kwota netto w PLN — suma kolumny ob_CenaNetto ze wszystkich płatności tego klienta.&#10;Zawiera faktury we wszystkich walutach przeliczone na PLN przez IDS.&#10;Kliknij aby sortować malejąco/rosnąco.">PLN netto ↕</th>
-          <th onclick="sortRevTable('brutto')" class="rev-sort-icon num"
-              title="Łączna kwota brutto w PLN — suma kolumny ob_CenaBrutto (z VAT).&#10;Różnica brutto−netto = skumulowany VAT klienta.&#10;Wartość '—' oznacza brak danych o brutto w zaimportowanych plikach.&#10;Kliknij aby sortować.">PLN brutto ↕</th>
-          <th onclick="sortRevTable('eur')" class="rev-sort-icon num"
-              title="Łączna kwota w EUR — suma kolumny ob_CenaWaluta dla faktur z walutą EUR.&#10;NIE jest przeliczana na PLN — to wartość oryginalna z faktury.&#10;Wartość '—' oznacza że klient nie ma faktur w EUR.&#10;Kliknij aby sortować.">EUR ↕</th>
-          <th onclick="sortRevTable('devices')" class="rev-sort-icon num"
-              title="Liczba unikalnych numerów seryjnych (SN) z zarejestrowanymi płatnościami tego klienta.&#10;Jedno urządzenie SN = jeden miesiąc produkcji z jedną lub więcej płatnościami.&#10;Kliknij aby sortować.">Urządzeń ↕</th>
-          <th onclick="sortRevTable('payment_count')" class="rev-sort-icon num"
-              title="Łączna liczba rekordów płatności (wierszy) w tabeli payments dla tego klienta.&#10;Jeden rekord = jedno SN + jeden miesiąc rozliczeniowy.&#10;Wysoka liczba = klient z wieloma urządzeniami lub długą historią płatności.&#10;Kliknij aby sortować.">Płatności ↕</th>
-          <th class="num"
-              title="Średni przychód PLN netto na jedno urządzenie.&#10;Formuła: PLN netto ÷ Urządzeń.&#10;Pozwala porównać 'wartość' klienta niezależnie od liczby urządzeń.">Avg/urządzenie</th>
-          <th title="Procentowy udział klienta w łącznych przychodach PLN netto wszystkich klientów.&#10;Formuła: PLN netto klienta ÷ suma PLN netto wszystkich klientów × 100%.&#10;Pasek graficzny pokazuje proporcję względem klienta #1 (max = 100%).">Udział PLN</th>
+          <th onclick="sortRevTable('customer')" class="rev-sort-icon">Klient ↕</th>
+          <th onclick="sortRevTable('netto')" class="rev-sort-icon num">
+            PLN netto ↕
+            <i class="info-icon" data-info="Łączna kwota netto w PLN — suma kolumny ob_CenaNetto ze wszystkich płatności tego klienta.
+Zawiera faktury we wszystkich walutach przeliczone na PLN przez IDS.
+Kliknij nagłówek aby sortować malejąco/rosnąco.">i</i>
+          </th>
+          <th onclick="sortRevTable('brutto')" class="rev-sort-icon num">
+            PLN brutto ↕
+            <i class="info-icon" data-info="Łączna kwota brutto w PLN — suma kolumny ob_CenaBrutto (z VAT).
+Różnica brutto−netto = skumulowany VAT klienta.
+Wartość &#39;—&#39; oznacza brak danych o brutto w zaimportowanych plikach.">i</i>
+          </th>
+          <th onclick="sortRevTable('eur')" class="rev-sort-icon num">
+            EUR ↕
+            <i class="info-icon" data-info="Łączna kwota w EUR — suma kolumny ob_CenaWaluta dla faktur z walutą EUR.
+NIE jest przeliczana na PLN — to wartość oryginalna z faktury.
+Wartość &#39;—&#39; oznacza że klient nie ma faktur w EUR.">i</i>
+          </th>
+          <th onclick="sortRevTable('devices')" class="rev-sort-icon num">
+            Urządzeń ↕
+            <i class="info-icon" data-info="Liczba unikalnych numerów seryjnych (SN) z zarejestrowanymi płatnościami tego klienta.
+Jedno urządzenie SN = jeden numer seryjny z co najmniej jedną płatnością.">i</i>
+          </th>
+          <th onclick="sortRevTable('payment_count')" class="rev-sort-icon num">
+            Płatności ↕
+            <i class="info-icon" data-info="Łączna liczba rekordów płatności dla tego klienta.
+Jeden rekord = jedno SN + jeden miesiąc rozliczeniowy.
+Wysoka liczba = klient z wieloma urządzeniami lub długą historią płatności.">i</i>
+          </th>
+          <th class="num">
+            Avg/urządzenie
+            <i class="info-icon" data-info="Średni przychód PLN netto na jedno urządzenie.
+Formuła: PLN netto ÷ Urządzeń.
+Pozwala porównać &#39;wartość&#39; klienta niezależnie od liczby urządzeń — klient z 1 urządzeniem płacącym 2 000 zł jest &#39;cenniejszy per urządzenie&#39; niż klient z 10 urządzeniami płącymi po 500 zł.">i</i>
+          </th>
+          <th>
+            Udział PLN
+            <i class="info-icon" data-info="Procentowy udział klienta w łącznych przychodach PLN netto wszystkich klientów (Top 50).
+Formuła: PLN netto klienta ÷ suma PLN netto wszystkich klientów × 100%.
+Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerokości paska).">i</i>
+          </th>
         </tr></thead>
         <tbody id="revTableBody">
           <tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:2rem">Kliknij zakładkę aby załadować dane…</td></tr>
@@ -4152,6 +4277,42 @@ function sortRevTable(key) {
 }
 
 // END REVENUE ANALYTICS TAB
+
+// ── global ⓘ tooltip ──────────────────────────────────────────────────────
+(function () {
+  const tip = document.getElementById('infoTooltipPopup');
+  if (!tip) return;
+
+  function show(icon, e) {
+    tip.textContent = icon.dataset.info || '';
+    tip.classList.add('visible');
+    position(e);
+  }
+  function hide() { tip.classList.remove('visible'); }
+
+  function position(e) {
+    const margin = 12;
+    const tw = tip.offsetWidth  || 340;
+    const th = tip.offsetHeight || 120;
+    let x = e.clientX + margin;
+    let y = e.clientY + margin;
+    if (x + tw > window.innerWidth  - 8) x = e.clientX - tw - margin;
+    if (y + th > window.innerHeight - 8) y = e.clientY - th - margin;
+    tip.style.left = x + 'px';
+    tip.style.top  = y + 'px';
+  }
+
+  document.addEventListener('mouseover', e => {
+    const icon = e.target.closest('.info-icon');
+    if (icon) show(icon, e);
+  });
+  document.addEventListener('mousemove', e => {
+    if (tip.classList.contains('visible')) position(e);
+  });
+  document.addEventListener('mouseout', e => {
+    if (e.target.closest('.info-icon')) hide();
+  });
+})();
 </script>
 
 
@@ -4201,6 +4362,9 @@ function sortRevTable(key) {
               font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
               white-space:pre-wrap;line-height:1.6;max-height:calc(80vh - 60px)">⏳ Ładowanie…</pre>
 </dialog>
+
+<!-- global info tooltip popup -->
+<div id="infoTooltipPopup"></div>
 
 </body>
 </html>
