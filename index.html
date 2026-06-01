@@ -269,6 +269,7 @@
   <button class="tab-btn"        onclick="switchTab('report')">📊 Raport</button>
   <button class="tab-btn"        onclick="switchTab('monitor')">📈 Monitoring</button>
   <button class="tab-btn"        onclick="switchTab('firstpay')">🆕 Nowe płatności</button>
+  <button class="tab-btn"        onclick="switchTab('device')">🔍 Urządzenie</button>
   <button class="tab-btn"        onclick="switchTab('config')">⚙ Konfiguracja</button>
 </div>
 
@@ -626,26 +627,40 @@
     <span class="msg" id="msgMonitor" style="margin:0"></span>
   </div>
 
-  <!-- ── SN search ────────────────────────────────────────── -->
-  <div class="section-card" style="margin-bottom:1rem">
-    <div class="section-title">🔍 Historia płatności urządzenia</div>
-    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:.75rem">
-      <input type="text" id="snSearchInput" placeholder="Wpisz numer seryjny, np. 12345M"
-             style="height:34px;font-size:13px;padding:0 12px;border-radius:var(--radius-md);
-                    border:0.5px solid var(--border-med);background:var(--bg);color:var(--text);min-width:240px"
-             onkeydown="if(event.key==='Enter')searchBySN()">
-      <button class="primary" onclick="searchBySN()" style="height:34px">🔍 Szukaj</button>
-      <span class="msg" id="msgSnSearch" style="margin:0"></span>
-    </div>
-    <div id="snSearchResult" style="display:none"></div>
-  </div>
-
   <div id="monitorContent">
     <div class="empty-state">
       <div class="es-icon">📈</div>
       <p>Wybierz datę początkową i kliknij „Zastosuj".</p>
     </div>
   </div>
+
+</div>
+</div>
+
+<!-- ══════════════════ DEVICE TAB ══════════════════ -->
+<div class="tab-panel" id="tab-device">
+<div class="container">
+
+  <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:1.25rem">
+    <div>
+      <div style="font-size:15px;font-weight:600;margin-bottom:2px">🔍 Wyszukiwarka urządzeń</div>
+      <div style="font-size:12px;color:var(--text-muted)">Wpisz numer seryjny — zobaczysz dane urządzenia i pełną historię płatności</div>
+    </div>
+  </div>
+
+  <div class="section-card">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input type="text" id="snSearchInput" placeholder="Wpisz numer seryjny, np. 12345M"
+             style="height:38px;font-size:14px;padding:0 14px;border-radius:var(--radius-md);
+                    border:0.5px solid var(--border-med);background:var(--bg);color:var(--text);
+                    min-width:280px;flex:1;max-width:420px"
+             onkeydown="if(event.key==='Enter')searchBySN()">
+      <button class="primary" onclick="searchBySN()" style="height:38px;padding:0 20px;font-size:13px">🔍 Szukaj</button>
+      <span class="msg" id="msgSnSearch" style="margin:0"></span>
+    </div>
+  </div>
+
+  <div id="snSearchResult" style="margin-top:1rem"></div>
 
 </div>
 </div>
@@ -1051,6 +1066,7 @@ function switchTab(name) {
   if (name === 'report')   loadReport();
   if (name === 'monitor')  loadMonitoringTab();
   if (name === 'firstpay') loadFirstPayTab();
+  if (name === 'device')   { /* data loaded on demand via searchBySN() */ }
   if (name === 'config')   loadConfig();
 }
 
@@ -2651,7 +2667,7 @@ async function searchBySN() {
 
   setMsg('msgSnSearch', '⏳ Szukam…');
   const resultEl = document.getElementById('snSearchResult');
-  resultEl.style.display = 'none';
+  resultEl.innerHTML = '';
 
   try {
     const r = await fetch(`${API}/payments/${encodeURIComponent(sn)}`);
@@ -2664,8 +2680,7 @@ async function searchBySN() {
     setMsg('msgSnSearch', '');
 
     if (!pays.length && !dev) {
-      resultEl.style.display = 'block';
-      resultEl.innerHTML = `<div style="font-size:13px;color:var(--text-muted);padding:.5rem 0">
+      resultEl.innerHTML = `<div class="section-card" style="color:var(--text-muted);font-size:13px">
         ❌ Brak urządzenia i płatności dla SN <strong>${esc(sn)}</strong> w bazie.</div>`;
       return;
     }
@@ -2673,54 +2688,70 @@ async function searchBySN() {
     const currency = pays.find(p => p.currency)?.currency || 'PLN';
     const total    = pays.reduce((s, p) => s + (p.amount || 0), 0);
 
-    // Device info section
+    // Device info card
     let devHtml = '';
     if (dev) {
+      const statusColors = {
+        paid:'var(--green)', unpaid:'var(--red)', oem:'var(--gray)',
+        excluded:'var(--amber)', only:'var(--amber)'
+      };
       const statusLabel = {paid:'✅ Opłacone', unpaid:'❌ Brak opłaty', oem:'⚪ OEM',
                            excluded:'🚫 Wykluczone', only:'🟡 Tylko płatność'}[dev.status] || dev.status;
+      const col = statusColors[dev.status] || 'var(--text-muted)';
       devHtml = `
-        <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:1rem;font-size:12px">
-          <span><strong>SN:</strong> ${esc(sn)}</span>
-          <span><strong>Maszyna:</strong> ${esc(dev.model || '—')}</span>
-          <span><strong>Typ:</strong> ${esc(dev.device_type || '—')}</span>
-          <span><strong>Klient:</strong> ${esc(dev.customer || dev.firma || '—')}</span>
-          <span><strong>Firma (prod.):</strong> ${esc(dev.firma || '—')}</span>
-          <span><strong>Data prod.:</strong> ${dev.prod_date ? dev.prod_date.slice(0,7) : '—'}</span>
-          <span><strong>Status:</strong> ${statusLabel}</span>
+        <div class="section-card" style="margin-bottom:1rem">
+          <div class="section-title">Dane urządzenia</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.6rem .8rem;font-size:13px">
+            <div><span style="font-size:11px;color:var(--text-muted);display:block">Numer seryjny</span><strong>${esc(sn)}</strong></div>
+            <div><span style="font-size:11px;color:var(--text-muted);display:block">Maszyna</span>${esc(dev.model || '—')}</div>
+            <div><span style="font-size:11px;color:var(--text-muted);display:block">Typ</span>${esc(dev.device_type || '—')}</div>
+            <div><span style="font-size:11px;color:var(--text-muted);display:block">Klient (płatności)</span>${esc(dev.customer || '—')}</div>
+            <div><span style="font-size:11px;color:var(--text-muted);display:block">Firma (produkcja)</span>${esc(dev.firma || '—')}</div>
+            <div><span style="font-size:11px;color:var(--text-muted);display:block">Data produkcji</span>${dev.prod_date ? dev.prod_date.slice(0,7) : '—'}</div>
+            <div><span style="font-size:11px;color:var(--text-muted);display:block">Handlowiec</span>${esc(dev.sales_rep || '—')}</div>
+            <div><span style="font-size:11px;color:var(--text-muted);display:block">Status</span><strong style="color:${col}">${statusLabel}</strong></div>
+          </div>
         </div>`;
+    } else {
+      devHtml = `<div class="section-card" style="margin-bottom:1rem;font-size:12px;color:var(--text-muted)">
+        ⚠ Urządzenie <strong>${esc(sn)}</strong> nie jest w bazie produkcji — widoczne tylko z płatności.</div>`;
     }
 
-    // Payment history table
-    let tableHtml = '';
+    // Payment history card
+    let payHtml = '';
     if (pays.length) {
       const rows = pays.map(p => `
         <tr>
-          <td style="font-size:12px;padding:7px 12px">${esc(p.year_month)}</td>
-          <td style="font-size:12px;padding:7px 12px">${esc(p.customer || '—')}</td>
-          <td style="font-size:12px;padding:7px 12px;text-align:right;font-weight:600;color:var(--green)">
+          <td style="font-size:12px;padding:7px 14px;font-weight:600">${esc(p.year_month)}</td>
+          <td style="font-size:12px;padding:7px 14px;color:var(--text-muted)">${esc(p.customer || '—')}</td>
+          <td style="font-size:12px;padding:7px 14px;text-align:right;font-weight:600;color:var(--green)">
             ${p.amount ? fmtAmount(p.amount, p.currency) : '—'}
           </td>
         </tr>`).join('');
-      tableHtml = `
-        <div style="font-size:12px;color:var(--text-muted);margin-bottom:.5rem">
-          ${pays.length} płatności · Suma: <strong style="color:var(--green)">${fmtAmount(total, currency)}</strong>
-        </div>
-        <div style="overflow-x:auto">
-          <table style="min-width:400px">
-            <thead><tr>
-              <th style="text-align:left;padding:8px 12px;font-size:11px">Miesiąc</th>
-              <th style="text-align:left;padding:8px 12px;font-size:11px">Klient</th>
-              <th style="text-align:right;padding:8px 12px;font-size:11px">Kwota</th>
-            </tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
+      payHtml = `
+        <div class="section-card" style="padding:0;overflow:hidden">
+          <div style="padding:1rem 1.5rem .75rem;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+            <div class="section-title" style="margin:0">Historia płatności</div>
+            <span style="font-size:12px;color:var(--text-muted)">${pays.length} rekordów</span>
+            <span style="font-size:13px;font-weight:700;color:var(--green);margin-left:auto">Σ ${fmtAmount(total, currency)}</span>
+          </div>
+          <div style="overflow-x:auto">
+            <table style="min-width:400px">
+              <thead><tr>
+                <th style="text-align:left;padding:8px 14px">Miesiąc</th>
+                <th style="text-align:left;padding:8px 14px">Klient</th>
+                <th style="text-align:right;padding:8px 14px">Kwota</th>
+              </tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
         </div>`;
     } else {
-      tableHtml = `<div style="font-size:13px;color:var(--amber);padding:.25rem 0">⚠ Brak płatności w bazie dla tego urządzenia.</div>`;
+      payHtml = `<div class="section-card" style="color:var(--amber);font-size:13px">
+        ⚠ Brak płatności w bazie dla urządzenia <strong>${esc(sn)}</strong>.</div>`;
     }
 
-    resultEl.style.display = 'block';
-    resultEl.innerHTML = devHtml + tableHtml;
+    resultEl.innerHTML = devHtml + payHtml;
 
   } catch(e) {
     setMsg('msgSnSearch', '❌ ' + e.message, 'err');
