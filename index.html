@@ -139,7 +139,7 @@
 
     /* ── table ── */
     .table-wrap { background: var(--bg); border: 0.5px solid var(--border);
-                  border-radius: var(--radius-lg); overflow: hidden; overflow-x: auto; }
+                  border-radius: var(--radius-lg); overflow-x: auto; overflow-y: hidden; width: 100%; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 960px; }
     th { background: var(--bg-secondary); padding: 9px 12px; text-align: left;
          font-weight: 600; font-size: 11px; text-transform: uppercase;
@@ -624,6 +624,20 @@
       </label>
     </div>
     <span class="msg" id="msgMonitor" style="margin:0"></span>
+  </div>
+
+  <!-- ── SN search ────────────────────────────────────────── -->
+  <div class="section-card" style="margin-bottom:1rem">
+    <div class="section-title">🔍 Historia płatności urządzenia</div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:.75rem">
+      <input type="text" id="snSearchInput" placeholder="Wpisz numer seryjny, np. 12345M"
+             style="height:34px;font-size:13px;padding:0 12px;border-radius:var(--radius-md);
+                    border:0.5px solid var(--border-med);background:var(--bg);color:var(--text);min-width:240px"
+             onkeydown="if(event.key==='Enter')searchBySN()">
+      <button class="primary" onclick="searchBySN()" style="height:34px">🔍 Szukaj</button>
+      <span class="msg" id="msgSnSearch" style="margin:0"></span>
+    </div>
+    <div id="snSearchResult" style="display:none"></div>
   </div>
 
   <div id="monitorContent">
@@ -2626,6 +2640,92 @@ async function toggleFpExpand(sn) {
 // ════════════════════════════════════════════════════════════
 // MONITORING TAB — cohort analysis of new masters
 // ════════════════════════════════════════════════════════════
+
+// ════════════════════════════════════════════════════════════
+// MONITORING — SN search (payment history for one device)
+// ════════════════════════════════════════════════════════════
+
+async function searchBySN() {
+  const sn = document.getElementById('snSearchInput').value.trim();
+  if (!sn) { setMsg('msgSnSearch', '⚠ Wpisz numer seryjny.', 'err'); return; }
+
+  setMsg('msgSnSearch', '⏳ Szukam…');
+  const resultEl = document.getElementById('snSearchResult');
+  resultEl.style.display = 'none';
+
+  try {
+    const r = await fetch(`${API}/payments/${encodeURIComponent(sn)}`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const pays = await r.json();   // [{year_month, customer, amount, currency}, ...]
+
+    // Find device info in loaded results (if available)
+    const dev = results.find(d => d.sn === sn);
+
+    setMsg('msgSnSearch', '');
+
+    if (!pays.length && !dev) {
+      resultEl.style.display = 'block';
+      resultEl.innerHTML = `<div style="font-size:13px;color:var(--text-muted);padding:.5rem 0">
+        ❌ Brak urządzenia i płatności dla SN <strong>${esc(sn)}</strong> w bazie.</div>`;
+      return;
+    }
+
+    const currency = pays.find(p => p.currency)?.currency || 'PLN';
+    const total    = pays.reduce((s, p) => s + (p.amount || 0), 0);
+
+    // Device info section
+    let devHtml = '';
+    if (dev) {
+      const statusLabel = {paid:'✅ Opłacone', unpaid:'❌ Brak opłaty', oem:'⚪ OEM',
+                           excluded:'🚫 Wykluczone', only:'🟡 Tylko płatność'}[dev.status] || dev.status;
+      devHtml = `
+        <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:1rem;font-size:12px">
+          <span><strong>SN:</strong> ${esc(sn)}</span>
+          <span><strong>Maszyna:</strong> ${esc(dev.model || '—')}</span>
+          <span><strong>Typ:</strong> ${esc(dev.device_type || '—')}</span>
+          <span><strong>Klient:</strong> ${esc(dev.customer || dev.firma || '—')}</span>
+          <span><strong>Firma (prod.):</strong> ${esc(dev.firma || '—')}</span>
+          <span><strong>Data prod.:</strong> ${dev.prod_date ? dev.prod_date.slice(0,7) : '—'}</span>
+          <span><strong>Status:</strong> ${statusLabel}</span>
+        </div>`;
+    }
+
+    // Payment history table
+    let tableHtml = '';
+    if (pays.length) {
+      const rows = pays.map(p => `
+        <tr>
+          <td style="font-size:12px;padding:7px 12px">${esc(p.year_month)}</td>
+          <td style="font-size:12px;padding:7px 12px">${esc(p.customer || '—')}</td>
+          <td style="font-size:12px;padding:7px 12px;text-align:right;font-weight:600;color:var(--green)">
+            ${p.amount ? fmtAmount(p.amount, p.currency) : '—'}
+          </td>
+        </tr>`).join('');
+      tableHtml = `
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:.5rem">
+          ${pays.length} płatności · Suma: <strong style="color:var(--green)">${fmtAmount(total, currency)}</strong>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="min-width:400px">
+            <thead><tr>
+              <th style="text-align:left;padding:8px 12px;font-size:11px">Miesiąc</th>
+              <th style="text-align:left;padding:8px 12px;font-size:11px">Klient</th>
+              <th style="text-align:right;padding:8px 12px;font-size:11px">Kwota</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>`;
+    } else {
+      tableHtml = `<div style="font-size:13px;color:var(--amber);padding:.25rem 0">⚠ Brak płatności w bazie dla tego urządzenia.</div>`;
+    }
+
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = devHtml + tableHtml;
+
+  } catch(e) {
+    setMsg('msgSnSearch', '❌ ' + e.message, 'err');
+  }
+}
 
 async function loadMonitoringTab() {
   // Auto-fetch data if not yet loaded
