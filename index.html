@@ -1244,6 +1244,52 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
 <div class="tab-panel" id="tab-config">
 <div class="container">
 
+  <!-- ══ ZARZĄDZANIE UŻYTKOWNIKAMI (tylko admin) — GÓRA ZAKŁADKI ══ -->
+  <div class="section-card" id="adminUsersSection" style="display:none;margin-bottom:1rem;border-color:var(--blue);border-width:1px">
+    <div class="section-title" style="color:var(--blue)">🔐 Zarządzanie użytkownikami <span style="font-size:10px;font-weight:400;color:var(--text-muted)">(tylko administrator)</span></div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:1rem">
+      Dodaj nowe konto lub zmień status istniejącego. Dezaktywowany użytkownik traci dostęp natychmiast.
+    </p>
+
+    <!-- Dodaj użytkownika -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:1rem;
+                background:var(--bg-secondary);padding:.75rem;border-radius:var(--radius-md)">
+      <div class="input-group" style="flex:1;min-width:160px">
+        <label>Email</label>
+        <input type="email" id="newUserEmail" placeholder="user@firma.pl" style="height:34px">
+      </div>
+      <div class="input-group" style="flex:1;min-width:140px">
+        <label>Imię i nazwisko</label>
+        <input type="text" id="newUserName" placeholder="Jan Kowalski" style="height:34px">
+      </div>
+      <div class="input-group" style="min-width:140px">
+        <label>Hasło (min. 6 znaków)</label>
+        <input type="password" id="newUserPassword" placeholder="••••••••" style="height:34px">
+      </div>
+      <label style="display:flex;align-items:center;gap:5px;font-size:12px;height:34px;cursor:pointer">
+        <input type="checkbox" id="newUserAdmin"> Admin
+      </label>
+      <button class="primary" style="height:34px" onclick="adminAddUser()">+ Dodaj konto</button>
+    </div>
+    <div class="msg" id="msgAdminUsers"></div>
+
+    <!-- Lista użytkowników -->
+    <div style="overflow-x:auto;margin-top:.75rem">
+      <table class="config-table">
+        <thead><tr>
+          <th>Email</th>
+          <th>Nazwa</th>
+          <th>Rola</th>
+          <th>Status</th>
+          <th>Akcje</th>
+        </tr></thead>
+        <tbody id="adminUsersList">
+          <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1rem">Ładowanie…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Overrides panel (full width) -->
   <div class="section-card" style="margin-bottom:1rem">
     <div class="section-title">🔧 Ręczne nadpisania typów urządzeń</div>
@@ -1384,50 +1430,6 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
   </div>
 
   <!-- ══ ZARZĄDZANIE UŻYTKOWNIKAMI (tylko admin) ═════════════════════════ -->
-  <div class="section-card" id="adminUsersSection" style="display:none;margin-top:1rem">
-    <div class="section-title">🔐 Zarządzanie użytkownikami</div>
-    <p style="font-size:12px;color:var(--text-muted);margin-bottom:1rem">
-      Tylko administrator może dodawać i dezaktywować konta. Dezaktywowany użytkownik traci natychmiast dostęp.
-    </p>
-
-    <!-- Dodaj użytkownika -->
-    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:1rem">
-      <div class="input-group" style="flex:1;min-width:160px">
-        <label>Email</label>
-        <input type="email" id="newUserEmail" placeholder="user@firma.pl" style="height:34px">
-      </div>
-      <div class="input-group" style="flex:1;min-width:140px">
-        <label>Imię i nazwisko</label>
-        <input type="text" id="newUserName" placeholder="Jan Kowalski" style="height:34px">
-      </div>
-      <div class="input-group" style="min-width:140px">
-        <label>Hasło (min. 6 znaków)</label>
-        <input type="password" id="newUserPassword" placeholder="••••••••" style="height:34px">
-      </div>
-      <label style="display:flex;align-items:center;gap:5px;font-size:12px;height:34px;cursor:pointer">
-        <input type="checkbox" id="newUserAdmin"> Admin
-      </label>
-      <button class="primary" style="height:34px" onclick="adminAddUser()">+ Dodaj konto</button>
-    </div>
-    <div class="msg" id="msgAdminUsers"></div>
-
-    <!-- Lista użytkowników -->
-    <div style="overflow-x:auto;margin-top:.75rem">
-      <table class="config-table">
-        <thead><tr>
-          <th>Email</th>
-          <th>Nazwa</th>
-          <th>Rola</th>
-          <th>Status</th>
-          <th>Akcje</th>
-        </tr></thead>
-        <tbody id="adminUsersList">
-          <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1rem">Ładowanie…</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
   <!-- ══ OPŁATY LICENCYJNE ═══════════════════════════════════════════════ -->
   <div class="section-card" style="margin-top:1rem">
     <div class="section-title">💳 Opłaty licencyjne firm
@@ -2652,6 +2654,8 @@ async function applyOverride(deviceType) {
 
 async function loadConfig() {
   await Promise.all([loadExclusions(), loadReps(), loadOverridesList(), loadFirmConfigs()]);
+  // Admin section: refresh if user is admin (section may be hidden after re-login)
+  if (currentUser?.is_admin) loadAdminUsers();
 }
 
 // ── firm config table ───────────────────────────────────────────────────
@@ -4707,41 +4711,48 @@ async function executeMerge() {
 // END REVENUE ANALYTICS TAB
 
 // ── global ⓘ tooltip ──────────────────────────────────────────────────────
-// NOTE: lazy lookup — div #infoTooltipPopup is defined after </script> in HTML,
-// so we must NOT cache it at IIFE-init time; look it up on each event instead.
+// Tooltip div is defined AFTER </script> in HTML → must do lazy getElementById.
+// Strategy: mouseover on any element — if it's an .info-icon show tooltip,
+// otherwise hide it.  No mouseout needed (avoids false-fires on subpixel moves).
 (function () {
   function tip() { return document.getElementById('infoTooltipPopup'); }
 
-  function show(icon, e) {
-    const t = tip(); if (!t) return;
+  function show(t, icon, e) {
     t.textContent = icon.dataset.info || '';
-    t.classList.add('visible');
     position(t, e);
+    t.classList.add('visible');
   }
-  function hide() { const t = tip(); if (t) t.classList.remove('visible'); }
+  function hide(t) { t.classList.remove('visible'); }
 
   function position(t, e) {
-    const margin = 12;
-    const tw = t.offsetWidth  || 340;
-    const th = t.offsetHeight || 120;
+    // Force a layout pass so offsetWidth/Height are accurate
+    t.style.visibility = 'hidden';
+    t.style.display    = 'block';
+    const tw = t.offsetWidth  || 320;
+    const th = t.offsetHeight || 100;
+    t.style.visibility = '';
+    t.style.display    = '';
+
+    const margin = 14;
     let x = e.clientX + margin;
     let y = e.clientY + margin;
     if (x + tw > window.innerWidth  - 8) x = e.clientX - tw - margin;
     if (y + th > window.innerHeight - 8) y = e.clientY - th - margin;
+    if (x < 8) x = 8;
+    if (y < 8) y = 8;
     t.style.left = x + 'px';
     t.style.top  = y + 'px';
   }
 
   document.addEventListener('mouseover', e => {
+    const t = tip(); if (!t) return;
     const icon = e.target.closest('.info-icon');
-    if (icon) show(icon, e);
+    if (icon) show(t, icon, e);
+    else hide(t);
   });
   document.addEventListener('mousemove', e => {
     const t = tip();
     if (t && t.classList.contains('visible')) position(t, e);
-  });
-  document.addEventListener('mouseout', e => {
-    if (e.target.closest('.info-icon')) hide();
   });
 })();
 </script>

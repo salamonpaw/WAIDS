@@ -6,6 +6,14 @@ wersjonowanie zgodne z [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.7.1] — 2026-06-01
+
+### Naprawiono
+- **Popover ⓘ nadal nie działał** — zamiana `mouseout` (odpala się na każdy ruch myszy wewnątrz elementu) na podejście: każdy `mouseover` na element inny niż `.info-icon` chowa tooltip; dodano wymuszenie layout przed pozycjonowaniem by `offsetWidth/Height` były wyliczone
+- **Panel Zarządzanie użytkownikami** — przeniesiony na górę zakładki Konfiguracja (był schowany na samym dole); `loadConfig()` teraz zawsze odświeża listę użytkowników gdy zalogowany admin przełącza zakładkę
+
+---
+
 ## [1.7.0] — 2026-06-01
 
 ### Naprawiono
