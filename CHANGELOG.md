@@ -6,6 +6,18 @@ wersjonowanie zgodne z [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.5.0] — 2026-06-01
+
+### Dodano
+- **Filtr lat wykresu słupkowego** — przyciski Wszystkie / 2022 / 2023 / … nad wykresem produkcji miesięcznej; kliknięcie zawęża widok do wybranego roku
+- **Rozwiń wykres** — przycisk ⤢ przy wykresie słupkowym zwiększa go do pełnej szerokości i podwaja wysokość
+- **Globalny filtr dat w nagłówku** — przycisk 📅 Zakres dat otwiera popup z wyborem od/do; po ustawieniu pojawia się pill z aktywnym zakresem i przyciskiem × do czyszczenia
+- **Kopiuj SN** — ikonka ⎘ przy każdym numerze seryjnym (tabela Raportu i lista nadpisań) kopiuje go do schowka jednym kliknięciem
+- **Ręczne nadpisania typów** — lista skrócona do 10 wierszy, reszta ukryta za przyciskiem "Pokaż wszystkie N nadpisań"
+- **Kolory handlowców w kartach** — nagłówek i tagi firm każdego handlowca podświetlone jego kolorem; przycisk Usuń przeniesiony z obszaru dodawania firm i wyciszony wizualnie
+
+---
+
 ## [1.4.0] — 2026-06-01
 
 ### Wydajność

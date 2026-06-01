@@ -114,15 +114,39 @@
     /* ── charts ── */
     .charts-row { display: grid; gap: 12px; margin-bottom: 1.25rem; }
     .charts-row.col2 { grid-template-columns: 1fr 1fr; }
+    .charts-row.col2 .chart-card.expanded { grid-column: 1 / -1; }
     .chart-card { background: var(--bg); border: 0.5px solid var(--border);
                   border-radius: var(--radius-lg); padding: 1rem; }
     .chart-card canvas { cursor: pointer; }
     .chart-title { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: .75rem;
-                   text-transform: uppercase; letter-spacing: .04em; }
+                   text-transform: uppercase; letter-spacing: .04em; display:flex; align-items:center; gap:8px; }
+    .chart-title span { flex:1; }
     .chart-hint { font-size: 10px; color: var(--text-muted); margin-top: 4px; opacity: .7; }
     .legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
     .legend span { display: flex; align-items: center; gap: 4px; }
     .leg-sq { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+    /* year filter pills */
+    .year-pills { display:flex; gap:4px; flex-wrap:wrap; margin-bottom:6px; }
+    .year-pill { font-size:11px; padding:2px 8px; border-radius:99px; border:0.5px solid var(--border-med);
+                 background:transparent; color:var(--text-muted); cursor:pointer; transition:all .12s; }
+    .year-pill:hover { background:var(--bg-secondary); color:var(--text); }
+    .year-pill.active { background:var(--text); color:var(--bg); border-color:transparent; }
+    /* copy SN button */
+    .copy-sn { display:inline-flex; align-items:center; justify-content:center;
+               width:18px; height:18px; border-radius:4px; border:0.5px solid var(--border-med);
+               background:transparent; color:var(--text-muted); cursor:pointer; font-size:11px;
+               margin-left:4px; opacity:.5; transition:opacity .12s; padding:0; line-height:1; vertical-align:middle; }
+    .copy-sn:hover { opacity:1; background:var(--bg-secondary); }
+    /* date range nav pill */
+    #navDateRange { display:none; align-items:center; gap:6px; background:var(--blue-light);
+                    color:var(--blue); border:0.5px solid var(--blue); border-radius:99px;
+                    padding:2px 10px; font-size:11px; cursor:pointer; flex-shrink:0; }
+    #navDateRange.active { display:flex; }
+    #navDatePopup { display:none; position:fixed; z-index:500; background:var(--bg);
+                    border:0.5px solid var(--border-med); border-radius:var(--radius-lg);
+                    padding:1rem; box-shadow:0 8px 24px rgba(0,0,0,.15); gap:8px;
+                    flex-direction:column; min-width:260px; }
+    #navDatePopup.open { display:flex; }
 
     /* ── filters ── */
     .filters-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
@@ -257,6 +281,38 @@
   <div id="dbStatus">
     <div class="db-pill"><span class="db-dot" id="dbDot"></span><span id="dbDevices">Łączenie…</span></div>
     <div class="db-pill" id="dbMonthsPill" style="display:none"><span id="dbMonths"></span></div>
+  </div>
+  <!-- global date filter pill -->
+  <div id="navDateRange" onclick="toggleNavDatePopup(event)" title="Filtr globalny — zakres daty produkcji">
+    📅 <span id="navDateLabel">zakres</span>
+    <span onclick="event.stopPropagation();clearNavDate()" style="font-weight:700;font-size:13px;line-height:1">×</span>
+  </div>
+  <button onclick="toggleNavDatePopup(event)" title="Ustaw globalny zakres dat produkcji"
+          style="font-size:11px;color:var(--text-muted);background:var(--bg-secondary);
+                 border:0.5px solid var(--border);border-radius:99px;padding:2px 9px;
+                 cursor:pointer;flex-shrink:0">📅 Zakres dat</button>
+  <div id="navDatePopup">
+    <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em">
+      Filtr: data produkcji
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Od</label>
+        <input type="month" id="navDateFrom" style="height:32px;font-size:12px;padding:0 8px;
+               border-radius:var(--radius-md);border:0.5px solid var(--border-med);
+               background:var(--bg);color:var(--text)">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Do</label>
+        <input type="month" id="navDateTo" style="height:32px;font-size:12px;padding:0 8px;
+               border-radius:var(--radius-md);border:0.5px solid var(--border-med);
+               background:var(--bg);color:var(--text)">
+      </div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="primary sm" onclick="applyNavDate()" style="flex:1">✓ Zastosuj</button>
+      <button class="ghost sm" onclick="clearNavDate()">× Wyczyść</button>
+    </div>
   </div>
   <div style="margin-left:auto;display:flex;align-items:center;gap:10px" id="userInfo" style="display:none">
     <span id="userName" style="font-size:12px;color:var(--text-muted)"></span>
@@ -419,13 +475,21 @@
         <div style="position:relative;height:200px"><canvas id="chartPie"></canvas></div>
         <div class="chart-hint">💡 Kliknij segment aby przefiltrować tabelę</div>
       </div>
-      <div class="chart-card">
-        <div class="chart-title">Urządzenia wg miesiąca produkcji</div>
-        <div class="legend">
-          <span><span class="leg-sq" style="background:#1D9E75"></span>Opłacone</span>
-          <span><span class="leg-sq" style="background:#E24B4A"></span>Brak opłaty</span>
+      <div class="chart-card" id="barChartCard">
+        <div class="chart-title">
+          <span>Urządzenia wg miesiąca produkcji</span>
+          <button onclick="toggleBarExpand()" id="barExpandBtn" title="Rozwiń / zwiń wykres"
+                  style="font-size:11px;padding:2px 7px;border-radius:4px;border:0.5px solid var(--border-med);
+                         background:transparent;color:var(--text-muted);cursor:pointer">⤢ Rozwiń</button>
         </div>
-        <div style="position:relative;height:200px"><canvas id="chartBar"></canvas></div>
+        <div style="display:flex;gap:4px;margin-bottom:6px;align-items:center;flex-wrap:wrap">
+          <div class="legend" style="margin:0;flex:1">
+            <span><span class="leg-sq" style="background:#1D9E75"></span>Opłacone</span>
+            <span><span class="leg-sq" style="background:#E24B4A"></span>Brak opłaty</span>
+          </div>
+          <div class="year-pills" id="yearPills" style="margin:0"></div>
+        </div>
+        <div style="position:relative" id="barChartWrap"><canvas id="chartBar"></canvas></div>
         <div class="chart-hint">💡 Kliknij słupek aby zobaczyć dany miesiąc</div>
       </div>
     </div>
@@ -1488,18 +1552,136 @@ function renderPie(data, s) {
   });
 }
 
+// ── copy SN to clipboard ───────────────────────────────────────────────
+function copySN(sn) {
+  navigator.clipboard.writeText(sn).then(() => {
+    // brief visual feedback — find the button that triggered it
+    const btns = document.querySelectorAll('.copy-sn');
+    for (const b of btns) {
+      if (b.closest('td,tr')?.textContent?.includes(sn)) {
+        const orig = b.textContent;
+        b.textContent = '✓'; b.style.color='var(--green)'; b.style.opacity='1';
+        setTimeout(()=>{ b.textContent=orig; b.style.color=''; b.style.opacity=''; },900);
+        break;
+      }
+    }
+  }).catch(() => {
+    // fallback for older browsers
+    const el = document.createElement('textarea');
+    el.value = sn; document.body.appendChild(el); el.select();
+    document.execCommand('copy'); document.body.removeChild(el);
+  });
+}
+
+// ── global nav date range ──────────────────────────────────────────────
+let _navDatePopupOpen = false;
+function toggleNavDatePopup(evt) {
+  evt?.stopPropagation();
+  const popup = document.getElementById('navDatePopup');
+  _navDatePopupOpen = !_navDatePopupOpen;
+  popup.classList.toggle('open', _navDatePopupOpen);
+  if (_navDatePopupOpen) {
+    // Position below the button
+    const btn = evt?.currentTarget || evt?.target;
+    if (btn) {
+      const rect = btn.getBoundingClientRect();
+      popup.style.top  = (rect.bottom + 6) + 'px';
+      popup.style.left = Math.min(rect.left, window.innerWidth - 280) + 'px';
+    }
+  }
+}
+document.addEventListener('click', e => {
+  if (_navDatePopupOpen && !document.getElementById('navDatePopup').contains(e.target)) {
+    _navDatePopupOpen = false;
+    document.getElementById('navDatePopup').classList.remove('open');
+  }
+});
+function applyNavDate() {
+  const from = document.getElementById('navDateFrom').value;
+  const to   = document.getElementById('navDateTo').value;
+  if (!from && !to) return;
+  // sync to report filters
+  const df = document.getElementById('fDateFrom');
+  const dt = document.getElementById('fDateTo');
+  if (df) df.value = from;
+  if (dt) dt.value = to;
+  // update pill
+  const pill = document.getElementById('navDateRange');
+  const lbl  = document.getElementById('navDateLabel');
+  lbl.textContent = (from||'…') + ' — ' + (to||'…');
+  pill.classList.add('active');
+  // close popup
+  _navDatePopupOpen = false;
+  document.getElementById('navDatePopup').classList.remove('open');
+  // apply filters if report is visible
+  if (document.getElementById('tab-report').classList.contains('active')) onFilterChange();
+}
+function clearNavDate() {
+  document.getElementById('navDateFrom').value = '';
+  document.getElementById('navDateTo').value   = '';
+  document.getElementById('navDateRange').classList.remove('active');
+  _navDatePopupOpen = false;
+  document.getElementById('navDatePopup').classList.remove('open');
+  const df = document.getElementById('fDateFrom');
+  const dt = document.getElementById('fDateTo');
+  if (df) df.value = '';
+  if (dt) dt.value = '';
+  if (document.getElementById('tab-report').classList.contains('active')) onFilterChange();
+}
+
+// ── bar chart year filter + expand ────────────────────────────────────
+let _barYear = '';
+let _barExpanded = false;
+let _barAllData = null;
+
+function buildYearPills(data) {
+  const years = [...new Set(
+    data.filter(r=>r.prod_date).map(r=>String(r.prod_date).slice(0,4))
+  )].sort();
+  const pills = document.getElementById('yearPills');
+  if (!pills) return;
+  pills.innerHTML = [''].concat(years).map(y => `
+    <button class="year-pill${_barYear===y?' active':''}"
+            onclick="setBarYear('${y}')">${y||'Wszystkie'}</button>`).join('');
+}
+
+function setBarYear(y) {
+  _barYear = y;
+  if (_barAllData) renderBar(_barAllData);
+}
+
+function toggleBarExpand() {
+  _barExpanded = !_barExpanded;
+  const card = document.getElementById('barChartCard');
+  const wrap = document.getElementById('barChartWrap');
+  const btn  = document.getElementById('barExpandBtn');
+  card.classList.toggle('expanded', _barExpanded);
+  wrap.style.height = _barExpanded ? '380px' : '200px';
+  btn.textContent = _barExpanded ? '⤡ Zwiń' : '⤢ Rozwiń';
+  if (barChart) barChart.resize();
+}
+
 // ── bar chart: by prod month ───────────────────────────────────────────
 function renderBar(data) {
+  _barAllData = data;
+  buildYearPills(data);
+
   const mm = {};
   for (const r of data) {
     if (r.status==='oem'||r.status==='excluded') continue;
-    const m = r.prod_date ? String(r.prod_date).slice(0,7) : 'Brak';
-    if (!mm[m]) mm[m] = {paid:0, unpaid:0};
-    if (r.status==='paid')   mm[m].paid++;
-    if (r.status==='unpaid') mm[m].unpaid++;
+    const ym = r.prod_date ? String(r.prod_date).slice(0,7) : null;
+    if (!ym) continue;
+    if (_barYear && !ym.startsWith(_barYear)) continue;
+    if (!mm[ym]) mm[ym] = {paid:0, unpaid:0};
+    if (r.status==='paid')   mm[ym].paid++;
+    if (r.status==='unpaid') mm[ym].unpaid++;
   }
   const labels = Object.keys(mm).sort();
   _barMap = labels;
+
+  // height based on expand state
+  const wrap = document.getElementById('barChartWrap');
+  if (wrap) wrap.style.height = (_barExpanded ? '380' : '200') + 'px';
 
   if (barChart) barChart.destroy();
   barChart = new Chart(document.getElementById('chartBar'), {
@@ -1517,7 +1699,6 @@ function renderBar(data) {
         if (!month || month==='Brak') return;
         const df = document.getElementById('fDateFrom');
         const dt = document.getElementById('fDateTo');
-        // Toggle: clicking same month clears date filter
         if (df.value === month && dt.value === month) {
           df.value = ''; dt.value = '';
         } else {
@@ -1528,7 +1709,7 @@ function renderBar(data) {
       },
       onHover: (evt, els) => { evt.native.target.style.cursor = els.length?'pointer':'default'; },
       scales: {
-        x: { stacked:true, ticks:{ autoSkip:false, maxRotation:45, font:{size:10} } },
+        x: { stacked:true, ticks:{ autoSkip:true, maxRotation:45, font:{size:10} } },
         y: { stacked:true, beginAtZero:true, ticks:{ stepSize:1 } }
       },
       plugins: { legend:{ display:false } }
@@ -1660,7 +1841,7 @@ function renderTable(data) {
         </td>
         <td>${statusBadge(r.status)}</td>
         <td>${dtBadge(r.device_type, r.sn, r.type_override||'', r.showroom_until||'')}</td>
-        <td style="font-family:monospace;font-size:11px">${esc(r.sn)}</td>
+        <td style="font-family:monospace;font-size:11px;white-space:nowrap">${esc(r.sn)}<button class="copy-sn" onclick="copySN('${esc(r.sn)}')" title="Kopiuj SN">⎘</button></td>
         <td>${esc(r.customer||'—')}</td>
         <td>${esc(r.firma||'—')}</td>
         <td>${esc(r.maszyna||'—')}</td>
@@ -2155,14 +2336,42 @@ async function loadOverridesList() {
       tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1rem">Brak ręcznych nadpisań</td></tr>';
       return;
     }
-    tbody.innerHTML = data.map(d => `<tr>
-      <td style="font-family:monospace;font-size:11px">${esc(d.sn)}</td>
+    const LIMIT = 10;
+    const renderRows = (items) => items.map(d => `<tr>
+      <td style="font-family:monospace;font-size:11px;white-space:nowrap">${esc(d.sn)}<button class="copy-sn" onclick="copySN('${esc(d.sn)}')" title="Kopiuj SN">⎘</button></td>
       <td>${esc(d.firma||'—')}</td>
       <td>${esc(d.maszyna||'—')}</td>
       <td><span class="dt-badge ${d.device_type_override}">${DT_LABELS[d.device_type_override]||d.device_type_override}</span></td>
-      <td><button class="danger sm" data-action="override-reset" data-sn="${esc(d.sn)}">Reset</button></td>
+      <td><button class="ghost sm" data-action="override-reset" data-sn="${esc(d.sn)}" style="color:var(--text-muted)">↺ Reset</button></td>
     </tr>`).join('');
+
+    if (data.length <= LIMIT) {
+      tbody.innerHTML = renderRows(data);
+    } else {
+      tbody.innerHTML = renderRows(data.slice(0, LIMIT)) +
+        `<tr id="overridesExpandRow">
+          <td colspan="5" style="text-align:center;padding:.75rem">
+            <button class="ghost sm" onclick="expandOverrides(${JSON.stringify(data).replace(/"/g,'&quot;')})">
+              ▼ Pokaż wszystkie ${data.length} nadpisań
+            </button>
+          </td>
+        </tr>`;
+    }
   } catch(e) { setMsg('msgOverrides','❌ '+e.message,'err'); }
+}
+
+function expandOverrides(data) {
+  const tbody = document.getElementById('overridesList');
+  tbody.innerHTML = data.map(d => `<tr>
+    <td style="font-family:monospace;font-size:11px;white-space:nowrap">${esc(d.sn)}<button class="copy-sn" onclick="copySN('${esc(d.sn)}')" title="Kopiuj SN">⎘</button></td>
+    <td>${esc(d.firma||'—')}</td>
+    <td>${esc(d.maszyna||'—')}</td>
+    <td><span class="dt-badge ${d.device_type_override}">${DT_LABELS[d.device_type_override]||d.device_type_override}</span></td>
+    <td><button class="ghost sm" data-action="override-reset" data-sn="${esc(d.sn)}" style="color:var(--text-muted)">↺ Reset</button></td>
+  </tr>`).join('') +
+  `<tr><td colspan="5" style="text-align:center;padding:.75rem">
+    <button class="ghost sm" onclick="loadOverridesList()">▲ Zwiń</button>
+  </td></tr>`;
 }
 
 // Event delegation for overrides list reset
@@ -2255,19 +2464,31 @@ function renderReps(reps) {
     const avail = allFirms.filter(f => !rep.firms.includes(f));
     return `<div class="rep-card">
       <div class="rep-header">
-        <span class="rep-name">👤 ${esc(rep.name)}</span>
-        <div class="rep-add" style="display:flex;gap:6px;align-items:center">
+        <span class="rep-name" style="background:${repColorMap[rep.name]?.color||'#888'}22;
+              border-left:3px solid ${repColorMap[rep.name]?.color||'#888'};
+              padding:2px 8px 2px 6px;border-radius:4px">
+          👤 ${esc(rep.name)}
+        </span>
+        <div class="rep-add" style="display:flex;gap:6px;align-items:center;margin-left:auto">
           <select id="firmAdd_${rep.id}">
             <option value="">Dodaj firmę…</option>
             ${avail.map(f=>`<option value="${esc(f)}">${esc(f)}</option>`).join('')}
           </select>
-          <button class="sm primary" data-action="rep-firm-add" data-rep-id="${rep.id}">+</button>
-          <button class="sm danger" data-action="rep-delete" data-rep-id="${rep.id}" data-rep-name="${esc(rep.name)}" title="Usuń handlowca z systemu">🗑</button>
+          <button class="sm primary" data-action="rep-firm-add" data-rep-id="${rep.id}">+ Dodaj</button>
         </div>
+        <button class="sm ghost" data-action="rep-delete" data-rep-id="${rep.id}" data-rep-name="${esc(rep.name)}"
+                title="Usuń handlowca z systemu (usuwa wszystkie przypisania)"
+                style="color:var(--text-muted);font-size:11px;margin-left:8px;border-color:var(--border)">🗑 Usuń</button>
       </div>
       <div class="firm-tags">
         ${rep.firms.length
-          ? rep.firms.map(f=>`<span class="firm-tag">${esc(f)}<button class="tag-remove" data-action="rep-firm-remove" data-rep-id="${rep.id}" data-firma="${esc(f)}" title="Usuń">×</button></span>`).join('')
+          ? rep.firms.map(f=>{
+              const c = repColorMap[rep.name]?.color||'var(--border-med)';
+              return `<span class="firm-tag" style="border-color:${c};background:${c}18">
+                ${esc(f)}
+                <button class="tag-remove" data-action="rep-firm-remove" data-rep-id="${rep.id}" data-firma="${esc(f)}" title="Usuń przypisanie">×</button>
+              </span>`;
+            }).join('')
           : '<span style="color:var(--text-muted);font-size:11px">Brak przypisanych firm</span>'}
       </div>
     </div>`;
