@@ -6,6 +6,19 @@ wersjonowanie zgodne z [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.7.0] — 2026-06-01
+
+### Naprawiono
+- **Popover ⓘ nie wyświetlał się** — `const tip = getElementById(...)` wywoływany przed sparsowaniem diva przez przeglądarkę; zmieniono na lazy lookup w każdym handlerze
+
+### Dodano
+- **Wykres sezonowości produkcji** (zakładka Wyliczenia) — linie rok do roku, każdy rok inny kolor; filtr typu urządzenia (Master/OEM/Wszystkie) i modelu maszyny; checkbox aktywnych lat; przycisk Rozwiń; X=miesiące Sty–Gru, Y=liczba urządzeń; tooltip z rokiem i liczbą urządzeń
+- **Opłaty licencyjne** (zakładka Konfiguracja) — nowa tabela `firm_license_fees` z polami: firma, kwota/mies., waluta, od, do (puste=bieżąca), uwagi; pełne CRUD (dodaj/edytuj/usuń); formularz z autocomplete listy firm; endpoint `GET/POST/PUT/DELETE /license-fees`
+- **Scalanie firm** (zakładka Konfiguracja) — formularz z dwoma polami z autocomplete; podgląd operacji przed wykonaniem; scal przesuwa urządzenia, handlowców, konfigurację i opłaty licencyjne; endpoint `POST /firms/merge`; inwalidacja cache po scaleniu
+- **Endpoint `GET /production/seasonality`** — zwraca dane dla wykresu sezonowości (year×month counts, lista modeli) na podstawie cache analizy
+
+---
+
 ## [1.6.0] — 2026-06-01
 
 ### Dodano

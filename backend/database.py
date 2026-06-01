@@ -163,6 +163,23 @@ def init_db() -> None:
                 );
             """)
 
+            # ── tabela opłat licencyjnych ──────────────────────────────
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS firm_license_fees (
+                    id          SERIAL PRIMARY KEY,
+                    firma       VARCHAR NOT NULL,
+                    amount      NUMERIC(12,2) NOT NULL DEFAULT 0,
+                    currency    VARCHAR NOT NULL DEFAULT 'PLN',
+                    date_from   VARCHAR NOT NULL DEFAULT '',
+                    date_to     VARCHAR NOT NULL DEFAULT '',
+                    note        VARCHAR NOT NULL DEFAULT ''
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_license_fees_firma
+                ON firm_license_fees(firma);
+            """)
+
             # Seed domyślnych handlowców (idempotentne)
             for name in DEFAULT_REPS:
                 cur.execute(
@@ -709,3 +726,135 @@ def reset_user_password(user_id: int, new_password: str) -> None:
                 "UPDATE users SET password_hash = %s WHERE id = %s",
                 (_hash_pwd(new_password), user_id),
             )
+
+
+# ── license fees ──────────────────────────────────────────────────────────────
+
+def get_license_fees() -> list:
+    """Return all license fee rows ordered by firma."""
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT id, firma, amount, currency, date_from, date_to, note
+                FROM firm_license_fees
+                ORDER BY firma, date_from
+            """)
+            return [dict(r) for r in cur.fetchall()]
+
+
+def upsert_license_fee(firma: str, amount: float, currency: str,
+                       date_from: str, date_to: str, note: str,
+                       fee_id: int | None = None) -> dict:
+    """Insert or update a license fee row. Returns the saved row."""
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            if fee_id:
+                cur.execute("""
+                    UPDATE firm_license_fees
+                    SET firma = %s, amount = %s, currency = %s,
+                        date_from = %s, date_to = %s, note = %s
+                    WHERE id = %s
+                    RETURNING id, firma, amount, currency, date_from, date_to, note
+                """, (firma, amount, currency, date_from, date_to, note, fee_id))
+            else:
+                cur.execute("""
+                    INSERT INTO firm_license_fees (firma, amount, currency, date_from, date_to, note)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    RETURNING id, firma, amount, currency, date_from, date_to, note
+                """, (firma, amount, currency, date_from, date_to, note))
+            return dict(cur.fetchone())
+
+
+def delete_license_fee(fee_id: int) -> None:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM firm_license_fees WHERE id = %s", (fee_id,))
+
+
+# ── company merge ─────────────────────────────────────────────────────────────
+
+def merge_firms(source: str, target: str) -> dict:
+    """
+    Merge `source` firm name into `target` across all tables.
+    After merge, all devices/configs/reps previously under `source`
+    will be under `target`. `source` rows are deleted from config tables.
+    Returns counts of affected rows per table.
+    """
+    if source == target:
+        raise ValueError("Źródło i cel scalenia są identyczne")
+
+    counts = {}
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            # 1. devices — simple rename
+            cur.execute(
+                "UPDATE devices SET firma = %s WHERE firma = %s",
+                (target, source),
+            )
+            counts["devices"] = cur.rowcount
+
+            # 2. firm_reps — move assignments; avoid duplicate (firma, rep_id)
+            cur.execute(
+                "SELECT rep_id FROM firm_reps WHERE firma = %s", (source,)
+            )
+            source_reps = {r[0] for r in cur.fetchall()}
+            cur.execute(
+                "SELECT rep_id FROM firm_reps WHERE firma = %s", (target,)
+            )
+            target_reps = {r[0] for r in cur.fetchall()}
+            new_reps = source_reps - target_reps
+            reps_moved = 0
+            for rep_id in new_reps:
+                cur.execute(
+                    "INSERT INTO firm_reps (firma, rep_id) VALUES (%s, %s)"
+                    " ON CONFLICT DO NOTHING",
+                    (target, rep_id),
+                )
+                reps_moved += 1
+            cur.execute("DELETE FROM firm_reps WHERE firma = %s", (source,))
+            counts["firm_reps"] = reps_moved
+
+            # 3. firm_config — keep target config if both exist; else rename source
+            cur.execute("SELECT 1 FROM firm_config WHERE firma = %s", (target,))
+            target_has_config = cur.fetchone() is not None
+            cur.execute("SELECT 1 FROM firm_config WHERE firma = %s", (source,))
+            source_has_config = cur.fetchone() is not None
+
+            if source_has_config:
+                if target_has_config:
+                    # target config wins — just delete source
+                    cur.execute("DELETE FROM firm_config WHERE firma = %s", (source,))
+                    counts["firm_config"] = "źródło usunięte (zachowano konfigurację celu)"
+                else:
+                    # rename source config to target
+                    cur.execute(
+                        "UPDATE firm_config SET firma = %s WHERE firma = %s",
+                        (target, source),
+                    )
+                    counts["firm_config"] = "przeniesiona z źródła"
+            else:
+                counts["firm_config"] = "brak zmian"
+
+            # 4. excluded_firms — same logic
+            cur.execute("SELECT 1 FROM excluded_firms WHERE firma = %s", (target,))
+            target_excl = cur.fetchone() is not None
+            cur.execute("SELECT 1 FROM excluded_firms WHERE firma = %s", (source,))
+            source_excl = cur.fetchone() is not None
+            if source_excl:
+                if target_excl:
+                    cur.execute("DELETE FROM excluded_firms WHERE firma = %s", (source,))
+                else:
+                    cur.execute(
+                        "UPDATE excluded_firms SET firma = %s WHERE firma = %s",
+                        (target, source),
+                    )
+            counts["excluded_firms"] = "scalono" if source_excl else "brak zmian"
+
+            # 5. firm_license_fees
+            cur.execute(
+                "UPDATE firm_license_fees SET firma = %s WHERE firma = %s",
+                (target, source),
+            )
+            counts["firm_license_fees"] = cur.rowcount
+
+    return counts

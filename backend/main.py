@@ -27,6 +27,8 @@ from database import (
     get_firm_configs, upsert_firm_config, delete_firm_config,
     get_firms_for_export, import_firms_table,
     get_monthly_revenue,
+    get_license_fees, upsert_license_fee, delete_license_fee,
+    merge_firms,
     VALID_FIRM_TYPES, VALID_CYCLES,
     # auth
     get_or_create_secret_key, create_admin_if_needed,
@@ -1354,3 +1356,161 @@ def get_revenue_analytics():
         "kpi_all":   kpi_all,
         "kpi_ytd":   kpi_ytd,
     }
+
+# ── production seasonality ────────────────────────────────────────────────────
+
+@app.get("/production/seasonality")
+def production_seasonality(
+    device_type: str = "master",   # master | oem | all
+    model:       str = "",         # substring filter on maszyna (case-insensitive)
+):
+    """
+    Month-by-month production counts per year for seasonality analysis.
+    Uses the analysis cache — same device-type logic as the main report.
+    Returns counts for months 1-12 per year.
+    """
+    try:
+        rows = _get_cached_analysis()
+    except Exception as e:
+        raise HTTPException(503, str(e))
+
+    # Filter by device type
+    if device_type == "master":
+        rows = [r for r in rows if r.get("device_type") == "master"]
+    elif device_type == "oem":
+        rows = [r for r in rows if r.get("status") == "oem"]
+    elif device_type == "paid":
+        rows = [r for r in rows if r.get("status") == "paid"]
+    elif device_type == "unpaid":
+        rows = [r for r in rows if r.get("status") == "unpaid"]
+    # "all" → no type filter
+
+    # Optional model filter
+    if model:
+        model_lc = model.lower()
+        rows = [r for r in rows if model_lc in (r.get("maszyna") or "").lower()]
+
+    # Group by year and calendar month (1-12)
+    by_year: dict[str, dict[str, int]] = {}
+    for r in rows:
+        pd = r.get("prod_date") or ""
+        if len(pd) < 7:
+            continue
+        year  = pd[:4]
+        month = pd[5:7]
+        if year not in by_year:
+            by_year[year] = {}
+        by_year[year][month] = by_year[year].get(month, 0) + 1
+
+    years = sorted(by_year.keys())
+    months_labels = ["Sty","Lut","Mar","Kwi","Maj","Cze",
+                     "Lip","Sie","Wrz","Paź","Lis","Gru"]
+    series = [
+        {
+            "year":   yr,
+            "data":   [by_year[yr].get(f"{m:02d}", 0) for m in range(1, 13)],
+            "total":  sum(by_year[yr].values()),
+        }
+        for yr in years
+    ]
+
+    # Also return list of unique models for the filter dropdown
+    all_rows_for_models = _get_cached_analysis()
+    models = sorted({
+        r.get("maszyna", "").strip()
+        for r in all_rows_for_models
+        if r.get("maszyna", "").strip()
+    })
+
+    return {
+        "years":         years,
+        "months_labels": months_labels,
+        "series":        series,
+        "models":        models,
+    }
+
+
+# ── license fees ─────────────────────────────────────────────────────────────
+
+class LicenseFeeIn(BaseModel):
+    firma:     str
+    amount:    float
+    currency:  str   = "PLN"
+    date_from: str   = ""
+    date_to:   str   = ""
+    note:      str   = ""
+
+
+@app.get("/license-fees")
+def list_license_fees():
+    try:
+        return get_license_fees()
+    except Exception as e:
+        raise HTTPException(503, str(e))
+
+
+@app.post("/license-fees")
+def create_license_fee(body: LicenseFeeIn):
+    if not body.firma.strip():
+        raise HTTPException(400, "Pole 'firma' jest wymagane")
+    if body.amount <= 0:
+        raise HTTPException(400, "Kwota musi być większa od 0")
+    try:
+        row = upsert_license_fee(
+            body.firma.strip(), body.amount, body.currency.strip().upper(),
+            body.date_from.strip(), body.date_to.strip(), body.note.strip()
+        )
+        return {"ok": True, "row": row}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.put("/license-fees/{fee_id}")
+def update_license_fee(fee_id: int, body: LicenseFeeIn):
+    if not body.firma.strip():
+        raise HTTPException(400, "Pole 'firma' jest wymagane")
+    if body.amount <= 0:
+        raise HTTPException(400, "Kwota musi być większa od 0")
+    try:
+        row = upsert_license_fee(
+            body.firma.strip(), body.amount, body.currency.strip().upper(),
+            body.date_from.strip(), body.date_to.strip(), body.note.strip(),
+            fee_id=fee_id,
+        )
+        return {"ok": True, "row": row}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.delete("/license-fees/{fee_id}")
+def remove_license_fee(fee_id: int):
+    try:
+        delete_license_fee(fee_id)
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# ── company merge ─────────────────────────────────────────────────────────────
+
+class MergeFirmsIn(BaseModel):
+    source: str   # firm name that will be absorbed / renamed away
+    target: str   # firm name that remains after merge
+
+
+@app.post("/firms/merge")
+def merge_firms_endpoint(body: MergeFirmsIn):
+    source = body.source.strip()
+    target = body.target.strip()
+    if not source or not target:
+        raise HTTPException(400, "Pola 'source' i 'target' są wymagane")
+    if source == target:
+        raise HTTPException(400, "Źródło i cel są identyczne")
+    try:
+        counts = merge_firms(source, target)
+        _invalidate_cache()
+        return {"ok": True, "source": source, "target": target, "affected": counts}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, str(e))

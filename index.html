@@ -901,6 +901,46 @@ Jeśli brutto = 0 oznacza że plik importu nie zawierał kolumny ob_CenaBrutto."
 
   </div>
 
+  <!-- Seasonality chart — full width -->
+  <div class="chart-card" style="margin-bottom:1.25rem">
+    <div class="chart-title">
+      <span>Sezonowość produkcji — rok do roku
+        <i class="info-icon" data-info="Wykres liniowy pokazujący liczbę wyprodukowanych urządzeń w poszczególnych miesiącach roku.
+Każdy rok = osobna linia w innym kolorze.
+Os X = miesiące (Sty–Gru), oś Y = liczba urządzeń.
+
+Pozwala zobaczyć sezonowość zamówień: kiedy jest szczyt produkcji, kiedy cisza.
+Filtruj wg typu urządzenia i modelu maszyny.
+
+Źródło: tabela devices, kolumna prod_date (data produkcji z pliku importu).
+Typ &#39;Master&#39; = urządzenia wymagające abonamentu IDS.">i</i>
+      </span>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-left:auto">
+        <select id="seasonTypeFilter" onchange="loadSeasonality()"
+                style="height:28px;font-size:11px;padding:0 8px;border-radius:var(--radius-md);
+                       border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+          <option value="master">Master</option>
+          <option value="all">Wszystkie typy</option>
+          <option value="oem">OEM</option>
+          <option value="paid">Opłacone (master)</option>
+          <option value="unpaid">Nieopłacone (master)</option>
+        </select>
+        <select id="seasonModelFilter" onchange="loadSeasonality()"
+                style="height:28px;font-size:11px;padding:0 8px;border-radius:var(--radius-md);
+                       border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+          <option value="">Wszystkie modele</option>
+        </select>
+        <button id="seasonExpandBtn" onclick="toggleSeasonExpand()"
+                style="font-size:11px;padding:2px 7px;border-radius:4px;border:0.5px solid var(--border-med);
+                       background:transparent;color:var(--text-muted);cursor:pointer">⤢ Rozwiń</button>
+      </div>
+    </div>
+    <!-- year checkboxes populated dynamically -->
+    <div id="seasonYearPills" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px"></div>
+    <div style="position:relative;height:240px" id="seasonWrap"><canvas id="chartSeason"></canvas></div>
+    <div class="chart-hint">💡 Zaznacz/odznacz lata powyżej aby porównać wybrane okresy</div>
+  </div>
+
   <!-- Row 2: top customers + donut -->
   <div class="charts-row col2">
 
@@ -1388,6 +1428,111 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
     </div>
   </div>
 
+  <!-- ══ OPŁATY LICENCYJNE ═══════════════════════════════════════════════ -->
+  <div class="section-card" style="margin-top:1rem">
+    <div class="section-title">💳 Opłaty licencyjne firm
+      <i class="info-icon" data-info="Zdefiniuj stałą opłatę licencyjną dla firm z typem Licencja.
+Kwota: miesięczna stała płatność całościowa za wszystkie urządzenia firmy.
+Od / Do: przedział czasowy obowiązywania (puste Do = opłata powtarzalna bezterminowo).
+
+W zakładce Wyliczenia system automatycznie przeliczy:
+  • Łączna wartość licencji (kwota × liczba miesięcy w przedziale)
+  • Średnia stawka na urządzenie = kwota ÷ liczba masterów tej firmy">i</i>
+    </div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:1rem;line-height:1.6">
+      Przypisz miesięczną opłatę licencyjną do firmy. Możesz dodać wiele wpisów dla różnych
+      przedziałów czasowych (np. zmiana stawki). Pusty zakres <em>Do</em> = opłata bieżąca (bez końca).
+    </p>
+    <!-- Add form -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:1rem;background:var(--bg-secondary);padding:.75rem;border-radius:var(--radius-md)">
+      <div class="input-group" style="min-width:180px;flex:2">
+        <label>Firma</label>
+        <input type="text" id="lfFirma" placeholder="Nazwa firmy…" list="lfFirmaList" style="height:34px">
+        <datalist id="lfFirmaList"></datalist>
+      </div>
+      <div class="input-group" style="min-width:100px;flex:1">
+        <label>Kwota miesięczna</label>
+        <input type="number" id="lfAmount" placeholder="0.00" min="0" step="0.01" style="height:34px">
+      </div>
+      <div class="input-group" style="min-width:70px">
+        <label>Waluta</label>
+        <select id="lfCurrency" style="height:34px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+          <option>PLN</option><option>EUR</option><option>USD</option>
+        </select>
+      </div>
+      <div class="input-group" style="min-width:100px">
+        <label>Od (RRRR-MM)</label>
+        <input type="month" id="lfDateFrom" style="height:34px">
+      </div>
+      <div class="input-group" style="min-width:100px">
+        <label>Do (puste = bieżąca)</label>
+        <input type="month" id="lfDateTo" style="height:34px">
+      </div>
+      <div class="input-group" style="min-width:140px;flex:2">
+        <label>Uwagi</label>
+        <input type="text" id="lfNote" placeholder="opcjonalne…" style="height:34px">
+      </div>
+      <button class="primary" style="height:34px" onclick="saveLicenseFee()">+ Zapisz</button>
+    </div>
+    <div class="msg" id="msgLicenseFees"></div>
+    <div style="overflow-x:auto">
+      <table class="config-table" id="licenseFeesTable">
+        <thead><tr>
+          <th>Firma</th>
+          <th class="num">Kwota / mies.</th>
+          <th>Waluta</th>
+          <th>Od</th>
+          <th>Do</th>
+          <th>Uwagi</th>
+          <th style="width:80px"></th>
+        </tr></thead>
+        <tbody id="licenseFeesBody">
+          <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:1.5rem">Ładowanie…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══ SCALANIE FIRM ════════════════════════════════════════════════════ -->
+  <div class="section-card" style="margin-top:1rem">
+    <div class="section-title">🔗 Scalanie firm (deduplikacja)
+      <i class="info-icon" data-info="Połącz dwie nazwy firm w jedną — przydatne gdy ta sama firma pojawia się pod różnymi pisowniami (np. &#39;BOGMAR&#39; i &#39;Bogmar&#39;).
+
+Co zostanie przeniesione z Źródło → Cel:
+  • Urządzenia (devices.firma)
+  • Przypisania handlowców (firm_reps)
+  • Opłaty licencyjne (firm_license_fees)
+  • Konfiguracja firmy: jeśli CEL już ma konfigurację — źródłowa jest usuwana; jeśli nie — przenoszona
+
+Po scaleniu Źródło zniknie z systemu — upewnij się przed wykonaniem!">i</i>
+    </div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:1rem;line-height:1.6">
+      Scal dwa warianty nazwy tej samej firmy. Nazwa <strong>Źródło</strong> zniknie — wszystkie
+      powiązane dane zostaną przeniesione na <strong>Cel</strong>.
+    </p>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+      <div class="input-group" style="min-width:220px;flex:1">
+        <label>Źródło (nazwa która zniknie)</label>
+        <input type="text" id="mergeSource" list="mergeFirmaList1"
+               placeholder="np. BOGMAR" style="height:34px"
+               oninput="previewMerge()">
+        <datalist id="mergeFirmaList1"></datalist>
+      </div>
+      <div style="align-self:flex-end;font-size:20px;color:var(--text-muted);padding-bottom:6px">→</div>
+      <div class="input-group" style="min-width:220px;flex:1">
+        <label>Cel (nazwa która pozostanie)</label>
+        <input type="text" id="mergeTarget" list="mergeFirmaList2"
+               placeholder="np. Bogmar" style="height:34px"
+               oninput="previewMerge()">
+        <datalist id="mergeFirmaList2"></datalist>
+      </div>
+      <button id="mergeFirmsBtn" class="danger" style="height:34px;opacity:0.4;cursor:default"
+              onclick="executeMerge()" disabled>🔗 Scal firmy</button>
+    </div>
+    <div class="msg" id="msgMerge" style="margin-top:.5rem"></div>
+    <div id="mergePreview" style="font-size:12px;color:var(--text-muted);margin-top:.5rem;line-height:1.7"></div>
+  </div>
+
 </div>
 
 </div>
@@ -1424,8 +1569,8 @@ function switchTab(name) {
   if (name === 'monitor')  loadMonitoringTab();
   if (name === 'firstpay') loadFirstPayTab();
   if (name === 'device')   { /* data loaded on demand via searchBySN() */ }
-  if (name === 'revenue')  loadRevenue();
-  if (name === 'config')   loadConfig();
+  if (name === 'revenue')  { loadRevenue(); loadSeasonality(); }
+  if (name === 'config')   { loadConfig(); loadLicenseFees(); loadMergeFirmaLists(); }
 }
 
 // ── db status bar ──────────────────────────────────────────────────────
@@ -4276,30 +4421,315 @@ function sortRevTable(key) {
   if (_revData) renderRevTable();
 }
 
+// ── SEASONALITY CHART ─────────────────────────────────────────────────────────
+let chartSeason = null;
+let _seasonData = null;
+let _seasonActiveYears = new Set();
+let _seasonExpanded = false;
+
+const SEASON_COLORS = [
+  '#2563EB','#1D9E75','#E24B4A','#F59E0B','#7C3AED',
+  '#0e7490','#BA7517','#9ca3af','#6366f1','#ec4899',
+];
+
+async function loadSeasonality() {
+  const dtype = document.getElementById('seasonTypeFilter')?.value || 'master';
+  const model = document.getElementById('seasonModelFilter')?.value || '';
+  try {
+    const r = await fetch(`${API}/production/seasonality?device_type=${encodeURIComponent(dtype)}&model=${encodeURIComponent(model)}`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    _seasonData = await r.json();
+  } catch(e) {
+    console.error('seasonality load error', e);
+    return;
+  }
+  // Populate model dropdown (only once — keep selected value)
+  const modelSel = document.getElementById('seasonModelFilter');
+  if (modelSel && _seasonData.models) {
+    const cur = modelSel.value;
+    modelSel.innerHTML = '<option value="">Wszystkie modele</option>' +
+      _seasonData.models.map(m => `<option value="${m}"${m===cur?' selected':''}>${m}</option>`).join('');
+  }
+  // Default: activate all years
+  if (_seasonActiveYears.size === 0) {
+    _seasonData.series.forEach(s => _seasonActiveYears.add(s.year));
+  }
+  renderSeasonYearPills();
+  renderSeasonChart();
+}
+
+function renderSeasonYearPills() {
+  const container = document.getElementById('seasonYearPills');
+  if (!container || !_seasonData) return;
+  container.innerHTML = _seasonData.series.map((s, i) => {
+    const active = _seasonActiveYears.has(s.year);
+    const color  = SEASON_COLORS[i % SEASON_COLORS.length];
+    return `<button class="year-pill${active?' active':''}"
+                    style="${active ? `background:${color};color:#fff;border-color:${color}` : ''}"
+                    onclick="toggleSeasonYear('${s.year}',${i})">${s.year} <span style="font-size:10px;opacity:.7">(${s.total})</span></button>`;
+  }).join('');
+}
+
+function toggleSeasonYear(year, idx) {
+  if (_seasonActiveYears.has(year)) {
+    if (_seasonActiveYears.size > 1) _seasonActiveYears.delete(year);
+  } else {
+    _seasonActiveYears.add(year);
+  }
+  renderSeasonYearPills();
+  renderSeasonChart();
+}
+
+function renderSeasonChart() {
+  const wrap = document.getElementById('seasonWrap');
+  if (wrap) wrap.style.height = (_seasonExpanded ? '420px' : '240px');
+  if (chartSeason) { chartSeason.destroy(); chartSeason = null; }
+  const ctx = document.getElementById('chartSeason');
+  if (!ctx || !_seasonData) return;
+
+  const labels = _seasonData.months_labels;
+  const datasets = _seasonData.series
+    .filter(s => _seasonActiveYears.has(s.year))
+    .map((s, i) => {
+      const allIdx = _seasonData.series.findIndex(x => x.year === s.year);
+      const color  = SEASON_COLORS[allIdx % SEASON_COLORS.length];
+      return {
+        label:           s.year,
+        data:            s.data,
+        borderColor:     color,
+        backgroundColor: color + '22',
+        borderWidth:     2,
+        pointRadius:     4,
+        pointHoverRadius:6,
+        tension:         0.35,
+        fill:            false,
+      };
+    });
+
+  chartSeason = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: true, position: 'bottom',
+                  labels: { boxWidth: 12, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            title: items => `${items[0].label}`,
+            label: ctx  => ` ${ctx.dataset.label}: ${ctx.parsed.y} urządzeń`,
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { font: { size: 11 } } },
+        y: { beginAtZero: true,
+             ticks: { stepSize: 1, font: { size: 10 } },
+             title: { display: true, text: 'Liczba urządzeń', font: { size: 10 } } },
+      },
+    },
+  });
+}
+
+function toggleSeasonExpand() {
+  _seasonExpanded = !_seasonExpanded;
+  const btn = document.getElementById('seasonExpandBtn');
+  if (btn) btn.textContent = _seasonExpanded ? '⤡ Zwiń' : '⤢ Rozwiń';
+  setTimeout(() => renderSeasonChart(), 80);
+}
+
+// ── LICENSE FEES ──────────────────────────────────────────────────────────────
+let _licenseFees = [];
+let _lfEditId = null;
+
+async function loadLicenseFees() {
+  try {
+    _licenseFees = await (await fetch(`${API}/license-fees`)).json();
+  } catch(e) { _licenseFees = []; }
+  renderLicenseFeesTable();
+}
+
+function renderLicenseFeesTable() {
+  const tbody = document.getElementById('licenseFeesBody');
+  if (!tbody) return;
+  if (!_licenseFees.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:1.5rem">Brak wpisów — dodaj pierwszą opłatę licencyjną powyżej.</td></tr>';
+    return;
+  }
+  const fmt = v => v ? new Intl.NumberFormat('pl-PL',{minimumFractionDigits:2,maximumFractionDigits:2}).format(v) : '—';
+  tbody.innerHTML = _licenseFees.map(f => `<tr>
+    <td><strong>${f.firma}</strong></td>
+    <td style="text-align:right">${fmt(f.amount)}</td>
+    <td>${f.currency}</td>
+    <td>${f.date_from || '—'}</td>
+    <td>${f.date_to || '<span style="color:var(--green)">bieżąca ∞</span>'}</td>
+    <td style="color:var(--text-muted)">${f.note || ''}</td>
+    <td style="text-align:right">
+      <button style="font-size:11px;padding:2px 7px;border-radius:4px;border:0.5px solid var(--border-med);cursor:pointer;margin-right:4px"
+              onclick="editLicenseFee(${f.id})">✎</button>
+      <button class="danger" style="font-size:11px;padding:2px 7px;border-radius:4px;cursor:pointer"
+              onclick="deleteLicenseFee(${f.id},'${f.firma.replace(/'/g,"\\'")}')">✕</button>
+    </td>
+  </tr>`).join('');
+}
+
+function editLicenseFee(id) {
+  const f = _licenseFees.find(x => x.id === id);
+  if (!f) return;
+  _lfEditId = id;
+  document.getElementById('lfFirma').value    = f.firma;
+  document.getElementById('lfAmount').value   = f.amount;
+  document.getElementById('lfCurrency').value = f.currency || 'PLN';
+  document.getElementById('lfDateFrom').value = f.date_from || '';
+  document.getElementById('lfDateTo').value   = f.date_to   || '';
+  document.getElementById('lfNote').value     = f.note      || '';
+  document.getElementById('lfFirma').scrollIntoView({ behavior:'smooth', block:'center' });
+  showMsg('msgLicenseFees','Wypełniono formularz edycji. Zmień dane i kliknij Zapisz.','info');
+}
+
+async function saveLicenseFee() {
+  const firma    = document.getElementById('lfFirma').value.trim();
+  const amount   = parseFloat(document.getElementById('lfAmount').value) || 0;
+  const currency = document.getElementById('lfCurrency').value;
+  const dateFrom = document.getElementById('lfDateFrom').value;
+  const dateTo   = document.getElementById('lfDateTo').value;
+  const note     = document.getElementById('lfNote').value.trim();
+
+  if (!firma)    { showMsg('msgLicenseFees','Podaj nazwę firmy','error'); return; }
+  if (amount<=0) { showMsg('msgLicenseFees','Kwota musi być > 0','error'); return; }
+
+  const url    = _lfEditId ? `${API}/license-fees/${_lfEditId}` : `${API}/license-fees`;
+  const method = _lfEditId ? 'PUT' : 'POST';
+
+  try {
+    const r = await fetch(url, { method, headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ firma, amount, currency, date_from:dateFrom, date_to:dateTo, note }) });
+    if (!r.ok) { const e = await r.json(); throw new Error(e.detail||r.status); }
+    showMsg('msgLicenseFees', _lfEditId ? 'Zaktualizowano.' : 'Dodano.','ok');
+    _lfEditId = null;
+    // reset form
+    ['lfFirma','lfAmount','lfDateFrom','lfDateTo','lfNote'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('lfCurrency').value = 'PLN';
+    await loadLicenseFees();
+  } catch(e) { showMsg('msgLicenseFees','Błąd: '+e.message,'error'); }
+}
+
+async function deleteLicenseFee(id, firma) {
+  if (!confirm(`Usunąć wpis licencyjny dla „${firma}"?`)) return;
+  try {
+    const r = await fetch(`${API}/license-fees/${id}`, { method:'DELETE' });
+    if (!r.ok) throw new Error(r.status);
+    await loadLicenseFees();
+    showMsg('msgLicenseFees','Usunięto.','ok');
+  } catch(e) { showMsg('msgLicenseFees','Błąd: '+e.message,'error'); }
+}
+
+// ── COMPANY MERGE ─────────────────────────────────────────────────────────────
+let _allFirmsForMerge = [];
+
+async function loadMergeFirmaLists() {
+  try {
+    const r = await fetch(`${API}/firms/export`);
+    if (!r.ok) return;
+    const data = await r.json();
+    _allFirmsForMerge = (data.rows || []).map(f => f.firma).filter(Boolean).sort();
+  } catch(e) { return; }
+
+  ['mergeFirmaList1','mergeFirmaList2'].forEach(id => {
+    const dl = document.getElementById(id);
+    if (dl) dl.innerHTML = _allFirmsForMerge.map(f => `<option value="${f.replace(/"/g,'&quot;')}">`).join('');
+  });
+  // Also populate license fee datalist
+  const lfDl = document.getElementById('lfFirmaList');
+  if (lfDl) lfDl.innerHTML = _allFirmsForMerge.map(f => `<option value="${f.replace(/"/g,'&quot;')}">`).join('');
+}
+
+function previewMerge() {
+  const src = document.getElementById('mergeSource')?.value.trim();
+  const tgt = document.getElementById('mergeTarget')?.value.trim();
+  const btn = document.getElementById('mergeFirmsBtn');
+  const preview = document.getElementById('mergePreview');
+
+  if (!src || !tgt || src === tgt) {
+    if (btn) { btn.disabled = true; btn.style.opacity='0.4'; btn.style.cursor='default'; }
+    if (preview) preview.textContent = '';
+    return;
+  }
+
+  const srcCount = _allFirmsForMerge.filter(f => f.toLowerCase() === src.toLowerCase()).length;
+  const tgtCount = _allFirmsForMerge.filter(f => f.toLowerCase() === tgt.toLowerCase()).length;
+
+  if (btn) { btn.disabled = false; btn.style.opacity='1'; btn.style.cursor='pointer'; }
+  if (preview) {
+    preview.innerHTML = `
+      <strong style="color:var(--amber)">⚠️ Podgląd operacji:</strong><br>
+      Źródło: <strong>${src}</strong> ${srcCount?'✓ znaleziono w bazie':'⚠️ nie znaleziono!'}<br>
+      Cel: <strong>${tgt}</strong> ${tgtCount?'✓ znaleziono w bazie':'⚠️ nie znaleziono!'}<br>
+      Wszystkie urządzenia i konfiguracje <strong>${src}</strong> zostaną przeniesione do <strong>${tgt}</strong>.<br>
+      Nazwa <strong style="color:var(--red)">${src}</strong> <strong>zniknie z systemu</strong>.
+    `;
+  }
+}
+
+async function executeMerge() {
+  const src = document.getElementById('mergeSource')?.value.trim();
+  const tgt = document.getElementById('mergeTarget')?.value.trim();
+  if (!src || !tgt) return;
+  if (src === tgt) { showMsg('msgMerge','Źródło i cel są identyczne','error'); return; }
+  if (!confirm(`Scalić firmę „${src}" → „${tgt}"?\n\nTo nieodwracalna operacja. Kontynuować?`)) return;
+
+  try {
+    const r = await fetch(`${API}/firms/merge`, {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ source: src, target: tgt })
+    });
+    if (!r.ok) { const e=await r.json(); throw new Error(e.detail||r.status); }
+    const d = await r.json();
+    const aff = d.affected || {};
+    showMsg('msgMerge',
+      `✅ Scalono! Urządzeń: ${aff.devices||0}, handlowców: ${aff.firm_reps||0}, konfiguracja: ${aff.firm_config||'—'}`,
+      'ok');
+    document.getElementById('mergeSource').value = '';
+    document.getElementById('mergeTarget').value = '';
+    document.getElementById('mergePreview').innerHTML = '';
+    document.getElementById('mergeFirmsBtn').disabled = true;
+    document.getElementById('mergeFirmsBtn').style.opacity = '0.4';
+    // Reload firms list and config
+    await loadMergeFirmaLists();
+    if (document.getElementById('tab-config').classList.contains('active')) loadConfig();
+  } catch(e) { showMsg('msgMerge','Błąd: '+e.message,'error'); }
+}
+
 // END REVENUE ANALYTICS TAB
 
 // ── global ⓘ tooltip ──────────────────────────────────────────────────────
+// NOTE: lazy lookup — div #infoTooltipPopup is defined after </script> in HTML,
+// so we must NOT cache it at IIFE-init time; look it up on each event instead.
 (function () {
-  const tip = document.getElementById('infoTooltipPopup');
-  if (!tip) return;
+  function tip() { return document.getElementById('infoTooltipPopup'); }
 
   function show(icon, e) {
-    tip.textContent = icon.dataset.info || '';
-    tip.classList.add('visible');
-    position(e);
+    const t = tip(); if (!t) return;
+    t.textContent = icon.dataset.info || '';
+    t.classList.add('visible');
+    position(t, e);
   }
-  function hide() { tip.classList.remove('visible'); }
+  function hide() { const t = tip(); if (t) t.classList.remove('visible'); }
 
-  function position(e) {
+  function position(t, e) {
     const margin = 12;
-    const tw = tip.offsetWidth  || 340;
-    const th = tip.offsetHeight || 120;
+    const tw = t.offsetWidth  || 340;
+    const th = t.offsetHeight || 120;
     let x = e.clientX + margin;
     let y = e.clientY + margin;
     if (x + tw > window.innerWidth  - 8) x = e.clientX - tw - margin;
     if (y + th > window.innerHeight - 8) y = e.clientY - th - margin;
-    tip.style.left = x + 'px';
-    tip.style.top  = y + 'px';
+    t.style.left = x + 'px';
+    t.style.top  = y + 'px';
   }
 
   document.addEventListener('mouseover', e => {
@@ -4307,7 +4737,8 @@ function sortRevTable(key) {
     if (icon) show(icon, e);
   });
   document.addEventListener('mousemove', e => {
-    if (tip.classList.contains('visible')) position(e);
+    const t = tip();
+    if (t && t.classList.contains('visible')) position(t, e);
   });
   document.addEventListener('mouseout', e => {
     if (e.target.closest('.info-icon')) hide();
