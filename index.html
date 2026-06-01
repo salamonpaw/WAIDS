@@ -773,10 +773,26 @@
 
   <!-- KPI row -->
   <div class="rev-kpi-grid" id="revKpiGrid">
-    <div class="kpi teal">  <div class="kpi-label" id="revKpiNettoLbl">Przychody YTD (PLN netto)</div><div class="kpi-value" id="revKpiNetto">—</div></div>
-    <div class="kpi green"> <div class="kpi-label" id="revKpiEurLbl">Przychody YTD (EUR)</div>      <div class="kpi-value" id="revKpiEur">—</div></div>
-    <div class="kpi amber"> <div class="kpi-label" id="revKpiDevicesLbl">Płacących urządzeń (YTD)</div>  <div class="kpi-value" id="revKpiDevices">—</div></div>
-    <div class="kpi">       <div class="kpi-label" id="revKpiCustomersLbl">Płacących klientów (YTD)</div>  <div class="kpi-value" id="revKpiCustomers">—</div></div>
+    <div class="kpi teal"
+         title="SUMA przychodów netto w PLN za wybrany okres.&#10;&#10;Źródło: kolumna ob_CenaNetto z pliku IDS — cena netto faktury w złotówkach.&#10;Dla faktur w EUR lub USD wartość jest przeliczona przez IDS na PLN netto w momencie wystawiania faktury.&#10;Formuła: SUM(amount_netto) dla wszystkich płatności w wybranym roku.&#10;&#10;💡 Użyj filtra roku w nagłówku zakładki aby zmienić okres.">
+      <div class="kpi-label" id="revKpiNettoLbl">Przychody YTD (PLN netto)</div>
+      <div class="kpi-value" id="revKpiNetto">—</div>
+    </div>
+    <div class="kpi green"
+         title="SUMA przychodów w walucie EUR za wybrany okres.&#10;&#10;Źródło: kolumna ob_CenaWaluta z pliku IDS — kwota w walucie oryginalnej faktury.&#10;Dotyczy wyłącznie faktur z walutą EUR (pole nzf_IdWaluty = 'EUR').&#10;Faktury PLN, USD i inne waluty nie są tu wliczane.&#10;Formuła: SUM(amount) WHERE currency = 'EUR'.&#10;&#10;💡 Kwota w EUR nie jest przeliczana na PLN — to wartość oryginalna z faktury.">
+      <div class="kpi-label" id="revKpiEurLbl">Przychody YTD (EUR)</div>
+      <div class="kpi-value" id="revKpiEur">—</div>
+    </div>
+    <div class="kpi amber"
+         title="LICZBA unikalnych urządzeń (numerów seryjnych SN) które miały co najmniej jedną zarejestrowaną płatność w wybranym okresie.&#10;&#10;Źródło: tabela payments — każdy rekord odpowiada jednemu SN + miesiąc.&#10;Formuła: COUNT(DISTINCT sn) dla płatności w wybranym roku.&#10;&#10;💡 To nie liczba urządzeń posiadanych przez firmę, lecz tych które aktywnie płacą abonament.&#10;Urządzenia bez żadnej płatności (status 'brak opłaty') nie są liczone.">
+      <div class="kpi-label" id="revKpiDevicesLbl">Płacących urządzeń (YTD)</div>
+      <div class="kpi-value" id="revKpiDevices">—</div>
+    </div>
+    <div class="kpi"
+         title="LICZBA unikalnych klientów (wartość pola 'Klient / Operator' z pliku IDS) którzy mieli co najmniej jedną płatność w wybranym okresie.&#10;&#10;Źródło: kolumna customer w tabeli payments — pobierana z pliku płatności IDS.&#10;Formuła: COUNT(DISTINCT customer) dla płatności w wybranym roku.&#10;&#10;💡 Klient ≠ Firma. Jedno konto firmy może mieć wiele urządzeń na różnych klientów/operatorów. Puste wartości pola klienta są pomijane.">
+      <div class="kpi-label" id="revKpiCustomersLbl">Płacących klientów (YTD)</div>
+      <div class="kpi-value" id="revKpiCustomers">—</div>
+    </div>
   </div>
 
   <!-- Row 1: trend + annual -->
@@ -784,7 +800,8 @@
 
     <!-- Monthly trend -->
     <div class="chart-card" id="revTrendCard">
-      <div class="chart-title">
+      <div class="chart-title"
+           title="Wykres słupkowo-liniowy pokazujący przychody miesiąc po miesiącu.&#10;&#10;Słupki (niebieskie) = PLN netto — SUM(ob_CenaNetto) per miesiąc, zawsze w złotówkach.&#10;Linia (żółta, prawa oś) = EUR — SUM(ob_CenaWaluta) dla faktur z walutą EUR.&#10;&#10;Filtruj pilkami lat powyżej lub globalnym filtrem roku w nagłówku zakładki.&#10;Kliknij ⤢ Rozwiń aby powiększyć na całą szerokość.">
         <span>Trend miesięczny (PLN netto)</span>
         <button onclick="toggleRevTrendExpand()" id="revTrendExpandBtn"
                 style="font-size:11px;padding:2px 7px;border-radius:4px;border:0.5px solid var(--border-med);
@@ -801,7 +818,8 @@
 
     <!-- Annual bars -->
     <div class="chart-card" id="revAnnualCard">
-      <div class="chart-title">Przychody roczne</div>
+      <div class="chart-title"
+           title="Porównanie przychodów rok do roku.&#10;&#10;PLN netto (niebieski) = SUM(ob_CenaNetto) — wartość netto faktur w PLN.&#10;PLN brutto (zielony)  = SUM(ob_CenaBrutto) — wartość brutto faktur w PLN (z VAT).&#10;EUR (żółty, prawa oś) = SUM(ob_CenaWaluta) dla faktur z walutą EUR — nie jest przeliczane na PLN.&#10;&#10;Różnica brutto−netto = kwota VAT.&#10;Jeśli brutto = 0 oznacza że plik importu nie zawierał kolumny ob_CenaBrutto.">Przychody roczne</div>
       <div class="legend">
         <span><span class="leg-sq" style="background:#2563EB"></span>PLN netto</span>
         <span><span class="leg-sq" style="background:#F59E0B"></span>EUR</span>
@@ -817,7 +835,8 @@
 
     <!-- Top customers horizontal bar -->
     <div class="chart-card" id="revTopCard">
-      <div class="chart-title">
+      <div class="chart-title"
+           title="Ranking klientów według sumarycznego przychodu PLN netto (wszystkie lata łącznie).&#10;&#10;Klient = wartość pola 'Klient/Operator' z pliku płatności IDS.&#10;Słupki niebieskie = PLN netto (oś dolna).&#10;Słupki żółte = EUR (ukryta oś — dla porównania proporcji, nie konwertowane).&#10;&#10;Hover na słupku pokazuje: PLN netto, liczbę urządzeń i łączną liczbę płatności.&#10;Przełącznik Top 10/15/20 zmienia liczbę widocznych klientów.&#10;&#10;⚠️ Jeden klient może mieć wiele urządzeń SN z różnych firm.">
         <span>Top klienci (PLN netto)</span>
         <div class="top-n-btns">
           <button class="top-n-btn active" onclick="setTopN(10,this)">Top 10</button>
@@ -830,10 +849,12 @@
 
     <!-- Donut + Rep -->
     <div class="chart-card">
-      <div class="chart-title">Rozkład wg typu klienta</div>
+      <div class="chart-title"
+           title="Podział przychodów PLN netto według skonfigurowanego typu firmy (Konfiguracja → typy firm).&#10;&#10;IDS       = firma z aktywnym abonamentem IDS&#10;Licencja  = klient licencyjny (zwykle bez cyklicznych opłat)&#10;OEM       = producent/partner OEM&#10;Inne      = inne typy&#10;Brak konfiguracji = firma ma płatności, ale nie ma ustawionego typu w module Konfiguracja.&#10;&#10;Formuła: JOIN payments → devices → firm_config, GROUP BY firm_type.">Rozkład wg typu klienta</div>
       <div class="legend" id="revTypeLegend"></div>
       <div style="position:relative;height:130px"><canvas id="chartRevType"></canvas></div>
-      <div class="chart-title" style="margin-top:1rem">Przychody wg handlowca</div>
+      <div class="chart-title" style="margin-top:1rem"
+           title="Przychody PLN netto przypisane do handlowców.&#10;&#10;Przypisanie: handlowiec → firma (Konfiguracja → Handlowcy) → urządzenia tej firmy → płatności tych urządzeń.&#10;Jeśli firma ma dwóch handlowców, jej przychód jest liczony dla każdego z nich osobno (brak podziału proporcjonalnego).&#10;Firmy bez przypisanego handlowca nie pojawią się na tym wykresie.&#10;&#10;Słupki żółte = EUR (ukryta oś pomocnicza).">Przychody wg handlowca</div>
       <div style="position:relative;height:120px"><canvas id="chartRevRep"></canvas></div>
     </div>
 
@@ -850,14 +871,21 @@
       <table class="rev-table" id="revCustomerTable">
         <thead><tr>
           <th>#</th>
-          <th onclick="sortRevTable('customer')" class="rev-sort-icon" title="Sortuj wg klienta">Klient ↕</th>
-          <th onclick="sortRevTable('netto')"    class="rev-sort-icon num" title="Sortuj wg PLN netto">PLN netto ↕</th>
-          <th onclick="sortRevTable('brutto')"   class="rev-sort-icon num" title="Sortuj wg PLN brutto">PLN brutto ↕</th>
-          <th onclick="sortRevTable('eur')"      class="rev-sort-icon num" title="Sortuj wg EUR">EUR ↕</th>
-          <th onclick="sortRevTable('devices')"  class="rev-sort-icon num" title="Sortuj wg liczby urządzeń">Urządzeń ↕</th>
-          <th onclick="sortRevTable('payment_count')" class="rev-sort-icon num" title="Sortuj wg liczby płatności">Płatności ↕</th>
-          <th class="num" title="PLN netto na jedno urządzenie">Avg/urządzenie</th>
-          <th>Udział PLN</th>
+          <th onclick="sortRevTable('customer')" class="rev-sort-icon"
+              title="Nazwa klienta/operatora z pliku płatności IDS (kolumna 'Klient' lub 'Operator').&#10;Jeden klient może mieć wiele urządzeń SN.&#10;Kliknij aby sortować alfabetycznie.">Klient ↕</th>
+          <th onclick="sortRevTable('netto')" class="rev-sort-icon num"
+              title="Łączna kwota netto w PLN — suma kolumny ob_CenaNetto ze wszystkich płatności tego klienta.&#10;Zawiera faktury we wszystkich walutach przeliczone na PLN przez IDS.&#10;Kliknij aby sortować malejąco/rosnąco.">PLN netto ↕</th>
+          <th onclick="sortRevTable('brutto')" class="rev-sort-icon num"
+              title="Łączna kwota brutto w PLN — suma kolumny ob_CenaBrutto (z VAT).&#10;Różnica brutto−netto = skumulowany VAT klienta.&#10;Wartość '—' oznacza brak danych o brutto w zaimportowanych plikach.&#10;Kliknij aby sortować.">PLN brutto ↕</th>
+          <th onclick="sortRevTable('eur')" class="rev-sort-icon num"
+              title="Łączna kwota w EUR — suma kolumny ob_CenaWaluta dla faktur z walutą EUR.&#10;NIE jest przeliczana na PLN — to wartość oryginalna z faktury.&#10;Wartość '—' oznacza że klient nie ma faktur w EUR.&#10;Kliknij aby sortować.">EUR ↕</th>
+          <th onclick="sortRevTable('devices')" class="rev-sort-icon num"
+              title="Liczba unikalnych numerów seryjnych (SN) z zarejestrowanymi płatnościami tego klienta.&#10;Jedno urządzenie SN = jeden miesiąc produkcji z jedną lub więcej płatnościami.&#10;Kliknij aby sortować.">Urządzeń ↕</th>
+          <th onclick="sortRevTable('payment_count')" class="rev-sort-icon num"
+              title="Łączna liczba rekordów płatności (wierszy) w tabeli payments dla tego klienta.&#10;Jeden rekord = jedno SN + jeden miesiąc rozliczeniowy.&#10;Wysoka liczba = klient z wieloma urządzeniami lub długą historią płatności.&#10;Kliknij aby sortować.">Płatności ↕</th>
+          <th class="num"
+              title="Średni przychód PLN netto na jedno urządzenie.&#10;Formuła: PLN netto ÷ Urządzeń.&#10;Pozwala porównać 'wartość' klienta niezależnie od liczby urządzeń.">Avg/urządzenie</th>
+          <th title="Procentowy udział klienta w łącznych przychodach PLN netto wszystkich klientów.&#10;Formuła: PLN netto klienta ÷ suma PLN netto wszystkich klientów × 100%.&#10;Pasek graficzny pokazuje proporcję względem klienta #1 (max = 100%).">Udział PLN</th>
         </tr></thead>
         <tbody id="revTableBody">
           <tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:2rem">Kliknij zakładkę aby załadować dane…</td></tr>
