@@ -11,7 +11,9 @@ docker compose up -d --build
 
 echo "3/5 Kopiuję frontend do /var/www/waids..."
 sudo cp index.html /var/www/waids/index.html
-sudo chown www-data:www-data /var/www/waids/index.html
+sudo cp -r css/ /var/www/waids/css/
+sudo cp -r js/  /var/www/waids/js/
+sudo chown -R www-data:www-data /var/www/waids/index.html /var/www/waids/css/ /var/www/waids/js/
 
 echo "4/5 Przeładowuję nginx..."
 sudo systemctl reload nginx

@@ -6,6 +6,43 @@ wersjonowanie zgodne z [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.9.1] — 2026-06-01
+
+### Naprawiono
+- **`showMsg` crash przy zapisie opłaty licencyjnej** — `saveLicenseFee()` wywoływała niezdefiniowaną `showMsg()`; zastąpiono `setMsg()` (naprawione już w 1.9.0, teraz wdrożone)
+
+### Zmieniono
+- **Scalanie firm przeniesione NA GÓRĘ** zakładki Konfiguracja (ponad opłaty licencyjne) — scalanie musi być wykonane przed konfiguracją, żeby wszystkie późniejsze wpisy dotyczyły już scalonej nazwy; sekcja oznaczona żółtym ostrzeżeniem
+- **Autouzupełnianie firm w scalaniu** — lista pochodzi z 3 źródeł łącznie: załadowane wyniki analizy (`results[]`), endpoint `/api/reps/firms` (wszystkie firmy z bazy produkcji), skonfigurowane firmy (`firm_config`); sortowanie polskie (locale `pl`)
+- **Walidacja nazwy firmy przy scalaniu** — jeśli wpisana nazwa nie istnieje w bazie, chip jest oznaczony czerwonym obramowaniem i ostrzeżeniem ⚠; nazwy są normalizowane do wielkości liter z bazy (case-insensitive match)
+- **`loadMergeFirmaLists` wywołane wewnątrz `loadConfig()`** — po załadowaniu `firm-configs`, nie współbieżnie z resztą inicjalizacji; gwarantuje że `_firmConfigData` jest dostępna w momencie budowania listy firm
+
+---
+
+## [1.9.0] — 2026-06-01
+
+### Zmieniono
+- **Refaktoring frontendu** — `index.html` (4933 linii) podzielony na osobne pliki statyczne serwowane przez nginx:
+  - `css/main.css` — wszystkie style CSS
+  - `js/utils.js` — globalne zmienne stanu, helpery, formattery
+  - `js/auth.js` — interceptor fetch, logowanie/wylogowanie
+  - `js/app.js` — przełączanie zakładek, pasek statusu DB, changelog
+  - `js/import.js` — import produkcji i płatności, strefy drag-and-drop, szablony
+  - `js/report.js` — zakładka Raport: wykresy, filtry, tabela, eksport, override modala
+  - `js/monitoring.js` — zakładka Monitoring: analiza kohortowa masterów
+  - `js/config.js` — zakładka Konfiguracja: firmy, handlowcy, wykluczenia, scalanie
+  - `js/firstpay.js` — zakładka Nowe płatności
+  - `js/device.js` — zakładka Wyszukiwarka urządzeń
+  - `js/revenue.js` — zakładka Wyliczenia: revenue analytics + sezonowość
+  - `js/tooltip.js` — globalny tooltip ⓘ
+- `update.sh` — zaktualizowany: kopiuje `css/` i `js/` do `/var/www/waids/`
+
+### Naprawiono
+- **`showMsg` undefined** — w sekcjach Opłaty licencyjne i Scalanie firm kod wywoływał niezdefiniowaną funkcję `showMsg()`; wszystkie wywołania zastąpione poprawną `setMsg(id, text, type)`
+- **`loadMergeFirmaLists` — błędny endpoint** — funkcja wywoływała `/api/firms/export` (zwraca binarny plik Excel) i próbowała parsować go jako JSON; zmieniono na `/api/reps/firms` (zwraca `{firms: [...]}`) — ten sam endpoint co `loadReps()`
+
+---
+
 ## [1.8.0] — 2026-06-01
 
 ### Dodano

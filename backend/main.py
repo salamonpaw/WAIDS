@@ -745,6 +745,7 @@ async def import_payments(
     fmt = "IDS" if invoice_date_col else ("pivot" if month_cols else "monthly")
 
     skipped_unpaid_count = skipped_unpaid if invoice_date_col else 0
+    _invalidate_cache()
     return {
         "inserted":          len(deduped_list),
         "months":            months,
@@ -757,7 +758,6 @@ async def import_payments(
         "netto_col":         netto_col    if invoice_date_col else None,
         "brutto_col":        brutto_col   if invoice_date_col else None,
     }
-    _invalidate_cache()
 
 
 @app.delete("/import/production")

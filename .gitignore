@@ -56,3 +56,5 @@ Thumbs.db
 # ── Node (serve dev server) ──────────────────────────────────────────────
 node_modules/
 npm-debug.log*
+*.bak
+deploy_local.sh
