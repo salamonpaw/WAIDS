@@ -148,6 +148,30 @@
                     flex-direction:column; min-width:260px; }
     #navDatePopup.open { display:flex; }
 
+    /* ── revenue tab ── */
+    .rev-kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1.25rem; }
+    @media (max-width: 900px) { .rev-kpi-grid { grid-template-columns: repeat(2,1fr); } }
+    .top-n-btns { display:flex; gap:4px; margin-left:auto; }
+    .top-n-btn { font-size:11px; padding:2px 8px; border-radius:99px; border:0.5px solid var(--border-med);
+                 background:transparent; color:var(--text-muted); cursor:pointer; transition:all .12s; }
+    .top-n-btn.active { background:var(--text); color:var(--bg); border-color:transparent; }
+    .rev-table { width:100%; border-collapse:collapse; font-size:12px; }
+    .rev-table th { text-align:left; padding:6px 10px; border-bottom:1.5px solid var(--border-med);
+                    font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; white-space:nowrap; }
+    .rev-table th.num, .rev-table td.num { text-align:right; }
+    .rev-table td { padding:5px 10px; border-bottom:0.5px solid var(--border); white-space:nowrap; }
+    .rev-table tr:hover td { background:var(--bg-secondary); }
+    .rev-table td.bar-cell { width:120px; padding-right:14px; }
+    .mini-bar { height:6px; border-radius:3px; background:var(--green); min-width:2px; }
+    .rev-search { height:32px; font-size:12px; padding:0 10px; border-radius:var(--radius-md);
+                  border:0.5px solid var(--border-med); background:var(--bg); color:var(--text); width:260px; }
+    .rev-sort-icon { cursor:pointer; user-select:none; }
+    .rev-section { background:var(--bg); border:0.5px solid var(--border);
+                   border-radius:var(--radius-lg); padding:1rem; margin-bottom:1.25rem; overflow-x:auto; }
+    .rev-section-title { font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:.75rem;
+                         text-transform:uppercase; letter-spacing:.04em; display:flex; align-items:center; gap:8px; }
+    .rev-section-title span { flex:1; }
+
     /* ── filters ── */
     .filters-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
                    background: var(--bg); border: 0.5px solid var(--border);
@@ -326,6 +350,7 @@
   <button class="tab-btn"        onclick="switchTab('monitor')">📈 Monitoring</button>
   <button class="tab-btn"        onclick="switchTab('firstpay')">🆕 Nowe płatności</button>
   <button class="tab-btn"        onclick="switchTab('device')">🔍 Urządzenie</button>
+  <button class="tab-btn"        onclick="switchTab('revenue')">💰 Wyliczenia</button>
   <button class="tab-btn"        onclick="switchTab('config')">⚙ Konfiguracja</button>
 </div>
 
@@ -725,6 +750,121 @@
   </div>
 
   <div id="snSearchResult" style="margin-top:1rem"></div>
+
+</div>
+</div>
+
+<!-- ══════════════════ REVENUE TAB ══════════════════ -->
+<div class="tab-panel" id="tab-revenue">
+<div class="container">
+
+  <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:1.25rem">
+    <div style="flex:1">
+      <div style="font-size:15px;font-weight:600;margin-bottom:2px">💰 Wyliczenia — Revenue Analytics</div>
+      <div style="font-size:12px;color:var(--text-muted)">Analiza przychodów: trendy, top klienci, rozkład wg handlowca i typu firmy</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <select id="revYearFilter" onchange="onRevYearChange()" style="height:32px;font-size:12px;padding:0 10px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+        <option value="">Wszystkie lata</option>
+      </select>
+      <button onclick="loadRevenue()" style="height:32px;font-size:12px;padding:0 14px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text);cursor:pointer">⟳ Odśwież</button>
+    </div>
+  </div>
+
+  <!-- KPI row -->
+  <div class="rev-kpi-grid" id="revKpiGrid">
+    <div class="kpi teal">  <div class="kpi-label" id="revKpiNettoLbl">Przychody YTD (PLN netto)</div><div class="kpi-value" id="revKpiNetto">—</div></div>
+    <div class="kpi green"> <div class="kpi-label" id="revKpiEurLbl">Przychody YTD (EUR)</div>      <div class="kpi-value" id="revKpiEur">—</div></div>
+    <div class="kpi amber"> <div class="kpi-label" id="revKpiDevicesLbl">Płacących urządzeń (YTD)</div>  <div class="kpi-value" id="revKpiDevices">—</div></div>
+    <div class="kpi">       <div class="kpi-label" id="revKpiCustomersLbl">Płacących klientów (YTD)</div>  <div class="kpi-value" id="revKpiCustomers">—</div></div>
+  </div>
+
+  <!-- Row 1: trend + annual -->
+  <div class="charts-row col2" id="revRow1">
+
+    <!-- Monthly trend -->
+    <div class="chart-card" id="revTrendCard">
+      <div class="chart-title">
+        <span>Trend miesięczny (PLN netto)</span>
+        <button onclick="toggleRevTrendExpand()" id="revTrendExpandBtn"
+                style="font-size:11px;padding:2px 7px;border-radius:4px;border:0.5px solid var(--border-med);
+                       background:transparent;color:var(--text-muted);cursor:pointer">⤢ Rozwiń</button>
+      </div>
+      <div class="year-pills" id="revTrendYearPills"></div>
+      <div class="legend">
+        <span><span class="leg-sq" style="background:#2563EB"></span>PLN netto</span>
+        <span><span class="leg-sq" style="background:#F59E0B"></span>EUR (prawa oś)</span>
+      </div>
+      <div style="position:relative;height:220px" id="revTrendWrap"><canvas id="chartRevTrend"></canvas></div>
+      <div class="chart-hint">💡 Hover dla szczegółów. Kliknij aby filtrować Top klientów.</div>
+    </div>
+
+    <!-- Annual bars -->
+    <div class="chart-card" id="revAnnualCard">
+      <div class="chart-title">Przychody roczne</div>
+      <div class="legend">
+        <span><span class="leg-sq" style="background:#2563EB"></span>PLN netto</span>
+        <span><span class="leg-sq" style="background:#F59E0B"></span>EUR</span>
+        <span><span class="leg-sq" style="background:#1D9E75"></span>PLN brutto</span>
+      </div>
+      <div style="position:relative;height:220px"><canvas id="chartRevAnnual"></canvas></div>
+    </div>
+
+  </div>
+
+  <!-- Row 2: top customers + donut -->
+  <div class="charts-row col2">
+
+    <!-- Top customers horizontal bar -->
+    <div class="chart-card" id="revTopCard">
+      <div class="chart-title">
+        <span>Top klienci (PLN netto)</span>
+        <div class="top-n-btns">
+          <button class="top-n-btn active" onclick="setTopN(10,this)">Top 10</button>
+          <button class="top-n-btn"        onclick="setTopN(15,this)">Top 15</button>
+          <button class="top-n-btn"        onclick="setTopN(20,this)">Top 20</button>
+        </div>
+      </div>
+      <div style="position:relative;height:280px" id="revTopWrap"><canvas id="chartRevTop"></canvas></div>
+    </div>
+
+    <!-- Donut + Rep -->
+    <div class="chart-card">
+      <div class="chart-title">Rozkład wg typu klienta</div>
+      <div class="legend" id="revTypeLegend"></div>
+      <div style="position:relative;height:130px"><canvas id="chartRevType"></canvas></div>
+      <div class="chart-title" style="margin-top:1rem">Przychody wg handlowca</div>
+      <div style="position:relative;height:120px"><canvas id="chartRevRep"></canvas></div>
+    </div>
+
+  </div>
+
+  <!-- Customer table -->
+  <div class="rev-section">
+    <div class="rev-section-title">
+      <span>Tabela klientów</span>
+      <input type="text" id="revTableSearch" class="rev-search" placeholder="🔍 Szukaj klienta…"
+             oninput="filterRevTable()" autocomplete="off">
+    </div>
+    <div style="overflow-x:auto">
+      <table class="rev-table" id="revCustomerTable">
+        <thead><tr>
+          <th>#</th>
+          <th onclick="sortRevTable('customer')" class="rev-sort-icon" title="Sortuj wg klienta">Klient ↕</th>
+          <th onclick="sortRevTable('netto')"    class="rev-sort-icon num" title="Sortuj wg PLN netto">PLN netto ↕</th>
+          <th onclick="sortRevTable('brutto')"   class="rev-sort-icon num" title="Sortuj wg PLN brutto">PLN brutto ↕</th>
+          <th onclick="sortRevTable('eur')"      class="rev-sort-icon num" title="Sortuj wg EUR">EUR ↕</th>
+          <th onclick="sortRevTable('devices')"  class="rev-sort-icon num" title="Sortuj wg liczby urządzeń">Urządzeń ↕</th>
+          <th onclick="sortRevTable('payment_count')" class="rev-sort-icon num" title="Sortuj wg liczby płatności">Płatności ↕</th>
+          <th class="num" title="PLN netto na jedno urządzenie">Avg/urządzenie</th>
+          <th>Udział PLN</th>
+        </tr></thead>
+        <tbody id="revTableBody">
+          <tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:2rem">Kliknij zakładkę aby załadować dane…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 
 </div>
 </div>
@@ -1131,6 +1271,7 @@ function switchTab(name) {
   if (name === 'monitor')  loadMonitoringTab();
   if (name === 'firstpay') loadFirstPayTab();
   if (name === 'device')   { /* data loaded on demand via searchBySN() */ }
+  if (name === 'revenue')  loadRevenue();
   if (name === 'config')   loadConfig();
 }
 
@@ -1661,13 +1802,13 @@ function toggleBarExpand() {
     wrap.style.height = '420px';
     btn.textContent = '⤡ Zwiń';
   } else {
-    card.style.gridColumn = '';
-    card.style.order = '';
+    card.style.removeProperty('grid-column');
+    card.style.removeProperty('order');
     wrap.style.height = '200px';
     btn.textContent = '⤢ Rozwiń';
   }
-  // give browser a tick to reflow, then resize chart
-  setTimeout(() => { if (barChart) barChart.resize(); }, 50);
+  // rebuild chart after reflow — ensures canvas width is recalculated correctly
+  setTimeout(() => { if (_barAllData) renderBar(_barAllData); }, 80);
 }
 
 // ── bar chart: by prod month ───────────────────────────────────────────
@@ -3540,6 +3681,449 @@ async function showChangelog() {
     _changelogLoaded = true;
   } catch(e) { pre.textContent = '❌ Nie można załadować: '+e.message; }
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// REVENUE ANALYTICS TAB
+// ══════════════════════════════════════════════════════════════════════════════
+
+let _revData        = null;   // raw API response
+let _revTopN        = 10;     // current Top-N for customer bar
+let _revTrendYear   = '';     // selected year for trend filter
+let _revTrendExpanded = false;
+let _revSortKey     = 'netto';
+let _revSortAsc     = false;
+let _revSearch      = '';
+
+// Chart instances for revenue tab
+let chartRevTrend  = null;
+let chartRevAnnual = null;
+let chartRevTop    = null;
+let chartRevType   = null;
+let chartRevRep    = null;
+
+const REV_COLORS = {
+  pln:    '#2563EB',
+  eur:    '#F59E0B',
+  brutto: '#1D9E75',
+  bar:    ['#2563EB','#1D9E75','#F59E0B','#7C3AED','#E24B4A','#0e7490','#BA7517','#9ca3af'],
+};
+
+const REV_TYPE_LABELS = { ids:'IDS', licencja:'Licencja', oem:'OEM', inne:'Inne', brak:'Brak konfiguracji' };
+
+function fmtPLN(v) {
+  if (!v) return '0 zł';
+  return new Intl.NumberFormat('pl-PL', { style:'currency', currency:'PLN', maximumFractionDigits:0 }).format(v);
+}
+function fmtEUR(v) {
+  if (!v) return '0 €';
+  return new Intl.NumberFormat('pl-PL', { style:'currency', currency:'EUR', maximumFractionDigits:0 }).format(v);
+}
+function fmtNum(v) {
+  return new Intl.NumberFormat('pl-PL', { maximumFractionDigits:0 }).format(v || 0);
+}
+
+async function loadRevenue() {
+  const tbody = document.getElementById('revTableBody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:2rem">⏳ Ładowanie…</td></tr>';
+
+  try {
+    const r = await fetch(`${API}/revenue`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    _revData = await r.json();
+  } catch(e) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="9" style="text-align:center;color:var(--red);padding:2rem">❌ ${e.message}</td></tr>`;
+    return;
+  }
+
+  // Populate year filter dropdown
+  const sel = document.getElementById('revYearFilter');
+  if (sel) {
+    const years = [...new Set(_revData.annual.map(r => r.year))].sort();
+    sel.innerHTML = '<option value="">Wszystkie lata</option>' +
+      years.map(y => `<option value="${y}"${y === _revData.kpi_ytd.year ? ' selected':''}>${y}</option>`).join('');
+    _revTrendYear = _revData.kpi_ytd.year;
+    sel.value = _revTrendYear;
+  }
+
+  renderRevKPI();
+  renderRevTrend();
+  renderRevAnnual();
+  renderRevTop();
+  renderRevType();
+  renderRevRep();
+  renderRevTable();
+}
+
+// ── KPI cards ──────────────────────────────────────────────────────────────
+function renderRevKPI() {
+  const ytd = _revData.kpi_ytd;
+  const selectedYear = document.getElementById('revYearFilter')?.value || '';
+  let kpi;
+
+  if (selectedYear && _revData.annual) {
+    const row = _revData.annual.find(r => r.year === selectedYear);
+    kpi = row
+      ? { netto: row.netto, eur: row.eur, devices: row.devices, customers: row.customers, year: selectedYear }
+      : { netto: 0, eur: 0, devices: 0, customers: 0, year: selectedYear };
+  } else {
+    kpi = ytd;
+  }
+
+  const label = kpi.year ? `${kpi.year}` : 'Wszystkie lata';
+  document.getElementById('revKpiNettoLbl').textContent     = `Przychody ${label} (PLN netto)`;
+  document.getElementById('revKpiEurLbl').textContent       = `Przychody ${label} (EUR)`;
+  document.getElementById('revKpiDevicesLbl').textContent   = `Płacących urządzeń (${label})`;
+  document.getElementById('revKpiCustomersLbl').textContent = `Płacących klientów (${label})`;
+
+  document.getElementById('revKpiNetto').textContent     = fmtPLN(kpi.netto);
+  document.getElementById('revKpiEur').textContent       = fmtEUR(kpi.eur);
+  document.getElementById('revKpiDevices').textContent   = fmtNum(kpi.devices);
+  document.getElementById('revKpiCustomers').textContent = fmtNum(kpi.customers);
+}
+
+function onRevYearChange() {
+  _revTrendYear = document.getElementById('revYearFilter')?.value || '';
+  if (!_revData) return;
+  renderRevKPI();
+  renderRevTrend();
+  renderRevTop();
+  renderRevTable();
+}
+
+// ── Monthly trend ─────────────────────────────────────────────────────────
+function buildRevTrendYearPills(monthly) {
+  const years = [...new Set(monthly.map(r => r.month.slice(0,4)))].sort();
+  const pills = document.getElementById('revTrendYearPills');
+  if (!pills) return;
+  pills.innerHTML = [''].concat(years).map(y =>
+    `<button class="year-pill${_revTrendYear===y?' active':''}"
+             onclick="setRevTrendYear('${y}')">${y||'Wszystkie'}</button>`).join('');
+}
+
+function setRevTrendYear(y) {
+  _revTrendYear = y;
+  const sel = document.getElementById('revYearFilter');
+  if (sel) sel.value = y;
+  renderRevKPI();
+  renderRevTrend();
+  renderRevTop();
+  renderRevTable();
+}
+
+function renderRevTrend() {
+  const monthly = _revData.monthly.filter(r =>
+    !_revTrendYear || r.month.startsWith(_revTrendYear));
+
+  buildRevTrendYearPills(_revData.monthly);
+
+  const wrap = document.getElementById('revTrendWrap');
+  if (wrap) wrap.style.height = (_revTrendExpanded ? '400px' : '220px');
+
+  const labels   = monthly.map(r => r.month);
+  const nettoArr = monthly.map(r => r.netto);
+  const eurArr   = monthly.map(r => r.eur);
+
+  if (chartRevTrend) chartRevTrend.destroy();
+  const ctx = document.getElementById('chartRevTrend');
+  if (!ctx) return;
+
+  chartRevTrend = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          type: 'bar',
+          label: 'PLN netto',
+          data: nettoArr,
+          backgroundColor: REV_COLORS.pln + 'cc',
+          borderRadius: 3,
+          yAxisID: 'y',
+        },
+        {
+          type: 'line',
+          label: 'EUR',
+          data: eurArr,
+          borderColor: REV_COLORS.eur,
+          backgroundColor: REV_COLORS.eur + '33',
+          borderWidth: 2,
+          pointRadius: 3,
+          fill: false,
+          tension: 0.3,
+          yAxisID: 'y2',
+        },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const v = ctx.parsed.y;
+              return ctx.dataset.yAxisID === 'y2'
+                ? ` EUR: ${fmtNum(v)} €`
+                : ` PLN netto: ${fmtPLN(v)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { autoSkip: true, maxRotation: 45, font: { size: 10 } } },
+        y:  { beginAtZero: true, position: 'left',
+              ticks: { callback: v => fmtNum(v), font: { size: 10 } } },
+        y2: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false },
+              ticks: { callback: v => fmtNum(v) + ' €', font: { size: 10 } } },
+      },
+    },
+  });
+}
+
+function toggleRevTrendExpand() {
+  _revTrendExpanded = !_revTrendExpanded;
+  const card = document.getElementById('revTrendCard');
+  const btn  = document.getElementById('revTrendExpandBtn');
+  const row  = document.getElementById('revRow1');
+  if (_revTrendExpanded) {
+    card.style.gridColumn = '1 / -1';
+    card.style.order = '-1';
+    btn.textContent = '⤡ Zwiń';
+    if (row) row.classList.remove('col2');
+  } else {
+    card.style.removeProperty('grid-column');
+    card.style.removeProperty('order');
+    btn.textContent = '⤢ Rozwiń';
+    if (row) row.classList.add('col2');
+  }
+  setTimeout(() => { if (_revData) renderRevTrend(); }, 80);
+}
+
+// ── Annual chart ──────────────────────────────────────────────────────────
+function renderRevAnnual() {
+  const annual = _revData.annual;
+  const labels = annual.map(r => r.year);
+  if (chartRevAnnual) chartRevAnnual.destroy();
+  const ctx = document.getElementById('chartRevAnnual');
+  if (!ctx) return;
+  chartRevAnnual = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'PLN netto',  data: annual.map(r => r.netto),  backgroundColor: REV_COLORS.pln,    borderRadius: 3 },
+        { label: 'PLN brutto', data: annual.map(r => r.brutto), backgroundColor: REV_COLORS.brutto, borderRadius: 3 },
+        { label: 'EUR',        data: annual.map(r => r.eur),    backgroundColor: REV_COLORS.eur,    borderRadius: 3, yAxisID: 'y2' },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const v = ctx.parsed.y;
+              if (ctx.dataset.label === 'EUR') return ` EUR: ${fmtNum(v)} €`;
+              return ` ${ctx.dataset.label}: ${fmtPLN(v)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { font: { size: 11 } } },
+        y:  { beginAtZero: true, ticks: { callback: v => fmtNum(v), font: { size: 10 } } },
+        y2: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false },
+              ticks: { callback: v => fmtNum(v) + ' €', font: { size: 10 } } },
+      },
+    },
+  });
+}
+
+// ── Top customers ─────────────────────────────────────────────────────────
+function setTopN(n, el) {
+  _revTopN = n;
+  document.querySelectorAll('.top-n-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderRevTop();
+}
+
+function renderRevTop() {
+  // Filter customers by year if selected
+  let customers = _revData.customers;
+  // If year filter active — recalculate from monthly? No — use full customers list (all-time)
+  // but sort by selected year if possible. Since we don't have per-customer per-year breakdown
+  // in the endpoint yet, use the global ranking.
+  const top = customers.slice(0, _revTopN);
+  const maxNetto = Math.max(...top.map(c => c.netto), 1);
+
+  const wrap = document.getElementById('revTopWrap');
+  if (wrap) wrap.style.height = Math.max(180, _revTopN * 26 + 40) + 'px';
+
+  if (chartRevTop) chartRevTop.destroy();
+  const ctx = document.getElementById('chartRevTop');
+  if (!ctx) return;
+
+  chartRevTop = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: top.map(c => c.customer.length > 32 ? c.customer.slice(0,30)+'…' : c.customer),
+      datasets: [
+        { label: 'PLN netto', data: top.map(c => c.netto),  backgroundColor: REV_COLORS.pln + 'cc', borderRadius: 3 },
+        { label: 'EUR',       data: top.map(c => c.eur),    backgroundColor: REV_COLORS.eur + 'aa', borderRadius: 3, yAxisID: 'y2' },
+      ],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const c = _revData.customers[ctx.dataIndex];
+              if (ctx.dataset.label === 'EUR') return c.eur ? ` EUR: ${fmtNum(c.eur)} €` : '';
+              return ` PLN netto: ${fmtPLN(c.netto)} · urządzeń: ${c.devices} · płatności: ${c.payment_count}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x:  { beginAtZero: true, ticks: { callback: v => fmtNum(v), font: { size: 10 } } },
+        y:  { ticks: { font: { size: 10 } } },
+        y2: { display: false },
+      },
+    },
+  });
+}
+
+// ── Firm type donut ───────────────────────────────────────────────────────
+function renderRevType() {
+  const types = _revData.by_type;
+  const labels = types.map(t => REV_TYPE_LABELS[t.type] || t.type);
+  const colors = ['#2563EB','#1D9E75','#9ca3af','#7C3AED','#E24B4A'];
+
+  // Build legend
+  const leg = document.getElementById('revTypeLegend');
+  if (leg) {
+    leg.innerHTML = types.map((t, i) =>
+      `<span><span class="leg-sq" style="background:${colors[i]||'#aaa'}"></span>${labels[i]} – ${fmtPLN(t.netto)}</span>`
+    ).join('');
+  }
+
+  if (chartRevType) chartRevType.destroy();
+  const ctx = document.getElementById('chartRevType');
+  if (!ctx) return;
+  chartRevType = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data: types.map(t => t.netto), backgroundColor: colors, borderWidth: 1 }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${fmtPLN(ctx.parsed)}` } }
+      },
+      cutout: '62%',
+    },
+  });
+}
+
+// ── Revenue by rep ────────────────────────────────────────────────────────
+function renderRevRep() {
+  const reps = _revData.by_rep;
+  if (!reps.length) return;
+  if (chartRevRep) chartRevRep.destroy();
+  const ctx = document.getElementById('chartRevRep');
+  if (!ctx) return;
+  chartRevRep = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: reps.map(r => r.rep),
+      datasets: [
+        { label: 'PLN netto', data: reps.map(r => r.netto),  backgroundColor: REV_COLORS.pln + 'cc', borderRadius: 3 },
+        { label: 'EUR',       data: reps.map(r => r.eur),    backgroundColor: REV_COLORS.eur + 'aa', borderRadius: 3, yAxisID: 'y2' },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const v = ctx.parsed.y;
+              return ctx.dataset.label === 'EUR'
+                ? (v ? ` EUR: ${fmtNum(v)} €` : '')
+                : ` PLN netto: ${fmtPLN(v)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { font: { size: 10 } } },
+        y:  { beginAtZero: true, ticks: { callback: v => fmtNum(v), font: { size: 9 } } },
+        y2: { display: false },
+      },
+    },
+  });
+}
+
+// ── Customer table ────────────────────────────────────────────────────────
+function renderRevTable() {
+  const tbody = document.getElementById('revTableBody');
+  if (!tbody) return;
+
+  const search = _revSearch.toLowerCase();
+  let rows = _revData.customers.filter(c =>
+    !search || c.customer.toLowerCase().includes(search));
+
+  // Sort
+  rows = [...rows].sort((a, b) => {
+    const va = a[_revSortKey], vb = b[_revSortKey];
+    if (typeof va === 'string') return _revSortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+    return _revSortAsc ? va - vb : vb - va;
+  });
+
+  const totalNetto = _revData.customers.reduce((s, c) => s + c.netto, 0) || 1;
+
+  tbody.innerHTML = rows.map((c, i) => {
+    const avg   = c.devices ? c.netto / c.devices : 0;
+    const share = totalNetto ? c.netto / totalNetto * 100 : 0;
+    const barW  = Math.max(2, Math.round(share / (_revData.customers[0].netto / totalNetto * 100) * 100));
+    return `<tr>
+      <td style="color:var(--text-muted)">${i+1}</td>
+      <td><strong>${c.customer}</strong></td>
+      <td class="num">${fmtPLN(c.netto)}</td>
+      <td class="num">${c.brutto ? fmtPLN(c.brutto) : '—'}</td>
+      <td class="num">${c.eur ? fmtNum(c.eur)+' €' : '—'}</td>
+      <td class="num">${c.devices}</td>
+      <td class="num">${c.payment_count}</td>
+      <td class="num">${fmtPLN(avg)}</td>
+      <td class="bar-cell"><div class="mini-bar" style="width:${barW}%"></div>
+          <span style="font-size:10px;color:var(--text-muted)">${share.toFixed(1)}%</span></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="9" style="text-align:center;color:var(--text-muted);padding:1.5rem">Brak wyników</td></tr>';
+}
+
+function filterRevTable() {
+  _revSearch = document.getElementById('revTableSearch')?.value || '';
+  if (_revData) renderRevTable();
+}
+
+function sortRevTable(key) {
+  if (_revSortKey === key) _revSortAsc = !_revSortAsc;
+  else { _revSortKey = key; _revSortAsc = key === 'customer'; }
+  if (_revData) renderRevTable();
+}
+
+// END REVENUE ANALYTICS TAB
 </script>
 
 

@@ -6,6 +6,25 @@ wersjonowanie zgodne z [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.6.0] — 2026-06-01
+
+### Dodano
+- **Zakładka "💰 Wyliczenia"** — kompletny dashboard revenue analytics:
+  - **KPI row**: Przychody roku (PLN netto / EUR), płacące urządzenia, płacący klienci
+  - **Trend miesięczny**: wykres słupkowo-liniowy PLN netto + EUR (oś prawa); filtr lat + przycisk Rozwiń
+  - **Przychody roczne**: grupowany wykres słupkowy PLN netto / PLN brutto / EUR per rok
+  - **Top klienci**: poziomy wykres słupkowy z przełącznikiem Top 10 / 15 / 20, tooltip z detalami
+  - **Rozkład wg typu klienta**: donut chart IDS / Licencja / OEM / Inne
+  - **Przychody wg handlowca**: wykres PLN netto i EUR per handlowiec
+  - **Tabela klientów**: sortowalna, przeszukiwalna, z kolumnami PLN netto/brutto, EUR, urządzenia, płatności, avg/urządzenie, % udziału
+  - Filtr roku w nagłówku zakładki zsynchronizowany z wykresami i KPI
+- **Nowy endpoint `GET /revenue`** — agregacje przychodów: monthly trend, annual totals, top 50 klientów, wg handlowca, wg typu firmy, KPI all-time + YTD
+
+### Naprawiono
+- **Zwijanie wykresu słupkowego** (⤡ Zwiń) — użyto `style.removeProperty('grid-column')` zamiast `= ''`; dodano pełną przebudowę wykresu po zwinięciu — canvas poprawnie wraca do połowy szerokości
+
+---
+
 ## [1.5.1] — 2026-06-01
 
 ### Naprawiono

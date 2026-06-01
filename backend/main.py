@@ -1213,3 +1213,144 @@ async def import_firms_excel(
         "firms_processed": len(rows),
         **result,
     }
+
+
+# ── revenue analytics ─────────────────────────────────────────────────────────
+
+@app.get("/revenue")
+def get_revenue_analytics():
+    """
+    Aggregated revenue data for the Wyliczenia tab.
+    All amounts: amount_netto / amount_brutto always in PLN;
+                 'eur' = SUM(amount) WHERE currency='EUR'.
+    """
+    cur_year = str(datetime.now().year)
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+
+            # 1. Monthly trend: PLN netto + EUR + brutto
+            cur.execute("""
+                SELECT year_month,
+                       COALESCE(SUM(amount_netto),  0)::float  AS netto,
+                       COALESCE(SUM(amount_brutto), 0)::float  AS brutto,
+                       COALESCE(SUM(CASE WHEN currency='EUR' THEN amount ELSE 0 END), 0)::float AS eur
+                FROM payments
+                WHERE amount_netto > 0 OR amount_brutto > 0 OR amount > 0
+                GROUP BY year_month
+                ORDER BY year_month
+            """)
+            cols = ['month', 'netto', 'brutto', 'eur']
+            monthly = [dict(zip(cols, r)) for r in cur.fetchall()]
+
+            # 2. Annual totals
+            cur.execute("""
+                SELECT LEFT(year_month, 4)                                             AS year,
+                       COALESCE(SUM(amount_netto),  0)::float                          AS netto,
+                       COALESCE(SUM(amount_brutto), 0)::float                          AS brutto,
+                       COALESCE(SUM(CASE WHEN currency='EUR' THEN amount ELSE 0 END), 0)::float AS eur,
+                       COUNT(DISTINCT sn)                                              AS devices,
+                       COUNT(DISTINCT customer)                                        AS customers
+                FROM payments
+                WHERE amount_netto > 0 OR amount_brutto > 0 OR amount > 0
+                GROUP BY LEFT(year_month, 4)
+                ORDER BY year
+            """)
+            cols = ['year', 'netto', 'brutto', 'eur', 'devices', 'customers']
+            annual = [dict(zip(cols, r)) for r in cur.fetchall()]
+
+            # 3. Top 50 customers by PLN netto
+            cur.execute("""
+                SELECT customer,
+                       COALESCE(SUM(amount_netto),  0)::float                          AS netto,
+                       COALESCE(SUM(amount_brutto), 0)::float                          AS brutto,
+                       COALESCE(SUM(CASE WHEN currency='EUR' THEN amount ELSE 0 END), 0)::float AS eur,
+                       COUNT(DISTINCT sn)                                              AS devices,
+                       COUNT(*)                                                         AS payment_count
+                FROM payments
+                WHERE customer IS NOT NULL AND customer <> ''
+                  AND (amount_netto > 0 OR amount_brutto > 0 OR amount > 0)
+                GROUP BY customer
+                ORDER BY netto DESC
+                LIMIT 50
+            """)
+            cols = ['customer', 'netto', 'brutto', 'eur', 'devices', 'payment_count']
+            customers = [dict(zip(cols, r)) for r in cur.fetchall()]
+
+            # 4. Revenue by sales rep (via firm_reps → devices)
+            cur.execute("""
+                SELECT sr.name                                                          AS rep,
+                       COALESCE(SUM(p.amount_netto),  0)::float                        AS netto,
+                       COALESCE(SUM(p.amount_brutto), 0)::float                        AS brutto,
+                       COALESCE(SUM(CASE WHEN p.currency='EUR' THEN p.amount ELSE 0 END), 0)::float AS eur,
+                       COUNT(DISTINCT p.sn)                                            AS devices
+                FROM payments p
+                JOIN devices d  ON d.sn     = p.sn
+                JOIN firm_reps fr ON fr.firma = d.firma
+                JOIN sales_reps sr ON sr.id  = fr.rep_id
+                WHERE p.amount_netto > 0 OR p.amount_brutto > 0 OR p.amount > 0
+                GROUP BY sr.name
+                ORDER BY netto DESC
+            """)
+            cols = ['rep', 'netto', 'brutto', 'eur', 'devices']
+            by_rep = [dict(zip(cols, r)) for r in cur.fetchall()]
+
+            # 5. Revenue by firm type
+            cur.execute("""
+                SELECT COALESCE(NULLIF(fc.firm_type,''), 'brak')                       AS firm_type,
+                       COALESCE(SUM(p.amount_netto),  0)::float                        AS netto,
+                       COALESCE(SUM(p.amount_brutto), 0)::float                        AS brutto,
+                       COUNT(DISTINCT p.sn)                                            AS devices
+                FROM payments p
+                JOIN devices d ON d.sn = p.sn
+                LEFT JOIN firm_config fc ON fc.firma = d.firma
+                WHERE p.amount_netto > 0 OR p.amount_brutto > 0 OR p.amount > 0
+                GROUP BY COALESCE(NULLIF(fc.firm_type,''), 'brak')
+                ORDER BY netto DESC
+            """)
+            cols = ['type', 'netto', 'brutto', 'devices']
+            by_type = [dict(zip(cols, r)) for r in cur.fetchall()]
+
+            # 6. KPI: all-time totals
+            cur.execute("""
+                SELECT COALESCE(SUM(amount_netto),  0)::float  AS total_netto,
+                       COALESCE(SUM(amount_brutto), 0)::float  AS total_brutto,
+                       COALESCE(SUM(CASE WHEN currency='EUR' THEN amount ELSE 0 END), 0)::float AS total_eur,
+                       COUNT(DISTINCT sn)                       AS paying_devices,
+                       COUNT(DISTINCT customer)                 AS paying_customers
+                FROM payments
+                WHERE amount_netto > 0 OR amount_brutto > 0 OR amount > 0
+            """)
+            r = cur.fetchone()
+            kpi_all = {
+                'total_netto':       r[0], 'total_brutto':    r[1],
+                'total_eur':         r[2], 'paying_devices':  r[3],
+                'paying_customers':  r[4],
+            }
+
+            # 7. KPI: YTD (current year)
+            cur.execute("""
+                SELECT COALESCE(SUM(amount_netto),  0)::float  AS netto,
+                       COALESCE(SUM(amount_brutto), 0)::float  AS brutto,
+                       COALESCE(SUM(CASE WHEN currency='EUR' THEN amount ELSE 0 END), 0)::float AS eur,
+                       COUNT(DISTINCT sn)                       AS devices,
+                       COUNT(DISTINCT customer)                 AS customers
+                FROM payments
+                WHERE LEFT(year_month, 4) = %s
+                  AND (amount_netto > 0 OR amount_brutto > 0 OR amount > 0)
+            """, (cur_year,))
+            r = cur.fetchone()
+            kpi_ytd = {
+                'year': cur_year, 'netto': r[0], 'brutto': r[1],
+                'eur': r[2], 'devices': r[3], 'customers': r[4],
+            }
+
+    return {
+        "monthly":   monthly,
+        "annual":    annual,
+        "customers": customers,
+        "by_rep":    by_rep,
+        "by_type":   by_type,
+        "kpi_all":   kpi_all,
+        "kpi_ytd":   kpi_ytd,
+    }
