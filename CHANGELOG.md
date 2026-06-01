@@ -6,6 +6,15 @@ wersjonowanie zgodne z [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.3.1] — 2026-06-01
+
+### Naprawiono
+- Usunięto `nzf_WartoscPierwotnaWaluta` jako fallback kwoty — kolumna zawierała błędne dane
+- Fallback kwoty: `ob_CenaWaluta` → `ob_CenaNetto` (PLN netto)
+- Poprawiono nazwę kolumny brutto: `ob_CenaBrutto` (było: `ob_WartBrutto`)
+
+---
+
 ## [1.3.0] — 2026-06-01
 
 ### Dodano

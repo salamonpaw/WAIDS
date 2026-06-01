@@ -565,14 +565,13 @@ async def import_payments(
         pay_date_col = find_col(df, ["nzf_dataostatniejsplaty", "dataostatniejsplaty",
                                      "datazaplaty", "fs_datazaplaty", "data_zaplaty",
                                      "ostatniasplata", "ostatniazaplata"])
-        # Kwota w walucie oryginalnej (ob_CenaWaluta) i waluta
-        amount_col      = find_col(df, ["ob_cenawaluta", "nzf_wartoscpierwotnawaluta",
-                                        "wartoscpierwotnawaluta", "wartoscpierwotna",
+        # Kwota w walucie oryginalnej → fallback netto PLN (bez nzf_WartoscPierwotnaWaluta — złe dane)
+        amount_col      = find_col(df, ["ob_cenawaluta", "ob_cenanetto",
                                         "ob_wartosc", "wartosc", "fs_wartosc", "amount", "kwota"])
         currency_col    = find_col(df, ["nzf_idwaluty", "idwaluty", "waluta", "currency"])
         # Kwota netto PLN i brutto PLN (dodatkowe kolumny)
         netto_col       = find_col(df, ["ob_cenanetto", "cenanetto", "netto", "net"])
-        brutto_col      = find_col(df, ["ob_wartbrutto", "wartbrutto", "brutto", "gross"])
+        brutto_col      = find_col(df, ["ob_cenabrutto", "cenabrutto", "brutto", "gross"])
 
         skipped = 0
         skipped_unpaid = 0
