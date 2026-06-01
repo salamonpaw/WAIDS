@@ -6,6 +6,7 @@ async function loadConfig() {
   // Populate firm autocomplete AFTER firmConfigs loaded (_firmConfigData available)
   loadMergeFirmaLists();
   loadMergeHistory();
+  loadFirmsList();
 }
 
 // ── Firm config table ──────────────────────────────────────────────────────
@@ -697,4 +698,45 @@ async function loadMergeHistory() {
     if (table) table.style.display = '';
     if (empty) empty.style.display = 'none';
   }
+}
+
+// ── Firms list ──────────────────────────────────────────────────────────────
+let _firmsListData = [];
+
+async function loadFirmsList() {
+  const wrap = document.getElementById('firmsListWrap');
+  if (!wrap) return;
+  try {
+    const d = await (await fetch(`${API}/firms/stats`)).json();
+    _firmsListData = d.firms || [];
+    renderFirmsList('');
+  } catch(e) {
+    wrap.innerHTML = `<span style="color:var(--danger);font-size:12px">Błąd ładowania</span>`;
+  }
+}
+
+function renderFirmsList(filter) {
+  const wrap = document.getElementById('firmsListWrap');
+  if (!wrap) return;
+  const q = filter.toLowerCase().trim();
+  const rows = q ? _firmsListData.filter(f => f.firma.toLowerCase().includes(q)) : _firmsListData;
+  if (!rows.length) {
+    wrap.innerHTML = `<span style="color:var(--text-muted);font-size:12px">Brak wyników.</span>`;
+    return;
+  }
+  wrap.innerHTML = `<table style="width:100%;font-size:12px;border-collapse:collapse">
+    <thead><tr style="color:var(--text-muted);border-bottom:1px solid var(--border-light)">
+      <th style="text-align:left;padding:4px 8px;font-weight:500">Firma</th>
+      <th style="text-align:right;padding:4px 8px;font-weight:500">Urządzeń</th>
+    </tr></thead>
+    <tbody>${rows.map(f => `
+      <tr style="border-bottom:1px solid var(--border-light)">
+        <td style="padding:5px 8px">${esc(f.firma)}</td>
+        <td style="padding:5px 8px;text-align:right;color:var(--text-muted)">${f.devices}</td>
+      </tr>`).join('')}
+    </tbody>
+  </table>
+  <div style="margin-top:6px;font-size:11px;color:var(--text-muted)">
+    Łącznie: ${rows.length} firm, ${rows.reduce((s,f)=>s+f.devices,0)} urządzeń
+  </div>`;
 }

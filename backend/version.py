@@ -5,4 +5,4 @@
 #  MINOR — nowa funkcja zachowująca wsteczną zgodność
 #  PATCH — naprawa błędu, drobna zmiana kosmetyczna
 
-APP_VERSION = "1.9.2"
+APP_VERSION = "1.9.3"

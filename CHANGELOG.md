@@ -6,6 +6,13 @@ wersjonowanie zgodne z [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.9.3] — 2026-06-01
+
+### Dodano
+- **Podgląd firm w bazie** — sekcja „🏢 Firmy w bazie" w zakładce Konfiguracja: lista wszystkich firm z liczbą urządzeń, wyszukiwarka; endpoint `GET /firms/stats`
+
+---
+
 ## [1.9.2] — 2026-06-01
 
 ### Dodano

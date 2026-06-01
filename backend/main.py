@@ -1491,6 +1491,27 @@ def remove_license_fee(fee_id: int):
         raise HTTPException(500, str(e))
 
 
+# ── firms stats ───────────────────────────────────────────────────────────────
+
+@app.get("/firms/stats")
+def firms_stats():
+    """Lista firm z liczbą urządzeń (dla podglądu stanu bazy)."""
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT firma, COUNT(*) AS devices
+                    FROM devices
+                    WHERE firma <> ''
+                    GROUP BY firma
+                    ORDER BY firma
+                """)
+                rows = cur.fetchall()
+        return {"firms": [{"firma": r[0], "devices": r[1]} for r in rows]}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
 # ── company merge ─────────────────────────────────────────────────────────────
 
 class MergeFirmsIn(BaseModel):
