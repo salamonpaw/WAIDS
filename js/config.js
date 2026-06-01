@@ -5,6 +5,7 @@ async function loadConfig() {
   if (currentUser?.is_admin) loadAdminUsers();
   // Populate firm autocomplete AFTER firmConfigs loaded (_firmConfigData available)
   loadMergeFirmaLists();
+  loadMergeHistory();
 }
 
 // ── Firm config table ──────────────────────────────────────────────────────
@@ -662,5 +663,38 @@ async function executeMerge() {
   _mergeFirmSet = [];
   renderMergeChips();
   await loadMergeFirmaLists();
+  loadMergeHistory();
   if (document.getElementById('tab-config').classList.contains('active')) loadConfig();
+}
+
+// ── Merge history ───────────────────────────────────────────────────────────
+async function loadMergeHistory() {
+  const tbody = document.getElementById('mergeHistoryBody');
+  const empty = document.getElementById('mergeHistoryEmpty');
+  const table = document.getElementById('mergeHistoryTable');
+  if (!tbody) return;
+  try {
+    const d = await (await fetch(`${API}/firms/merges`)).json();
+    const rows = d.merges || [];
+    if (!rows.length) {
+      tbody.innerHTML = '';
+      if (empty) empty.style.display = '';
+      if (table) table.style.display = 'none';
+      return;
+    }
+    if (empty) empty.style.display = 'none';
+    if (table) table.style.display = '';
+    tbody.innerHTML = rows.map(r => `
+      <tr style="border-bottom:1px solid var(--border-light)">
+        <td style="padding:5px 8px;color:var(--text-muted);white-space:nowrap">${esc(r.merged_at)}</td>
+        <td style="padding:5px 8px;color:var(--danger)">${esc(r.source)}</td>
+        <td style="padding:5px 4px;text-align:center;color:var(--text-muted)">→</td>
+        <td style="padding:5px 8px;font-weight:600">${esc(r.target)}</td>
+        <td style="padding:5px 8px;text-align:right;color:var(--text-muted)">${r.devices_affected}</td>
+      </tr>`).join('');
+  } catch(e) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="5" style="color:var(--danger);padding:6px 8px">Błąd ładowania historii</td></tr>`;
+    if (table) table.style.display = '';
+    if (empty) empty.style.display = 'none';
+  }
 }

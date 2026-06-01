@@ -180,6 +180,17 @@ def init_db() -> None:
                 ON firm_license_fees(firma);
             """)
 
+            # Dziennik scaleń firm
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS firm_merges (
+                    id               SERIAL PRIMARY KEY,
+                    source           VARCHAR NOT NULL,
+                    target           VARCHAR NOT NULL,
+                    merged_at        TIMESTAMP NOT NULL DEFAULT NOW(),
+                    devices_affected INTEGER NOT NULL DEFAULT 0
+                );
+            """)
+
             # Seed domyślnych handlowców (idempotentne)
             for name in DEFAULT_REPS:
                 cur.execute(
@@ -857,4 +868,30 @@ def merge_firms(source: str, target: str) -> dict:
             )
             counts["firm_license_fees"] = cur.rowcount
 
+            # 6. Zapisz w dzienniku scaleń
+            cur.execute(
+                """INSERT INTO firm_merges (source, target, devices_affected)
+                   VALUES (%s, %s, %s)""",
+                (source, target, counts.get("devices", 0)),
+            )
+
     return counts
+
+
+def get_merge_history() -> list:
+    """Zwraca historię scaleń firm (od najnowszych)."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, source, target,
+                       TO_CHAR(merged_at, 'YYYY-MM-DD HH24:MI') AS merged_at,
+                       devices_affected
+                FROM firm_merges
+                ORDER BY merged_at DESC
+            """)
+            rows = cur.fetchall()
+    return [
+        {"id": r[0], "source": r[1], "target": r[2],
+         "merged_at": r[3], "devices_affected": r[4]}
+        for r in rows
+    ]

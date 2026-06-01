@@ -1169,6 +1169,27 @@ Operacja jest nieodwracalna!">i</i>
     <div id="mergeFirmChips" style="display:flex;flex-wrap:wrap;gap:6px;min-height:32px;
                                     margin-bottom:.5rem"></div>
     <div class="msg" id="msgMerge"></div>
+
+    <!-- Merge history table -->
+    <div style="margin-top:1.25rem">
+      <div style="font-size:12px;font-weight:600;color:var(--text-muted);text-transform:uppercase;
+                  letter-spacing:.05em;margin-bottom:.5rem">Historia scaleń</div>
+      <p id="mergeHistoryEmpty" style="font-size:12px;color:var(--text-muted)">
+        Brak wykonanych scaleń.
+      </p>
+      <table style="width:100%;font-size:12px;border-collapse:collapse;display:none" id="mergeHistoryTable">
+        <thead>
+          <tr style="color:var(--text-muted);border-bottom:1px solid var(--border-light)">
+            <th style="text-align:left;padding:4px 8px;font-weight:500">Data</th>
+            <th style="text-align:left;padding:4px 8px;font-weight:500">Źródło</th>
+            <th style="padding:4px 4px"></th>
+            <th style="text-align:left;padding:4px 8px;font-weight:500">Cel</th>
+            <th style="text-align:right;padding:4px 8px;font-weight:500">Urządzeń</th>
+          </tr>
+        </thead>
+        <tbody id="mergeHistoryBody"></tbody>
+      </table>
+    </div>
   </div>
 
   <!-- Merge confirmation dialog -->

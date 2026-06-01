@@ -28,7 +28,7 @@ from database import (
     get_firms_for_export, import_firms_table,
     get_monthly_revenue,
     get_license_fees, upsert_license_fee, delete_license_fee,
-    merge_firms,
+    merge_firms, get_merge_history,
     VALID_FIRM_TYPES, VALID_CYCLES,
     # auth
     get_or_create_secret_key, create_admin_if_needed,
@@ -1496,6 +1496,15 @@ def remove_license_fee(fee_id: int):
 class MergeFirmsIn(BaseModel):
     source: str   # firm name that will be absorbed / renamed away
     target: str   # firm name that remains after merge
+
+
+@app.get("/firms/merges")
+def list_merges():
+    """Historia scaleń firm."""
+    try:
+        return {"merges": get_merge_history()}
+    except Exception as e:
+        raise HTTPException(500, str(e))
 
 
 @app.post("/firms/merge")
