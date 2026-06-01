@@ -6,6 +6,13 @@ wersjonowanie zgodne z [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.5.1] — 2026-06-01
+
+### Naprawiono
+- **Rozwiń wykres** — poprawiono działanie przycisku ⤢; zamiast klasy CSS (`expanded`) stosowane są teraz bezpośrednie style inline (`gridColumn`, `order`, `height`), co eliminuje konflikty z układem siatki
+
+---
+
 ## [1.5.0] — 2026-06-01
 
 ### Dodano

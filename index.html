@@ -1655,10 +1655,19 @@ function toggleBarExpand() {
   const card = document.getElementById('barChartCard');
   const wrap = document.getElementById('barChartWrap');
   const btn  = document.getElementById('barExpandBtn');
-  card.classList.toggle('expanded', _barExpanded);
-  wrap.style.height = _barExpanded ? '380px' : '200px';
-  btn.textContent = _barExpanded ? '⤡ Zwiń' : '⤢ Rozwiń';
-  if (barChart) barChart.resize();
+  if (_barExpanded) {
+    card.style.gridColumn = '1 / -1';
+    card.style.order = '-1';      // move to top of row
+    wrap.style.height = '420px';
+    btn.textContent = '⤡ Zwiń';
+  } else {
+    card.style.gridColumn = '';
+    card.style.order = '';
+    wrap.style.height = '200px';
+    btn.textContent = '⤢ Rozwiń';
+  }
+  // give browser a tick to reflow, then resize chart
+  setTimeout(() => { if (barChart) barChart.resize(); }, 50);
 }
 
 // ── bar chart: by prod month ───────────────────────────────────────────
