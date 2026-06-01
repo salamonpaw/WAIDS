@@ -6,9 +6,15 @@ from typing import Optional
 import psycopg2
 import psycopg2.extras
 from dotenv import load_dotenv
-from passlib.context import CryptContext
+import bcrypt as _bcrypt_lib
 
-_pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def _hash_pwd(password: str) -> str:
+    return _bcrypt_lib.hashpw(password.encode("utf-8"), _bcrypt_lib.gensalt()).decode()
+
+
+def _verify_pwd(password: str, hashed: str) -> bool:
+    return _bcrypt_lib.checkpw(password.encode("utf-8"), hashed.encode())
 
 load_dotenv()
 
@@ -648,7 +654,7 @@ def create_admin_if_needed(email: str, password: str) -> bool:
                 " VALUES (%s, %s, %s, TRUE, TRUE)"
                 " ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash,"
                 "   is_admin = TRUE, is_active = TRUE",
-                (email.lower(), email.split("@")[0], _pwd_ctx.hash(password)),
+                (email.lower(), email.split("@")[0], _hash_pwd(password)),
             )
             return True
 
@@ -662,7 +668,7 @@ def verify_user(email: str, password: str) -> Optional[dict]:
                 (email.strip().lower(),),
             )
             user = cur.fetchone()
-            if not user or not _pwd_ctx.verify(password, user["password_hash"]):
+            if not user or not _verify_pwd(password, user["password_hash"]):
                 return None
             cur.execute("UPDATE users SET last_login = now() WHERE id = %s", (user["id"],))
             return dict(user)
@@ -693,7 +699,7 @@ def create_user_db(email: str, name: str, password: str, is_admin: bool = False)
                 "INSERT INTO users (email, name, password_hash, is_admin)"
                 " VALUES (%s, %s, %s, %s)"
                 " RETURNING id, email, name, is_active, is_admin",
-                (email.strip().lower(), name, _pwd_ctx.hash(password), is_admin),
+                (email.strip().lower(), name, _hash_pwd(password), is_admin),
             )
             return dict(cur.fetchone())
 
@@ -709,5 +715,5 @@ def reset_user_password(user_id: int, new_password: str) -> None:
         with conn.cursor() as cur:
             cur.execute(
                 "UPDATE users SET password_hash = %s WHERE id = %s",
-                (_pwd_ctx.hash(new_password), user_id),
+                (_hash_pwd(new_password), user_id),
             )
