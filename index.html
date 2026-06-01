@@ -3036,7 +3036,8 @@ function doLogout() {
 }
 
 // On page load — check existing token
-(async () => {
+// Use DOMContentLoaded to ensure loginOverlay element exists before we touch it
+async function _initAuth() {
   const tok = localStorage.getItem('waids_token');
   if (tok) {
     try {
@@ -3058,7 +3059,15 @@ function doLogout() {
     localStorage.removeItem('waids_token');
   }
   showLoginOverlay();
-})();
+}
+
+// loginOverlay is declared AFTER the <script> tag in the HTML,
+// so we must wait for full DOM before accessing it
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _initAuth);
+} else {
+  _initAuth();
+}
 
 // ════════════════════════════════════════════════════════════
 // ADMIN — user management (admin only)
