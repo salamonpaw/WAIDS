@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import io
+import os
 import re
+from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Annotated, List, Optional
 
 import pandas as pd
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
 from pydantic import BaseModel
 from psycopg2.extras import execute_values
 
@@ -23,10 +28,54 @@ from database import (
     get_firms_for_export, import_firms_table,
     get_monthly_revenue,
     VALID_FIRM_TYPES, VALID_CYCLES,
+    # auth
+    get_or_create_secret_key, create_admin_if_needed,
+    verify_user, get_user_by_id,
+    list_users, create_user_db, set_user_status, reset_user_password,
 )
 from version import APP_VERSION
 
 app = FastAPI(title="Weryfikator Abonamentów API", version=APP_VERSION)
+
+# ── JWT config (key stored in DB, survives restarts) ─────────────────────────
+_JWT_ALGO   = "HS256"
+_TOKEN_TTL  = 8   # hours
+_SECRET_KEY = ""  # filled in startup
+_bearer     = HTTPBearer(auto_error=False)
+
+
+def _make_token(user_id: int) -> str:
+    exp = datetime.utcnow() + timedelta(hours=_TOKEN_TTL)
+    return jwt.encode({"sub": str(user_id), "exp": exp}, _SECRET_KEY, algorithm=_JWT_ALGO)
+
+
+def _decode_token(token: str) -> Optional[int]:
+    try:
+        payload = jwt.decode(token, _SECRET_KEY, algorithms=[_JWT_ALGO])
+        sub = payload.get("sub")
+        return int(sub) if sub else None
+    except (JWTError, ValueError):
+        return None
+
+
+# ── auth dependencies ─────────────────────────────────────────────────────────
+
+def get_auth_user(request: Request) -> dict:
+    """Read user from request.state (set by auth middleware)."""
+    user = getattr(request.state, "user", None)
+    if not user:
+        raise HTTPException(401, "Not authenticated")
+    return user
+
+
+def require_admin(user: dict = Depends(get_auth_user)) -> dict:
+    if not user.get("is_admin"):
+        raise HTTPException(403, "Wymagane uprawnienia administratora")
+    return user
+
+
+# ── auth middleware ───────────────────────────────────────────────────────────
+_PUBLIC = {"/auth/login", "/version", "/docs", "/openapi.json", "/redoc", "/changelog"}
 
 app.add_middleware(
     CORSMiddleware,
@@ -36,15 +85,120 @@ app.add_middleware(
 )
 
 
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    path = request.url.path
+    if path in _PUBLIC or path.startswith(("/docs", "/openapi", "/redoc")):
+        return await call_next(request)
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return JSONResponse({"detail": "Not authenticated"}, status_code=401)
+    uid = _decode_token(auth[7:])
+    if uid is None:
+        return JSONResponse({"detail": "Invalid token"}, status_code=401)
+    user = get_user_by_id(uid)
+    if not user or not user["is_active"]:
+        return JSONResponse({"detail": "User inactive"}, status_code=401)
+    request.state.user = user
+    return await call_next(request)
+
+
 @app.on_event("startup")
 def startup():
+    global _SECRET_KEY
     init_db()
+    _SECRET_KEY = get_or_create_secret_key()
+    # Create first admin from env vars if no admins exist
+    email    = os.getenv("ADMIN_EMAIL", "p.salamon@asdsystems.pl")
+    password = os.getenv("ADMIN_PASSWORD", "")
+    if password:
+        created = create_admin_if_needed(email, password)
+        if created:
+            print(f"[WAIDS] ✓ Admin user created: {email}")
 
 
 @app.get("/version")
 def get_version():
     """Zwraca aktualną wersję aplikacji."""
     return {"version": APP_VERSION}
+
+
+@app.get("/changelog")
+def get_changelog():
+    """Zwraca zawartość CHANGELOG.md."""
+    p = Path(__file__).parent.parent / "CHANGELOG.md"
+    return {"content": p.read_text(encoding="utf-8") if p.exists() else "Brak CHANGELOG.md"}
+
+
+# ── auth endpoints ────────────────────────────────────────────────────────────
+
+class LoginIn(BaseModel):
+    email: str
+    password: str
+
+
+@app.post("/auth/login")
+def login(body: LoginIn):
+    user = verify_user(body.email, body.password)
+    if not user:
+        raise HTTPException(401, "Nieprawidłowy email lub hasło")
+    return {
+        "token":    _make_token(user["id"]),
+        "name":     user["name"],
+        "email":    user["email"],
+        "is_admin": user["is_admin"],
+    }
+
+
+@app.get("/auth/me")
+def me(user: dict = Depends(get_auth_user)):
+    return {k: v for k, v in user.items() if k != "password_hash"}
+
+
+# ── admin user management ─────────────────────────────────────────────────────
+
+class CreateUserIn(BaseModel):
+    email: str
+    name:  str
+    password: str
+    is_admin: bool = False
+
+
+class SetPasswordIn(BaseModel):
+    password: str
+
+
+class SetActiveIn(BaseModel):
+    active: bool
+
+
+@app.get("/admin/users")
+def admin_list_users(_: dict = Depends(require_admin)):
+    return list_users()
+
+
+@app.post("/admin/users")
+def admin_create_user(body: CreateUserIn, _: dict = Depends(require_admin)):
+    if len(body.password) < 6:
+        raise HTTPException(400, "Hasło musi mieć min. 6 znaków")
+    try:
+        return create_user_db(body.email, body.name, body.password, body.is_admin)
+    except Exception as e:
+        raise HTTPException(409 if "unique" in str(e).lower() else 500, str(e))
+
+
+@app.post("/admin/users/{uid}/set-password")
+def admin_set_password(uid: int, body: SetPasswordIn, _: dict = Depends(require_admin)):
+    if len(body.password) < 6:
+        raise HTTPException(400, "Hasło musi mieć min. 6 znaków")
+    reset_user_password(uid, body.password)
+    return {"ok": True}
+
+
+@app.post("/admin/users/{uid}/set-active")
+def admin_set_active(uid: int, body: SetActiveIn, _: dict = Depends(require_admin)):
+    set_user_status(uid, body.active)
+    return {"ok": True}
 
 
 # ── shared helpers ────────────────────────────────────────────────────────────

@@ -246,16 +246,21 @@
   </style>
 </head>
 <body>
+<div id="appBody" style="display:none">
 
 <header>
   <h1>📊 Weryfikator Abonamentów</h1>
-  <span id="appVersion" title="Wersja aplikacji WAIDS"
-        style="font-size:11px;color:var(--text-muted);background:var(--bg-secondary);
-               border:0.5px solid var(--border);border-radius:99px;padding:2px 9px;
-               font-family:monospace;flex-shrink:0"></span>
+  <button id="appVersion" onclick="showChangelog()" title="Kliknij aby zobaczyć co nowego"
+          style="font-size:11px;color:var(--text-muted);background:var(--bg-secondary);
+                 border:0.5px solid var(--border);border-radius:99px;padding:2px 9px;
+                 font-family:monospace;cursor:pointer;flex-shrink:0"></button>
   <div id="dbStatus">
     <div class="db-pill"><span class="db-dot" id="dbDot"></span><span id="dbDevices">Łączenie…</span></div>
     <div class="db-pill" id="dbMonthsPill" style="display:none"><span id="dbMonths"></span></div>
+  </div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:10px" id="userInfo" style="display:none">
+    <span id="userName" style="font-size:12px;color:var(--text-muted)"></span>
+    <button class="ghost sm" onclick="doLogout()" title="Wyloguj się">⎋ Wyloguj</button>
   </div>
 </header>
 
@@ -745,17 +750,18 @@
 <div class="container">
 
   <div class="section-card" style="margin-bottom:1rem">
-    <div class="section-title">🆕 Pierwsze płatności IDS</div>
+    <div class="section-title">🆕 Nowe urządzenia z produkcji — kontrola płatności</div>
     <p style="font-size:12px;color:var(--text-muted);margin-bottom:1rem">
-      Urządzenia, których <strong>pierwsza płatność abonamentu</strong> wpłynęła w wybranym miesiącu.
+      Wszystkie mastery <strong>wyprodukowane w wybranym miesiącu</strong> — sprawdź czy już opłaciły abonament.
+      Domyślnie pokazuje <strong>poprzedni miesiąc</strong> (urządzenia które właśnie powinny zacząć płacić).
     </p>
     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
       <div>
-        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Od miesiąca</label>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Miesiąc produkcji</label>
         <input type="month" id="fpMonth" style="height:34px">
       </div>
       <div id="fpMonthToWrap">
-        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Do miesiąca</label>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px">Do miesiąca (opcja)</label>
         <input type="month" id="fpMonthTo" style="height:34px" placeholder="(opcjonalnie)">
       </div>
       <div>
@@ -793,10 +799,11 @@
         <th style="width:32px" title="Rozwiń historię płatności dla urządzenia"></th>
         <th title="Numer seryjny urządzenia i model maszyny z pliku produkcji">Numer seryjny / Model</th>
         <th title="Firma z pliku produkcji — u której zainstalowano urządzenie">Firma (produkcja)</th>
-        <th title="Klient z pliku płatności IDS — firma opłacająca abonament">Klient</th>
         <th title="Handlowcy przypisani do tej firmy w Konfiguracji">Handlowcy</th>
         <th title="Data produkcji urządzenia z pliku produkcji">Data prod.</th>
-        <th title="Łączna liczba miesięcy, za które zarejestrowano płatność abonamentu&#10;⚠ Ikona 'przerwa' pojawia się gdy liczba opłat jest mniejsza niż oczekiwana (od 1. do ostatniej płatności)">Mies. łącznie</th>
+        <th title="Czy urządzenie ma zarejestrowaną co najmniej jedną płatność abonamentu?&#10;✓ Zapłacono — jest przynajmniej jedna płatność&#10;✗ Brak płatności — nigdy nie zarejestrowano żadnej płatności">Status płatności</th>
+        <th title="Miesiąc pierwszej zarejestrowanej płatności abonamentu">Pierwsza opłata</th>
+        <th title="Łączna liczba miesięcy z zarejestrowaną płatnością">Mies. łącznie</th>
       </tr></thead>
       <tbody id="fpBody"></tbody>
     </table>
@@ -950,6 +957,51 @@
     </div>
   </div>
 
+  <!-- ══ ZARZĄDZANIE UŻYTKOWNIKAMI (tylko admin) ═════════════════════════ -->
+  <div class="section-card" id="adminUsersSection" style="display:none;margin-top:1rem">
+    <div class="section-title">🔐 Zarządzanie użytkownikami</div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:1rem">
+      Tylko administrator może dodawać i dezaktywować konta. Dezaktywowany użytkownik traci natychmiast dostęp.
+    </p>
+
+    <!-- Dodaj użytkownika -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:1rem">
+      <div class="input-group" style="flex:1;min-width:160px">
+        <label>Email</label>
+        <input type="email" id="newUserEmail" placeholder="user@firma.pl" style="height:34px">
+      </div>
+      <div class="input-group" style="flex:1;min-width:140px">
+        <label>Imię i nazwisko</label>
+        <input type="text" id="newUserName" placeholder="Jan Kowalski" style="height:34px">
+      </div>
+      <div class="input-group" style="min-width:140px">
+        <label>Hasło (min. 6 znaków)</label>
+        <input type="password" id="newUserPassword" placeholder="••••••••" style="height:34px">
+      </div>
+      <label style="display:flex;align-items:center;gap:5px;font-size:12px;height:34px;cursor:pointer">
+        <input type="checkbox" id="newUserAdmin"> Admin
+      </label>
+      <button class="primary" style="height:34px" onclick="adminAddUser()">+ Dodaj konto</button>
+    </div>
+    <div class="msg" id="msgAdminUsers"></div>
+
+    <!-- Lista użytkowników -->
+    <div style="overflow-x:auto;margin-top:.75rem">
+      <table class="config-table">
+        <thead><tr>
+          <th>Email</th>
+          <th>Nazwa</th>
+          <th>Rola</th>
+          <th>Status</th>
+          <th>Akcje</th>
+        </tr></thead>
+        <tbody id="adminUsersList">
+          <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1rem">Ładowanie…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 
 </div>
@@ -1017,7 +1069,7 @@ async function refreshStatus() {
     document.getElementById('dbDevices').textContent = 'Brak połączenia z API';
   }
 }
-refreshStatus();
+// refreshStatus() is called after successful login — not on page load
 
 // ── helpers ────────────────────────────────────────────────────────────
 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -2276,9 +2328,13 @@ async function loadFirstPayTab() {
     }
   }
 
-  // Default month = current
+  // Default month = PREVIOUS month (devices just leaving production)
   const fpMonth = document.getElementById('fpMonth');
-  if (!fpMonth.value) fpMonth.value = nowYM();
+  if (!fpMonth.value) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    fpMonth.value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  }
 
   // Populate rep dropdown from repColorMap (already built)
   const fpRep = document.getElementById('fpRep');
@@ -2305,24 +2361,30 @@ async function runFirstPaySearch() {
   const rep    = document.getElementById('fpRep').value;
   const isRange = ymTo && ymTo >= ymFrom;
 
-  if (!ymFrom) { setMsg('msgFp', '⚠ Wybierz miesiąc.', 'err'); return; }
+  if (!ymFrom) { setMsg('msgFp', '⚠ Wybierz miesiąc produkcji.', 'err'); return; }
   if (!results.length) { setMsg('msgFp', '⚠ Brak danych — przejdź do zakładki Raport.', 'err'); return; }
 
-  // Zakres: od ymFrom do ymTo (lub tylko ymFrom jeśli brak To)
+  // Filtruj mastery wg daty produkcji (nie wg daty płatności)
   _fpRows = results.filter(r => {
-    if (!r.first_pay) return false;
-    const fp = r.first_pay.slice(0,7);
-    return isRange ? (fp >= ymFrom && fp <= ymTo) : (fp === ymFrom);
+    if (r.device_type !== 'master') return false;
+    if (!r.prod_date) return false;
+    const pd = r.prod_date.slice(0,7);
+    return isRange ? (pd >= ymFrom && pd <= ymTo) : (pd === ymFrom);
   });
   if (rep) _fpRows = _fpRows.filter(r => r.handlowcy && r.handlowcy.includes(rep));
-  _fpRows.sort((a,b) => (a.first_pay||'').localeCompare(b.first_pay||'') || (a.firma||'').localeCompare(b.firma||'') || (a.sn||'').localeCompare(b.sn||''));
+  // Sort: brak płatności (krytyczne) → zapłacone; w ramach grupy wg firmy i SN
+  _fpRows.sort((a,b) => {
+    const aPaid = (a.total_months||0) > 0 ? 1 : 0;
+    const bPaid = (b.total_months||0) > 0 ? 1 : 0;
+    return aPaid - bPaid || (a.firma||'').localeCompare(b.firma||'') || (a.sn||'').localeCompare(b.sn||'');
+  });
 
   // Store range mode for applyFpFilter
   _fpIsRange = isRange;
 
   if (!_fpRows.length) {
     const rangeLabel = isRange ? `${ymFrom} – ${ymTo}` : ymFrom;
-    setMsg('msgFp', `⚠ Brak urządzeń z pierwszą płatnością w ${rangeLabel}.`, 'err');
+    setMsg('msgFp', `⚠ Brak masterów wyprodukowanych w ${rangeLabel}.`, 'err');
     document.getElementById('fpResults').style.display = 'none';
     return;
   }
@@ -2337,11 +2399,16 @@ async function runFirstPaySearch() {
     names.forEach(n => { repCounts[n] = (repCounts[n]||0) + 1; });
   });
 
-  const rangeLabel = isRange
+  const paidCount   = _fpRows.filter(r => (r.total_months||0) > 0).length;
+  const unpaidCount = _fpRows.length - paidCount;
+  const rangeLabel  = isRange
     ? `${ymFrom} – ${ymTo}`
     : new Date(ymFrom + '-01').toLocaleDateString('pl-PL', {month:'long', year:'numeric'});
-  let summaryHtml = `<strong style="font-size:15px">${_fpRows.length}</strong>
-    <span style="color:var(--text-muted)">nowych abonamentów &nbsp;·&nbsp; ${rangeLabel}</span>
+  let summaryHtml = `
+    <strong style="font-size:15px">${_fpRows.length}</strong>
+    <span style="color:var(--text-muted)">masterów z produkcji &nbsp;·&nbsp; ${rangeLabel}</span>
+    <span class="badge unpaid" title="Urządzenia bez zarejestrowanej żadnej płatności — wymagają uwagi">✗ ${unpaidCount} bez płatności</span>
+    <span class="badge paid"   title="Urządzenia z co najmniej jedną zarejestrowaną płatnością">✓ ${paidCount} zapłacono</span>
     <span style="flex:1"></span>`;
   Object.entries(repCounts).sort((a,b)=>b[1]-a[1]).forEach(([n,cnt]) => {
     const info = repColorMap[n] || {};
@@ -2374,7 +2441,7 @@ function applyFpFilter() {
 
   if (rows.length === 0) {
     document.getElementById('fpBody').innerHTML =
-      `<tr><td colspan="7" style="text-align:center;padding:1.5rem;color:var(--text-muted)">Brak wyników.</td></tr>`;
+      `<tr><td colspan="8" style="text-align:center;padding:1.5rem;color:var(--text-muted)">Brak wyników.</td></tr>`;
     return;
   }
 
@@ -2390,9 +2457,9 @@ function applyFpFilter() {
     for (const [m, mRows] of Object.entries(byMonth).sort()) {
       const mFmt = new Date(m + '-01').toLocaleDateString('pl-PL', {month:'long', year:'numeric'});
       rowsHtml += `<tr style="background:var(--bg-secondary)">
-        <td colspan="7" style="padding:8px 12px;font-weight:600;font-size:13px;
+        <td colspan="8" style="padding:8px 12px;font-weight:600;font-size:13px;
             border-top:2px solid var(--border-med)">
-          📅 ${mFmt} &nbsp;<span style="font-size:11px;font-weight:400;color:var(--text-muted)">${mRows.length} nowych</span>
+          📅 ${mFmt} &nbsp;<span style="font-size:11px;font-weight:400;color:var(--text-muted)">${mRows.length} urządzeń</span>
         </td>
       </tr>`;
       rowsHtml += mRows.map(r => fpRowHtml(r)).join('');
@@ -2404,21 +2471,27 @@ function applyFpFilter() {
 }
 
 function fpRowHtml(r) {
-  const gapBadge = hasFpGap(r)
+  const paid      = (r.total_months||0) > 0;
+  const gapBadge  = hasFpGap(r)
     ? `<span style="font-size:10px;color:var(--red);font-weight:600;margin-left:4px">⚠ przerwa</span>`
     : '';
+  const statusBadge = paid
+    ? `<span class="badge paid"   title="Zarejestrowano co najmniej jedną płatność abonamentu">✓ Zapłacono</span>`
+    : `<span class="badge unpaid" title="Brak jakiejkolwiek zarejestrowanej płatności — wymaga działania">✗ Brak płatności</span>`;
+  const rowBg = paid ? '' : 'background:var(--red-light);';
   return `
-    <tr id="fp-row-${esc(r.sn)}" style="cursor:pointer" onclick="toggleFpExpand('${esc(r.sn)}')">
+    <tr id="fp-row-${esc(r.sn)}" style="cursor:pointer;${rowBg}" onclick="toggleFpExpand('${esc(r.sn)}')">
       <td style="text-align:center;font-size:13px;color:var(--text-muted)" id="fp-arrow-${esc(r.sn)}">▶</td>
       <td style="line-height:1.4">
         <span style="font-family:monospace;font-size:11px">${esc(r.sn)}</span>
         ${r.maszyna ? `<br><span style="font-size:10px;color:var(--text-muted)">${esc(r.maszyna)}</span>` : ''}
       </td>
-      <td style="font-size:12px;color:var(--text-muted)">${esc(r.firma||'—')}</td>
-      <td>${esc(r.customer||'—')}${gapBadge}</td>
+      <td style="font-size:12px">${esc(r.firma||'—')}</td>
       <td>${repChips(r.handlowcy)}</td>
       <td>${fmtDate(r.prod_date)}</td>
-      <td style="text-align:center;font-weight:600">${r.total_months||'—'}</td>
+      <td>${statusBadge}${gapBadge}</td>
+      <td style="font-size:12px;color:var(--text-muted)">${r.first_pay ? r.first_pay.slice(0,7) : '—'}</td>
+      <td style="text-align:center;font-weight:600;color:${paid?'inherit':'var(--red)'}">${r.total_months||'0'}</td>
     </tr>
     <tr id="fp-expand-${esc(r.sn)}" style="display:none">
       <td colspan="7" style="padding:0">
@@ -2716,7 +2789,7 @@ function renderMonitoring() {
                   ['Opłat',         'Całkowita liczba miesięcy, za które zarejestrowano płatność abonamentu'],
                   ['Pokrycie',      'Opłat ÷ Mies. w polu × 100%\n— ile procent miesięcy od daty produkcji zostało opłaconych\n• Zielony ≥80% | Pomarańczowy ≥40% | Czerwony <40%'],
                   ['Status',        'Aktywny — opłacił bieżący lub poprzedni miesiąc\nPrzerwa — kiedyś płacił, ale nie ostatnio\nBez opłat — nigdy nie zarejestrowano płatności\nWykluczone — firma wykluczona z abonamentu lub typ OEM'],
-                ].map(([h,tip])=>`<th title="${tip.replace(/\n/g,'&#10;')}" style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;
+                ].map(([h,tip])=>`<th title="${tip.replace(/\n/g,'&#10;').replace(/"/g,'&quot;')}" style="padding:8px 12px;text-align:left;font-size:11px;font-weight:600;
                                       text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);
                                       border-bottom:0.5px solid var(--border);white-space:nowrap;cursor:help">${h}</th>`).join('')}
               </tr>
@@ -2884,6 +2957,249 @@ document.getElementById('monitorContent').addEventListener('click', e => {
   body.style.display = opening ? 'block' : 'none';
   if (arrow) arrow.textContent = opening ? '▼' : '▶';
 });
+
+
+// ════════════════════════════════════════════════════════════
+// AUTH — fetch override + login overlay
+// ════════════════════════════════════════════════════════════
+
+let currentUser = null;
+
+// Intercept all API fetches to add token and handle 401
+const _origFetch = window.fetch.bind(window);
+window.fetch = async (url, opts = {}) => {
+  const isAPI   = typeof url === 'string' && url.startsWith(API);
+  const isLogin = isAPI && url.includes('/auth/login');
+  if (isAPI && !isLogin) {
+    const tok = localStorage.getItem('waids_token');
+    if (tok) opts = { ...opts, headers: { ...(opts.headers||{}), 'Authorization': 'Bearer '+tok } };
+  }
+  const resp = await _origFetch(url, opts);
+  if (resp.status === 401 && isAPI && !isLogin) {
+    localStorage.removeItem('waids_token');
+    currentUser = null;
+    showLoginOverlay('Sesja wygasła — zaloguj się ponownie.');
+  }
+  return resp;
+};
+
+function showLoginOverlay(msg) {
+  document.getElementById('loginOverlay').style.display = 'flex';
+  document.getElementById('appBody').style.display = 'none';
+  if (msg) {
+    const el = document.getElementById('loginError');
+    el.textContent = msg; el.style.display = 'block';
+  }
+}
+
+function hideLoginOverlay() {
+  document.getElementById('loginOverlay').style.display = 'none';
+  document.getElementById('appBody').style.display = 'block';
+}
+
+async function doLogin() {
+  const email    = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errEl    = document.getElementById('loginError');
+  errEl.style.display = 'none';
+  if (!email || !password) { errEl.textContent='Podaj email i hasło.'; errEl.style.display='block'; return; }
+  try {
+    const r = await _origFetch(`${API}/auth/login`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({email, password}),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || r.statusText);
+    localStorage.setItem('waids_token', d.token);
+    currentUser = d;
+    document.getElementById('loginPassword').value = '';
+    hideLoginOverlay();
+    // Update header
+    const uname = document.getElementById('userName');
+    const uinfo = document.getElementById('userInfo');
+    if (uname) uname.textContent = '👤 ' + (d.name || d.email);
+    if (uinfo) uinfo.style.display = 'flex';
+    refreshStatus();
+    if (d.is_admin) loadAdminUsers();
+  } catch(e) {
+    errEl.textContent = e.message; errEl.style.display = 'block';
+  }
+}
+
+function doLogout() {
+  localStorage.removeItem('waids_token');
+  currentUser = null;
+  const uinfo = document.getElementById('userInfo');
+  if (uinfo) uinfo.style.display = 'none';
+  showLoginOverlay();
+}
+
+// On page load — check existing token
+(async () => {
+  const tok = localStorage.getItem('waids_token');
+  if (tok) {
+    try {
+      const r = await _origFetch(`${API}/auth/me`, {
+        headers: {'Authorization': 'Bearer ' + tok}
+      });
+      if (r.ok) {
+        currentUser = await r.json();
+        const uname = document.getElementById('userName');
+        const uinfo = document.getElementById('userInfo');
+        if (uname) uname.textContent = '👤 ' + (currentUser.name || currentUser.email);
+        if (uinfo) uinfo.style.display = 'flex';
+        hideLoginOverlay();
+        refreshStatus();
+        if (currentUser.is_admin) loadAdminUsers();
+        return;
+      }
+    } catch {}
+    localStorage.removeItem('waids_token');
+  }
+  showLoginOverlay();
+})();
+
+// ════════════════════════════════════════════════════════════
+// ADMIN — user management (admin only)
+// ════════════════════════════════════════════════════════════
+
+async function loadAdminUsers() {
+  const section = document.getElementById('adminUsersSection');
+  if (section) section.style.display = 'block';
+  try {
+    const data = await (await fetch(`${API}/admin/users`)).json();
+    renderAdminUsers(data);
+  } catch(e) { setMsg('msgAdminUsers','❌ '+e.message,'err'); }
+}
+
+function renderAdminUsers(users) {
+  const tbody = document.getElementById('adminUsersList');
+  if (!tbody) return;
+  tbody.innerHTML = users.map(u => `<tr>
+    <td style="font-size:12px">${esc(u.email)}</td>
+    <td style="font-size:12px">${esc(u.name)}</td>
+    <td>${u.is_admin ? '<span class="badge paid">Admin</span>' : '<span class="badge" style="background:var(--gray-light)">User</span>'}</td>
+    <td>${u.is_active ? '<span class="badge paid">Aktywny</span>' : '<span class="badge unpaid">Nieaktywny</span>'}</td>
+    <td>
+      <button class="ghost sm" onclick="adminToggleActive(${u.id},${!u.is_active})" title="${u.is_active?'Dezaktywuj':'Aktywuj'}">
+        ${u.is_active ? '🔒 Dezaktywuj' : '🔓 Aktywuj'}
+      </button>
+      <button class="ghost sm" onclick="adminResetPassword(${u.id})" title="Resetuj hasło">🔑 Hasło</button>
+    </td>
+  </tr>`).join('');
+}
+
+async function adminToggleActive(uid, active) {
+  if (!confirm(active ? `Aktywować użytkownika?` : `Dezaktywować użytkownika? Utraci dostęp.`)) return;
+  try {
+    await fetch(`${API}/admin/users/${uid}/set-active`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({active})
+    });
+    await loadAdminUsers();
+  } catch(e) { alert('Błąd: '+e.message); }
+}
+
+async function adminResetPassword(uid) {
+  const pwd = prompt('Podaj nowe hasło (min. 6 znaków):');
+  if (!pwd || pwd.length < 6) { if(pwd !== null) alert('Za krótkie hasło.'); return; }
+  try {
+    const r = await fetch(`${API}/admin/users/${uid}/set-password`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password:pwd})
+    });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    alert('✓ Hasło zmienione.');
+  } catch(e) { alert('Błąd: '+e.message); }
+}
+
+async function adminAddUser() {
+  const email    = document.getElementById('newUserEmail').value.trim();
+  const name     = document.getElementById('newUserName').value.trim();
+  const password = document.getElementById('newUserPassword').value;
+  const is_admin = document.getElementById('newUserAdmin').checked;
+  if (!email || !password) { setMsg('msgAdminUsers','⚠ Podaj email i hasło.','err'); return; }
+  if (password.length < 6) { setMsg('msgAdminUsers','⚠ Hasło min. 6 znaków.','err'); return; }
+  try {
+    const r = await fetch(`${API}/admin/users`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({email, name: name||email, password, is_admin})
+    });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    document.getElementById('newUserEmail').value = '';
+    document.getElementById('newUserName').value  = '';
+    document.getElementById('newUserPassword').value = '';
+    document.getElementById('newUserAdmin').checked  = false;
+    setMsg('msgAdminUsers',`✓ Dodano użytkownika ${email}.`,'ok');
+    await loadAdminUsers();
+  } catch(e) { setMsg('msgAdminUsers','❌ '+e.message,'err'); }
+}
+
+// ════════════════════════════════════════════════════════════
+// CHANGELOG — release notes modal
+// ════════════════════════════════════════════════════════════
+
+let _changelogLoaded = false;
+
+async function showChangelog() {
+  document.getElementById('changelogModal').showModal();
+  if (_changelogLoaded) return;
+  const pre = document.getElementById('changelogContent');
+  pre.textContent = '⏳ Ładowanie…';
+  try {
+    const d = await (await fetch(`${API}/changelog`)).json();
+    pre.textContent = d.content || 'Brak danych.';
+    _changelogLoaded = true;
+  } catch(e) { pre.textContent = '❌ Nie można załadować: '+e.message; }
+}
 </script>
+
+
+</div><!-- /#appBody -->
+
+<!-- ══════════════════ LOGIN OVERLAY ══════════════════ -->
+<div id="loginOverlay"
+     style="display:flex;position:fixed;inset:0;z-index:9999;
+            background:var(--bg-tertiary);align-items:center;justify-content:center">
+  <div style="background:var(--bg);border:0.5px solid var(--border-med);border-radius:var(--radius-lg);
+              padding:2rem;width:380px;max-width:94vw;box-shadow:0 8px 32px rgba(0,0,0,.12)">
+    <div style="text-align:center;margin-bottom:1.5rem">
+      <div style="font-size:36px;margin-bottom:.5rem">📊</div>
+      <h2 style="font-size:18px;font-weight:700">Weryfikator Abonamentów</h2>
+      <p style="font-size:12px;color:var(--text-muted);margin-top:4px">Zaloguj się aby kontynuować</p>
+    </div>
+    <div id="loginError" style="display:none;background:var(--red-light);color:var(--red);
+         border-radius:var(--radius-md);padding:8px 12px;font-size:12px;margin-bottom:1rem"></div>
+    <div class="input-group" style="margin-bottom:.75rem">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="twoj@email.pl" autocomplete="email"
+             style="height:38px" onkeydown="if(event.key==='Enter')document.getElementById('loginPassword').focus()">
+    </div>
+    <div class="input-group" style="margin-bottom:1.25rem">
+      <label>Hasło</label>
+      <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password"
+             style="height:38px" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="primary" style="width:100%;height:40px;font-size:14px" onclick="doLogin()">
+      Zaloguj się →
+    </button>
+  </div>
+</div>
+
+<!-- ══════════════════ CHANGELOG MODAL ══════════════════ -->
+<dialog id="changelogModal"
+        style="border-radius:var(--radius-lg);border:0.5px solid var(--border-med);
+               background:var(--bg);color:var(--text);padding:0;width:680px;max-width:96vw;
+               max-height:80vh">
+  <div style="display:flex;align-items:center;padding:1rem 1.5rem;border-bottom:0.5px solid var(--border)">
+    <span style="font-weight:700;font-size:15px">📋 Historia zmian</span>
+    <button class="ghost sm" onclick="document.getElementById('changelogModal').close()"
+            style="margin-left:auto;font-size:18px;padding:0 6px;line-height:1">✕</button>
+  </div>
+  <pre id="changelogContent"
+       style="padding:1.25rem 1.5rem;margin:0;overflow:auto;font-size:12px;
+              font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+              white-space:pre-wrap;line-height:1.6;max-height:calc(80vh - 60px)">⏳ Ładowanie…</pre>
+</dialog>
+
 </body>
 </html>

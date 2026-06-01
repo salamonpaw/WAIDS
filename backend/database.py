@@ -1,10 +1,14 @@
 import os
+import secrets
 from contextlib import contextmanager
 from typing import Optional
 
 import psycopg2
 import psycopg2.extras
 from dotenv import load_dotenv
+from passlib.context import CryptContext
+
+_pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 load_dotenv()
 
@@ -113,6 +117,28 @@ def init_db() -> None:
             cur.execute("""
                 ALTER TABLE payments
                     ADD COLUMN IF NOT EXISTS currency VARCHAR NOT NULL DEFAULT '';
+            """)
+
+            # Ustawienia aplikacji (klucz-wartość)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS app_settings (
+                    key   VARCHAR PRIMARY KEY,
+                    value TEXT NOT NULL
+                );
+            """)
+
+            # Użytkownicy systemu
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id            SERIAL PRIMARY KEY,
+                    email         VARCHAR UNIQUE NOT NULL,
+                    name          VARCHAR NOT NULL DEFAULT '',
+                    password_hash VARCHAR NOT NULL,
+                    is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+                    is_admin      BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at    TIMESTAMPTZ DEFAULT now(),
+                    last_login    TIMESTAMPTZ
+                );
             """)
 
             # Seed domyślnych handlowców (idempotentne)
@@ -589,3 +615,99 @@ def import_firms_table(rows: list, mode: str = "supplement") -> dict:
 
     return {"updated_config": updated_config, "updated_reps": updated_reps,
             "skipped": skipped, "errors": errors}
+
+
+# ── auth / users ──────────────────────────────────────────────────────────────
+
+def get_or_create_secret_key() -> str:
+    """Returns a persistent secret key stored in app_settings table."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT value FROM app_settings WHERE key = 'secret_key'")
+            row = cur.fetchone()
+            if row:
+                return row[0]
+            key = secrets.token_hex(32)
+            cur.execute(
+                "INSERT INTO app_settings (key, value) VALUES ('secret_key', %s)"
+                " ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+                (key,),
+            )
+            return key
+
+
+def create_admin_if_needed(email: str, password: str) -> bool:
+    """Creates first admin user if none exist. Returns True if created."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM users WHERE is_admin")
+            if cur.fetchone()[0] > 0:
+                return False
+            cur.execute(
+                "INSERT INTO users (email, name, password_hash, is_active, is_admin)"
+                " VALUES (%s, %s, %s, TRUE, TRUE)"
+                " ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash,"
+                "   is_admin = TRUE, is_active = TRUE",
+                (email.lower(), email.split("@")[0], _pwd_ctx.hash(password)),
+            )
+            return True
+
+
+def verify_user(email: str, password: str) -> Optional[dict]:
+    """Returns user dict if credentials are valid, else None."""
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT * FROM users WHERE email = %s AND is_active",
+                (email.strip().lower(),),
+            )
+            user = cur.fetchone()
+            if not user or not _pwd_ctx.verify(password, user["password_hash"]):
+                return None
+            cur.execute("UPDATE users SET last_login = now() WHERE id = %s", (user["id"],))
+            return dict(user)
+
+
+def get_user_by_id(user_id: int) -> Optional[dict]:
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+
+def list_users() -> list:
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "SELECT id, email, name, is_active, is_admin, created_at, last_login"
+                " FROM users ORDER BY id"
+            )
+            return [dict(r) for r in cur.fetchall()]
+
+
+def create_user_db(email: str, name: str, password: str, is_admin: bool = False) -> dict:
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                "INSERT INTO users (email, name, password_hash, is_admin)"
+                " VALUES (%s, %s, %s, %s)"
+                " RETURNING id, email, name, is_active, is_admin",
+                (email.strip().lower(), name, _pwd_ctx.hash(password), is_admin),
+            )
+            return dict(cur.fetchone())
+
+
+def set_user_status(user_id: int, active: bool) -> None:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE users SET is_active = %s WHERE id = %s", (active, user_id))
+
+
+def reset_user_password(user_id: int, new_password: str) -> None:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET password_hash = %s WHERE id = %s",
+                (_pwd_ctx.hash(new_password), user_id),
+            )
