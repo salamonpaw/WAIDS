@@ -6,6 +6,20 @@ wersjonowanie zgodne z [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.3.0] — 2026-06-01
+
+### Dodano
+- **Kolumny kwot w imporcie płatności** — import teraz odczytuje trzy kolumny kwot z pliku IDS:
+  - `ob_CenaWaluta` — kwota w walucie oryginalnej (główna kwota, priorytet nad `nzf_WartoscPierwotnaWaluta`)
+  - `ob_CenaNetto` — cena netto w PLN
+  - `ob_WartBrutto` — wartość brutto w PLN
+- **Historia płatności w zakładce Urządzenie** — tabela pokazuje kolumny Netto PLN i Brutto PLN gdy dane są dostępne; wiersz sumaryczny na dole
+
+### Zmieniono
+- Kolumna kwoty w imporcie IDS zmieniona z `nzf_WartoscPierwotnaWaluta` na `ob_CenaWaluta` jako pierwszeństwo
+
+---
+
 ## [1.2.0] — 2026-06-01
 
 ### Dodano

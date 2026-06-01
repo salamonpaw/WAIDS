@@ -124,6 +124,14 @@ def init_db() -> None:
                 ALTER TABLE payments
                     ADD COLUMN IF NOT EXISTS currency VARCHAR NOT NULL DEFAULT '';
             """)
+            cur.execute("""
+                ALTER TABLE payments
+                    ADD COLUMN IF NOT EXISTS amount_netto NUMERIC(12,2) NOT NULL DEFAULT 0;
+            """)
+            cur.execute("""
+                ALTER TABLE payments
+                    ADD COLUMN IF NOT EXISTS amount_brutto NUMERIC(12,2) NOT NULL DEFAULT 0;
+            """)
 
             # Ustawienia aplikacji (klucz-wartość)
             cur.execute("""
@@ -418,7 +426,7 @@ def get_payments_for_sn(sn: str) -> list:
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
-                "SELECT year_month, customer, amount, currency "
+                "SELECT year_month, customer, amount, currency, amount_netto, amount_brutto "
                 "FROM payments WHERE sn = %s ORDER BY year_month",
                 (sn,),
             )

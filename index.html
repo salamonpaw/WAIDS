@@ -2720,6 +2720,11 @@ async function searchBySN() {
     // Payment history card
     let payHtml = '';
     if (pays.length) {
+      const hasNetto  = pays.some(p => p.amount_netto  > 0);
+      const hasBrutto = pays.some(p => p.amount_brutto > 0);
+      const totalNetto  = pays.reduce((s,p) => s + (p.amount_netto  || 0), 0);
+      const totalBrutto = pays.reduce((s,p) => s + (p.amount_brutto || 0), 0);
+
       const rows = pays.map(p => `
         <tr>
           <td style="font-size:12px;padding:7px 14px;font-weight:600">${esc(p.year_month)}</td>
@@ -2727,7 +2732,18 @@ async function searchBySN() {
           <td style="font-size:12px;padding:7px 14px;text-align:right;font-weight:600;color:var(--green)">
             ${p.amount ? fmtAmount(p.amount, p.currency) : '—'}
           </td>
+          ${hasNetto  ? `<td style="font-size:12px;padding:7px 14px;text-align:right;color:var(--text-muted)">${p.amount_netto  > 0 ? fmtAmount(p.amount_netto,  'PLN') : '—'}</td>` : ''}
+          ${hasBrutto ? `<td style="font-size:12px;padding:7px 14px;text-align:right;color:var(--text-muted)">${p.amount_brutto > 0 ? fmtAmount(p.amount_brutto, 'PLN') : '—'}</td>` : ''}
         </tr>`).join('');
+
+      const sumRow = `
+        <tr style="border-top:1.5px solid var(--border-med);font-weight:700">
+          <td style="padding:8px 14px;font-size:12px" colspan="2">Suma</td>
+          <td style="padding:8px 14px;font-size:12px;text-align:right;color:var(--green)">${fmtAmount(total, currency)}</td>
+          ${hasNetto  ? `<td style="padding:8px 14px;font-size:12px;text-align:right;color:var(--text-muted)">${fmtAmount(totalNetto,  'PLN')}</td>` : ''}
+          ${hasBrutto ? `<td style="padding:8px 14px;font-size:12px;text-align:right;color:var(--text-muted)">${fmtAmount(totalBrutto, 'PLN')}</td>` : ''}
+        </tr>`;
+
       payHtml = `
         <div class="section-card" style="padding:0;overflow:hidden">
           <div style="padding:1rem 1.5rem .75rem;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
@@ -2740,9 +2756,12 @@ async function searchBySN() {
               <thead><tr>
                 <th style="text-align:left;padding:8px 14px">Miesiąc</th>
                 <th style="text-align:left;padding:8px 14px">Klient</th>
-                <th style="text-align:right;padding:8px 14px">Kwota</th>
+                <th style="text-align:right;padding:8px 14px"
+                    title="Kwota w walucie oryginalnej (ob_CenaWaluta)">Kwota (waluta)</th>
+                ${hasNetto  ? '<th style="text-align:right;padding:8px 14px" title="Netto PLN (ob_CenaNetto)">Netto PLN</th>'   : ''}
+                ${hasBrutto ? '<th style="text-align:right;padding:8px 14px" title="Brutto PLN (ob_WartBrutto)">Brutto PLN</th>' : ''}
               </tr></thead>
-              <tbody>${rows}</tbody>
+              <tbody>${rows}${sumRow}</tbody>
             </table>
           </div>
         </div>`;
