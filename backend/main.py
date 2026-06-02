@@ -42,6 +42,10 @@ from database import (
     get_or_create_secret_key, create_admin_if_needed,
     verify_user, get_user_by_id,
     list_users, create_user_db, set_user_status, reset_user_password,
+    # import sessions
+    create_import_session, get_import_sessions, undo_import_session,
+    # bulk device update
+    bulk_update_devices,
 )
 from version import APP_VERSION
 
@@ -415,16 +419,19 @@ def db_status():
 
 @app.post("/import/production")
 async def import_production(
-    files: List[UploadFile] = File(...),
-    mode:  Annotated[str, Form()] = "append",
+    files:           List[UploadFile] = File(...),
+    mode:            Annotated[str, Form()] = "append",
+    device_type_tag: Annotated[str, Form()] = "",
 ):
     """
     Import one or more production files (zestawienie produkcji).
     mode=append  (default) → INSERT … ON CONFLICT DO NOTHING (skip existing SNs)
     mode=overwrite         → INSERT … ON CONFLICT DO UPDATE  (update existing SNs)
+    device_type_tag        → if set (e.g. 'stare'), sets device_type_override for inserted SNs
     """
-    total   = 0
-    skipped = 0
+    total      = 0
+    skipped    = 0
+    all_new_sns: List[str] = []
     errors: List[str] = []
 
     for file in files:
@@ -530,6 +537,7 @@ async def import_production(
                                     updated_at = NOW()
                             """, deduped)
                             total += len(deduped)
+                            all_new_sns.extend([r[0] for r in deduped])
                         else:  # append — skip existing SNs
                             rows = execute_values(cur, """
                                 INSERT INTO devices (sn, firma, maszyna, operator, prod_date)
@@ -537,14 +545,38 @@ async def import_production(
                                 ON CONFLICT (sn) DO NOTHING
                                 RETURNING sn
                             """, deduped, fetch=True)
-                            total   += len(rows)
-                            skipped += len(deduped) - len(rows)
+                            new_sns = [r[0] for r in rows]
+                            total   += len(new_sns)
+                            skipped += len(deduped) - len(new_sns)
+                            all_new_sns.extend(new_sns)
 
         except Exception as e:
             errors.append(f"{file.filename}: {e}")
 
+    # Jeśli podano device_type_tag (np. 'stare') — ustaw override dla nowych SN
+    if device_type_tag and all_new_sns:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE devices SET device_type_override = %s WHERE sn = ANY(%s)",
+                    (device_type_tag, all_new_sns),
+                )
+
+    # Zapisz sesję importu
+    filenames_str = ", ".join(f.filename for f in files)
+    create_import_session(
+        import_type="production",
+        filenames=filenames_str,
+        mode=mode,
+        device_type_tag=device_type_tag,
+        records_added=total,
+        records_skipped=skipped,
+        sns=all_new_sns,
+    )
+
     _invalidate_cache()
-    return {"imported": total, "skipped": skipped, "mode": mode, "errors": errors}
+    return {"imported": total, "skipped": skipped, "mode": mode,
+            "device_type_tag": device_type_tag, "errors": errors}
 
 
 @app.post("/import/payments")
@@ -771,7 +803,7 @@ async def import_payments(
                         INSERT INTO payments (sn, year_month, customer, amount, currency, amount_netto, amount_brutto)
                         VALUES %s
                         ON CONFLICT (sn, year_month) DO NOTHING
-                        RETURNING sn
+                        RETURNING sn, year_month
                     """, deduped_list, fetch=True)
                     pay_inserted = len(rows)
                     pay_skipped  = len(deduped_list) - len(rows)
@@ -782,6 +814,23 @@ async def import_payments(
     fmt = "IDS" if invoice_date_col else ("pivot" if month_cols else "monthly")
 
     skipped_unpaid_count = skipped_unpaid if invoice_date_col else 0
+
+    # Zapisz sesję importu płatności
+    if mode == "append":
+        # rows zawiera (sn, year_month) dla faktycznie wstawionych rekordów
+        pay_pairs = [(r[0], r[1]) for r in rows]
+    else:
+        pay_pairs = [(r[0], r[1]) for r in deduped_list]
+    create_import_session(
+        import_type="payments",
+        filenames=file.filename,
+        mode=mode,
+        device_type_tag="",
+        records_added=pay_inserted,
+        records_skipped=pay_skipped,
+        pay_pairs=pay_pairs,
+    )
+
     _invalidate_cache()
     return {
         "inserted":          pay_inserted,
@@ -1747,6 +1796,67 @@ def rep_first_ids_check(
         raise HTTPException(400, "window_months musi być między 1 a 36")
     try:
         return get_rep_first_ids_check(rep_id, first_pay_from, first_pay_to, window_months)
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# ── import sessions ───────────────────────────────────────────────────────────
+
+@app.get("/import/sessions")
+def list_import_sessions():
+    """Historia sesji importu (50 ostatnich)."""
+    try:
+        sessions = get_import_sessions(50)
+        # Serialize datetime to string
+        for s in sessions:
+            if s.get("created_at"):
+                s["created_at"] = s["created_at"].strftime("%Y-%m-%d %H:%M")
+        return {"sessions": sessions}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.delete("/import/sessions/{session_id}")
+def delete_import_session(session_id: int):
+    """Cofnij import: usuwa urządzenia/płatności z danej sesji."""
+    try:
+        result = undo_import_session(session_id)
+        if "error" in result:
+            raise HTTPException(404, result["error"])
+        _invalidate_cache()
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# ── bulk device update ─────────────────────────────────────────────────────────
+
+class BulkUpdateIn(BaseModel):
+    sns:         List[str]
+    firma:       Optional[str] = None
+    operator:    Optional[str] = None
+    device_type: Optional[str] = None
+
+
+@app.patch("/devices/bulk")
+def bulk_update_devices_endpoint(body: BulkUpdateIn, _=Depends(require_auth)):
+    """Grupowa edycja wielu urządzeń naraz (firma / operator / device_type_override)."""
+    if not body.sns:
+        raise HTTPException(400, "Brak listy SN")
+    valid_types = {"", "master", "slave", "oem", "showroom", "stare"}
+    if body.device_type is not None and body.device_type not in valid_types:
+        raise HTTPException(400, f"Nieznany typ: {body.device_type}")
+    try:
+        updated = bulk_update_devices(
+            sns=body.sns,
+            firma=body.firma,
+            operator=body.operator,
+            device_type=body.device_type,
+        )
+        _invalidate_cache()
+        return {"updated": updated}
     except Exception as e:
         raise HTTPException(500, str(e))
 

@@ -148,6 +148,7 @@ function renderPie(data, s) {
     { label:'Brak w prod.',status:'only',      val:s.only,      color:'#BA7517' },
     { label:'OEM',         status:'oem',       val:s.oem,       color:'#9ca3af' },
     { label:'Wykluczone',  status:'excluded',  val:s.excluded,  color:'#2563EB' },
+    { label:'Stare',       status:'stare',     val:s.stare||0,  color:'#d1d5db' },
   ].filter(e => e.val > 0);
   _pieMap = entries.map(e => e.status);
 
@@ -384,9 +385,9 @@ function renderRepChart(data) {
 
 // ── Bar chart: by device type ──────────────────────────────────────────────
 function renderTypeChart(data) {
-  const types  = ['master','slave','oem',''];
-  const labels = { master:'Master', slave:'Slave', oem:'OEM', '':'Nieznany' };
-  const colors = { master:'#BA7517', slave:'#2563EB', oem:'#9ca3af', '':'#d1d5db' };
+  const types  = ['master','slave','oem','stare',''];
+  const labels = { master:'Master', slave:'Slave', oem:'OEM', stare:'Stare', '':'Nieznany' };
+  const colors = { master:'#BA7517', slave:'#2563EB', oem:'#9ca3af', stare:'#d1d5db', '':'#e5e7eb' };
 
   const counts = {};
   for (const r of data) {
@@ -523,11 +524,12 @@ function updateBulkBar() {
 
 async function bulkChangeType(dtype) {
   if (!selectedSNs.size) return;
-  const label = dtype === 'master' ? 'Master' : dtype === 'oem' ? 'OEM' : 'Auto (reset)';
+  const typeLabels = { master:'Master', oem:'OEM', stare:'Stare', '':'Auto (reset)' };
+  const label = typeLabels[dtype] ?? dtype;
   if (!confirm(`Zmienić typ na „${label}" dla ${selectedSNs.size} urządzeń?`)) return;
   try {
-    const r = await fetch(`${API}/devices/bulk-type`, {
-      method: 'POST',
+    const r = await fetch(`${API}/devices/bulk`, {
+      method: 'PATCH',
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({sns: [...selectedSNs], device_type: dtype}),
     });
@@ -536,6 +538,42 @@ async function bulkChangeType(dtype) {
     clearSelection();
     await loadReport();
     alert(`Zaktualizowano ${d.updated} urządzeń.`);
+  } catch(e) { alert('Błąd: ' + e.message); }
+}
+
+async function bulkChangeFirma() {
+  if (!selectedSNs.size) return;
+  const val = prompt(`Podaj nową nazwę firmy produkcji dla ${selectedSNs.size} zaznaczonych urządzeń:`);
+  if (val === null) return;
+  try {
+    const r = await fetch(`${API}/devices/bulk`, {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({sns: [...selectedSNs], firma: val.trim()}),
+    });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const d = await r.json();
+    clearSelection();
+    await loadReport();
+    alert(`Zaktualizowano firmę dla ${d.updated} urządzeń.`);
+  } catch(e) { alert('Błąd: ' + e.message); }
+}
+
+async function bulkChangeOperator() {
+  if (!selectedSNs.size) return;
+  const val = prompt(`Podaj nowego operatora dla ${selectedSNs.size} zaznaczonych urządzeń:`);
+  if (val === null) return;
+  try {
+    const r = await fetch(`${API}/devices/bulk`, {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({sns: [...selectedSNs], operator: val.trim()}),
+    });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const d = await r.json();
+    clearSelection();
+    await loadReport();
+    alert(`Zaktualizowano operatora dla ${d.updated} urządzeń.`);
   } catch(e) { alert('Błąd: ' + e.message); }
 }
 
@@ -648,6 +686,7 @@ function openOverrideModal(sn) {
   document.getElementById('ovBtnOem').style.borderColor      = cur==='oem'      ? 'var(--gray)'  : '';
   document.getElementById('ovBtnAuto').style.borderColor     = cur===''         ? 'var(--green)' : '';
   document.getElementById('ovBtnShowroom').style.borderColor = cur==='showroom' ? 'var(--teal)'  : '';
+  document.getElementById('ovBtnStare').style.borderColor    = cur==='stare'    ? '#9ca3af'      : '';
 
   const pickerRow = document.getElementById('ovShowroomRow');
   pickerRow.style.display = cur === 'showroom' ? 'block' : 'none';
@@ -681,7 +720,9 @@ async function applyOverride(deviceType) {
         rec.status = 'oem';
       } else if (rec.device_type === 'showroom') {
         rec.status = 'showroom';
-      } else if (rec.status === 'oem' || rec.status === 'showroom') {
+      } else if (rec.device_type === 'stare') {
+        rec.status = 'stare';
+      } else if (rec.status === 'oem' || rec.status === 'showroom' || rec.status === 'stare') {
         rec.status = rec.total_months > 0 ? 'paid' : 'unpaid';
       }
     }

@@ -118,6 +118,24 @@
       <span class="imode-safe">🔒 Dane konfiguracyjne (handlowcy, przypisania, licencje, zawieszenia) nigdy nie są dotykane</span>
     </div>
 
+    <!-- Oznacz zaimportowane urządzenia typem -->
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:.75rem;
+                padding:.5rem .75rem;background:var(--bg-secondary);border-radius:var(--radius-md);
+                border:0.5px solid var(--border)">
+      <label style="font-size:12px;color:var(--text-muted);white-space:nowrap">
+        🏷 Oznacz zaimportowane jako typ:
+      </label>
+      <select id="importTypeTag" style="height:30px;font-size:12px;padding:0 10px;
+              border-radius:var(--radius-md);border:0.5px solid var(--border-med);
+              background:var(--bg);color:var(--text)">
+        <option value="">— auto-wykryj (normalny import) —</option>
+        <option value="stare">📦 Stare (archiwalne urządzenia)</option>
+        <option value="oem">⚪ OEM</option>
+        <option value="master">🔵 Master</option>
+      </select>
+      <span style="font-size:11px;color:var(--text-muted)">Działa tylko dla nowych SN; istniejące nie są zmieniane.</span>
+    </div>
+
     <div class="upload-grid">
       <div>
         <label class="upload-zone" id="zoneP">
@@ -211,6 +229,41 @@
     <div class="msg" id="msgPay"></div>
   </div>
 
+  <!-- ══ HISTORIA IMPORTÓW ══════════════════════════════════════════════ -->
+  <div class="section-card" style="margin-top:1rem">
+    <div style="display:flex;align-items:center;gap:10px;cursor:pointer"
+         onclick="toggleImportHistory()">
+      <span class="section-title" style="margin:0">📋 Historia importów</span>
+      <span id="importHistoryArrow" style="color:var(--text-muted);font-size:13px">▶</span>
+      <button class="ghost sm" style="margin-left:auto" onclick="event.stopPropagation();loadImportHistory()"
+              title="Odśwież historię">⟳ Odśwież</button>
+    </div>
+    <div id="importHistoryBody" style="display:none;margin-top:.75rem">
+      <div class="msg" id="msgImportHistory" style="margin-bottom:.5rem"></div>
+      <p style="font-size:11px;color:var(--text-muted);margin-bottom:.75rem">
+        ↩ <strong>Cofnij</strong> usuwa tylko rekordy dodane przez ten import (urządzenia lub płatności).
+        Ręczne zmiany konfiguracyjne (typ, firma, handlowcy) nie są cofane.
+      </p>
+      <div style="overflow-x:auto">
+        <table class="config-table">
+          <thead><tr>
+            <th title="Data i czas importu">Data</th>
+            <th title="Typ importu: urządzenia lub płatności">Typ</th>
+            <th title="Nazwy wgranych plików">Pliki</th>
+            <th style="text-align:center" title="Liczba dodanych / pominiętych rekordów">Dodano</th>
+            <th style="text-align:center" title="Tag nadany zaimportowanym urządzeniom">Tag typu</th>
+            <th style="text-align:right">Akcja</th>
+          </tr></thead>
+          <tbody id="importHistoryList">
+            <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:1rem">
+              Kliknij „Historia importów" aby załadować.
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
 </div>
 </div>
 
@@ -299,6 +352,7 @@
         <option value="licencja">Licencja</option>
         <option value="inne">Inne</option>
         <option value="suspended">⏸ Zawieszone</option>
+        <option value="stare">Stare</option>
       </select>
       <select id="fFirmType" onchange="onFilterChange()" title="Filtruj po typie firmy (konfigurowanym w zakładce Konfiguracja)">
         <option value="">Wszystkie typy firm</option>
@@ -312,6 +366,7 @@
         <option value="master">Master</option>
         <option value="showroom">Showroom</option>
         <option value="oem">OEM</option>
+        <option value="stare">Stare</option>
       </select>
       <select id="fRep"      onchange="onFilterChange()"><option value="">Wszyscy handlowcy</option></select>
       <select id="fCustomer" onchange="onFilterChange()"><option value="">Wszyscy klienci</option></select>
@@ -349,11 +404,15 @@
 
     <!-- Bulk action bar (appears when rows are selected) -->
     <div id="bulkBar">
-      <span id="bulkCount" style="font-weight:600"></span>
-      <span style="color:var(--text-muted)">zaznaczonych — zmień typ na:</span>
-      <button class="ghost sm" onclick="bulkChangeType('master')">🔵 Master</button>
-      <button class="ghost sm" onclick="bulkChangeType('oem')">⚪ OEM</button>
-      <button class="ghost sm" onclick="bulkChangeType('')">🔄 Auto</button>
+      <span><span id="bulkCount" style="font-weight:600"></span> zaznaczonych</span>
+      <span style="color:var(--text-muted);font-size:11px">Zmień typ:</span>
+      <button class="ghost sm" onclick="bulkChangeType('master')" title="Ustaw typ Master dla zaznaczonych">🔵 Master</button>
+      <button class="ghost sm" onclick="bulkChangeType('oem')"    title="Ustaw typ OEM">⚪ OEM</button>
+      <button class="ghost sm" onclick="bulkChangeType('stare')"  title="Oznacz jako Stare (archiwalne)">📦 Stare</button>
+      <button class="ghost sm" onclick="bulkChangeType('')"       title="Resetuj do auto-wykrywania">🔄 Auto</button>
+      <span style="color:var(--border-med)">|</span>
+      <button class="ghost sm" onclick="bulkChangeFirma()"    title="Zmień firmę produkcji dla zaznaczonych">🏢 Zmień firmę…</button>
+      <button class="ghost sm" onclick="bulkChangeOperator()" title="Zmień operatora dla zaznaczonych">👤 Zmień oper.…</button>
       <button class="ghost sm" style="margin-left:auto" onclick="clearSelection()">✕ Odznacz</button>
     </div>
 
@@ -820,6 +879,10 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
                 onclick="applyOverride('showroom')">✓ Zastosuj Showroom</button>
       </div>
     </div>
+    <button id="ovBtnStare" onclick="applyOverride('stare')" style="text-align:left;padding:10px 14px">
+      <strong style="color:#6b7280">📦 Stare (archiwalne)</strong>
+      <span style="display:block;font-size:11px;color:var(--text-muted);margin-top:2px">Urządzenie archiwalne — wykluczone ze statystyk</span>
+    </button>
     <button id="ovBtnAuto" onclick="applyOverride('')" style="text-align:left;padding:10px 14px;border-style:dashed">
       <strong>🔄 Auto (reset)</strong>
       <span style="display:block;font-size:11px;color:var(--text-muted);margin-top:2px">Wykryj automatycznie na podstawie nazwy maszyny</span>

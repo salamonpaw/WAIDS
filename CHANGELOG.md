@@ -6,6 +6,32 @@ wersjonowanie zgodne z [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.9.7] — 2026-06-02
+
+### Dodano
+- **Typ urządzenia: Stare** — nowa kategoria (szara) dla archiwalnych urządzeń
+  - Wykluczona ze statystyk bilingowych (nie wlicza się do opłaconych, nieopłaconych)
+  - Widoczna w raporcie jako szary badge `📦 Stare`
+  - Filtr `Stare` w dropdownach typ urządzenia i status
+  - Szary wycinek w pie chart; osobny słupek w wykresie typów urządzeń
+  - Przycisk `📦 Stare (archiwalne)` w oknie zmiany typu urządzenia
+- **Oznaczanie zaimportowanych urządzeń typem** — nowy select przy imporcie produkcji
+  - Opcje: `— auto-wykryj —` / `📦 Stare` / `⚪ OEM` / `🔵 Master`
+  - Nadaje typ tylko nowo dodanym SN (istniejące nie są zmieniane)
+  - Parametr `device_type_tag` w `POST /import/production`
+- **Historia importów** — nowa sekcja w zakładce Import
+  - Tabela sesji importów z datą, typem, plikami, liczbą dodanych rekordów, tagiem
+  - Przycisk `↩ Cofnij` usuwa rekordy dodane przez dany import (urządzenia lub płatności)
+  - Endpoint `GET /import/sessions`, `DELETE /import/sessions/{id}`
+  - Nowe tabele DB: `import_sessions`, `import_session_devices`, `import_session_payments`
+- **Zbiorcza edycja** (bulk) w raporcie — rozszerzona lista akcji paska zaznaczenia
+  - Typ: Master / OEM / **Stare** / Auto
+  - `🏢 Zmień firmę…` — zmienia firmę produkcji dla wszystkich zaznaczonych
+  - `👤 Zmień oper.…` — zmienia operatora dla wszystkich zaznaczonych
+  - Endpoint `PATCH /devices/bulk` obsługuje `firma`, `operator`, `device_type`
+
+---
+
 ## [1.9.6] — 2026-06-02
 
 ### Dodano

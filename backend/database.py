@@ -224,6 +224,41 @@ def init_db() -> None:
                 ON firm_suspensions(firma);
             """)
 
+            # Historia sesji importu (urządzenia + płatności)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS import_sessions (
+                    id              SERIAL PRIMARY KEY,
+                    import_type     VARCHAR(20) NOT NULL,
+                    filenames       TEXT NOT NULL DEFAULT '',
+                    mode            VARCHAR(10) NOT NULL DEFAULT 'append',
+                    device_type_tag VARCHAR(20) NOT NULL DEFAULT '',
+                    records_added   INTEGER NOT NULL DEFAULT 0,
+                    records_skipped INTEGER NOT NULL DEFAULT 0,
+                    created_at      TIMESTAMP NOT NULL DEFAULT NOW()
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS import_session_devices (
+                    session_id  INTEGER NOT NULL REFERENCES import_sessions(id) ON DELETE CASCADE,
+                    sn          VARCHAR(50) NOT NULL
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_isd_session
+                ON import_session_devices(session_id);
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS import_session_payments (
+                    session_id  INTEGER NOT NULL REFERENCES import_sessions(id) ON DELETE CASCADE,
+                    sn          VARCHAR(50) NOT NULL,
+                    year_month  VARCHAR(7)  NOT NULL
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_isp_session
+                ON import_session_payments(session_id);
+            """)
+
             # Seed domyślnych handlowców (idempotentne)
             for name in DEFAULT_REPS:
                 cur.execute(
@@ -282,6 +317,7 @@ def get_analysis() -> list:
                                            THEN 'oem' ELSE 'master' END
                              ) = 'oem'                              THEN 'oem'
                         WHEN COALESCE(d.device_type_override,'') = 'showroom' THEN 'showroom'
+                        WHEN COALESCE(d.device_type_override,'') = 'stare'    THEN 'stare'
                         WHEN COALESCE(fc.firm_type,'ids') = 'inne'     THEN 'inne'
                         WHEN COALESCE(fc.firm_type,'ids') = 'licencja' THEN 'licencja'
                         WHEN COALESCE(fc.firm_type,'ids') = 'oem'      THEN 'oem'
@@ -1144,25 +1180,28 @@ def _ym_add(ym: str, n: int) -> str:
     return f"{y:04d}-{m:02d}"
 
 
-def get_rep_bonus_check(rep_id: int, from_month: str, months: int = 12) -> dict:
+def get_rep_first_ids_check(
+    rep_id: int,
+    first_pay_from: str,
+    first_pay_to: str,
+    window_months: int = 12,
+) -> dict:
     """
-    Dla wybranego handlowca i okna miesięcy zwraca per-urządzenie:
-    - ile miesięcy było opłaconych
-    - ile zawieszonych
-    - ile przerw-z-wznowieniem (gap_resumed)
-    - ile nie opłaconych (unpaid)
-    - siatkę miesięcy ze statusem każdego
-    """
-    window = [_ym_add(from_month, i) for i in range(months)]
-    end_month = window[-1]
+    Pierwsze IDS — Handlowiec.
 
+    Zwraca urządzenia przypisanego handlowca, których PIERWSZA płatność
+    (min year_month) mieści się w przedziale [first_pay_from, first_pay_to].
+
+    Dla każdego urządzenia okno = window_months miesięcy od jego first_pay.
+    Status każdego miesiąca: paid / suspended / gap_resumed / unpaid.
+    """
     with get_conn() as conn:
         with conn.cursor() as cur:
-            # Devices for this rep (via firm_reps)
+            # Devices for this rep
             cur.execute("""
                 SELECT DISTINCT d.sn, d.firma, d.maszyna, d.operator,
                        COALESCE(NULLIF(d.device_type_override,''),
-                           CASE WHEN COALESCE(d.maszyna,'') ILIKE '%OEM%%' THEN 'oem' ELSE 'master' END
+                           CASE WHEN COALESCE(d.maszyna,'') ILIKE '%%OEM%%' THEN 'oem' ELSE 'master' END
                        ) AS device_type
                 FROM devices d
                 JOIN firm_reps fr ON d.firma = fr.firma
@@ -1172,68 +1211,86 @@ def get_rep_bonus_check(rep_id: int, from_month: str, months: int = 12) -> dict:
             raw_devices = cur.fetchall()
 
             if not raw_devices:
-                return {"devices": [], "window": window, "summary": _bonus_summary([])}
+                return {"devices": [], "summary": _bonus_summary([])}
 
             sns = [r[0] for r in raw_devices]
 
-            # Payments in window
+            # First payment per SN (only for devices whose first_pay is in range)
             cur.execute("""
-                SELECT sn, year_month,
-                       COALESCE(SUM(amount),0) AS amount,
+                SELECT sn,
+                       MIN(year_month) AS first_pay,
                        MAX(customer) FILTER (WHERE customer <> '') AS customer,
                        MAX(currency) FILTER (WHERE currency <> '') AS currency
                 FROM payments
-                WHERE sn = ANY(%s) AND year_month >= %s AND year_month <= %s
-                GROUP BY sn, year_month
-            """, (sns, from_month, end_month))
-            pay_in_window: dict = {}
+                WHERE sn = ANY(%s)
+                GROUP BY sn
+                HAVING MIN(year_month) >= %s AND MIN(year_month) <= %s
+            """, (sns, first_pay_from, first_pay_to))
+            first_pay_map: dict = {}
             customer_map: dict = {}
             currency_map: dict = {}
-            for sn, ym, amt, cust, curr in cur.fetchall():
-                pay_in_window.setdefault(sn, {})[ym] = float(amt)
+            for sn, fp, cust, curr in cur.fetchall():
+                first_pay_map[sn] = fp
                 if cust: customer_map[sn] = cust
                 if curr: currency_map[sn] = curr
 
-            # ALL payment months per SN (to detect resumed gaps)
-            cur.execute(
-                "SELECT DISTINCT sn, year_month FROM payments WHERE sn = ANY(%s)",
-                (sns,)
-            )
-            all_pay: dict = {}
-            for sn, ym in cur.fetchall():
-                all_pay.setdefault(sn, set()).add(ym)
+            if not first_pay_map:
+                return {"devices": [], "summary": _bonus_summary([])}
 
-            # Device-level suspensions overlapping window
+            # All payments for qualifying SNs
+            qualifying_sns = list(first_pay_map.keys())
+            # Max end month across all windows
+            max_end = max(_ym_add(fp, window_months - 1) for fp in first_pay_map.values())
+
+            cur.execute("""
+                SELECT sn, year_month, COALESCE(SUM(amount),0)
+                FROM payments
+                WHERE sn = ANY(%s) AND year_month <= %s
+                GROUP BY sn, year_month
+            """, (qualifying_sns, max_end))
+            all_pay_amt: dict = {}
+            all_pay_set: dict = {}
+            for sn, ym, amt in cur.fetchall():
+                all_pay_amt.setdefault(sn, {})[ym] = float(amt)
+                all_pay_set.setdefault(sn, set()).add(ym)
+
+            # Suspensions (broad fetch, filter per device below)
             cur.execute("""
                 SELECT sn, date_from, date_to FROM device_suspensions
-                WHERE sn = ANY(%s) AND date_from <= %s AND date_to >= %s
-            """, (sns, end_month, from_month))
+                WHERE sn = ANY(%s)
+            """, (qualifying_sns,))
             dev_susp: dict = {}
             for sn, df, dt in cur.fetchall():
                 dev_susp.setdefault(sn, []).append((df, dt))
 
-            # Firm-level suspensions overlapping window
-            firms = list({r[1] for r in raw_devices})
+            firms_q = list({r[1] for r in raw_devices if r[0] in first_pay_map})
             cur.execute("""
                 SELECT firma, date_from, date_to FROM firm_suspensions
-                WHERE firma = ANY(%s) AND date_from <= %s AND date_to >= %s
-            """, (firms, end_month, from_month))
+                WHERE firma = ANY(%s)
+            """, (firms_q,))
             firm_susp: dict = {}
             for firma, df, dt in cur.fetchall():
                 firm_susp.setdefault(firma, []).append((df, dt))
 
     devices_out = []
-    for sn, firma, maszyna, operator, dtype in raw_devices:
-        if dtype == 'oem':
-            continue  # OEM — not billable
+    dtype_map = {r[0]: r[4] for r in raw_devices}
+    firma_map  = {r[0]: r[1] for r in raw_devices}
+    masz_map   = {r[0]: r[2] for r in raw_devices}
+    oper_map   = {r[0]: r[3] for r in raw_devices}
+
+    for sn, first_pay in first_pay_map.items():
+        if dtype_map.get(sn) == 'oem':
+            continue
+
+        firma   = firma_map.get(sn, "")
+        window  = [_ym_add(first_pay, i) for i in range(window_months)]
+        sn_all  = all_pay_set.get(sn, set())
 
         detail = []
         months_paid = months_suspended = months_gap_resumed = months_unpaid = 0
         total_amount = 0.0
-        sn_all = all_pay.get(sn, set())
 
         for ym in window:
-            # Check suspension
             susp = any(df <= ym <= dt for df, dt in dev_susp.get(sn, []))
             if not susp:
                 susp = any(df <= ym <= dt for df, dt in firm_susp.get(firma, []))
@@ -1243,46 +1300,42 @@ def get_rep_bonus_check(rep_id: int, from_month: str, months: int = 12) -> dict:
                 months_suspended += 1
                 continue
 
-            amt = pay_in_window.get(sn, {}).get(ym, 0)
+            amt = all_pay_amt.get(sn, {}).get(ym, 0)
             if amt > 0:
                 detail.append({"month": ym, "status": "paid", "amount": amt})
                 months_paid += 1
                 total_amount += amt
             else:
-                # Was this gap eventually resumed (any payment AFTER this month)?
                 resumed = any(m > ym for m in sn_all)
-                if resumed:
-                    detail.append({"month": ym, "status": "gap_resumed", "amount": 0})
-                    months_gap_resumed += 1
-                else:
-                    detail.append({"month": ym, "status": "unpaid", "amount": 0})
-                    months_unpaid += 1
+                status  = "gap_resumed" if resumed else "unpaid"
+                detail.append({"month": ym, "status": status, "amount": 0})
+                if resumed: months_gap_resumed += 1
+                else:       months_unpaid += 1
 
-        billable = months - months_suspended
+        billable = window_months - months_suspended
         pct = round(months_paid / billable * 100) if billable > 0 else 0
 
         devices_out.append({
-            "sn":              sn,
-            "firma":           firma,
-            "maszyna":         maszyna or "",
-            "operator":        operator or "",
-            "customer":        customer_map.get(sn, ""),
-            "currency":        currency_map.get(sn, "PLN"),
-            "months_in_window":   months,
-            "months_suspended":   months_suspended,
-            "months_billable":    billable,
-            "months_paid":        months_paid,
+            "sn":               sn,
+            "firma":            firma,
+            "maszyna":          masz_map.get(sn, "") or "",
+            "operator":         oper_map.get(sn, "") or "",
+            "customer":         customer_map.get(sn, ""),
+            "currency":         currency_map.get(sn, "PLN"),
+            "first_pay":        first_pay,
+            "window_months":    window_months,
+            "months_suspended": months_suspended,
+            "months_billable":  billable,
+            "months_paid":      months_paid,
             "months_gap_resumed": months_gap_resumed,
-            "months_unpaid":      months_unpaid,
-            "total_amount":       round(total_amount, 2),
-            "coverage_pct":       pct,
-            "monthly_detail":     detail,
+            "months_unpaid":    months_unpaid,
+            "total_amount":     round(total_amount, 2),
+            "coverage_pct":     pct,
+            "monthly_detail":   detail,
         })
 
-    # Sort: fully paid first, then by coverage desc, then firma
     devices_out.sort(key=lambda x: (-x["coverage_pct"], x["firma"], x["sn"]))
-
-    return {"devices": devices_out, "window": window, "summary": _bonus_summary(devices_out)}
+    return {"devices": devices_out, "summary": _bonus_summary(devices_out)}
 
 
 def _bonus_summary(devices: list) -> dict:
@@ -1302,3 +1355,127 @@ def _bonus_summary(devices: list) -> dict:
         "total_amount": round(total_amount, 2),
         "avg_coverage": avg,
     }
+
+
+# ── import sessions ────────────────────────────────────────────────────────────
+
+def create_import_session(
+    import_type: str,
+    filenames: str,
+    mode: str,
+    device_type_tag: str,
+    records_added: int,
+    records_skipped: int,
+    sns: list = None,
+    pay_pairs: list = None,
+) -> int:
+    """Create an import session record. Returns the new session id."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO import_sessions
+                    (import_type, filenames, mode, device_type_tag, records_added, records_skipped)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (import_type, filenames, mode, device_type_tag, records_added, records_skipped))
+            session_id = cur.fetchone()[0]
+
+            if sns:
+                from psycopg2.extras import execute_values as _ev
+                _ev(cur,
+                    "INSERT INTO import_session_devices (session_id, sn) VALUES %s",
+                    [(session_id, sn) for sn in sns])
+
+            if pay_pairs:
+                from psycopg2.extras import execute_values as _ev
+                _ev(cur,
+                    "INSERT INTO import_session_payments (session_id, sn, year_month) VALUES %s",
+                    [(session_id, sn, ym) for sn, ym in pay_pairs])
+
+    return session_id
+
+
+def get_import_sessions(limit: int = 50) -> list:
+    """Return recent import sessions, newest first."""
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT id, import_type, filenames, mode, device_type_tag,
+                       records_added, records_skipped, created_at
+                FROM import_sessions
+                ORDER BY created_at DESC
+                LIMIT %s
+            """, (limit,))
+            return [dict(r) for r in cur.fetchall()]
+
+
+def undo_import_session(session_id: int) -> dict:
+    """
+    Undo an import session:
+    - production: delete devices whose SN was inserted in this session
+    - payments:   delete (sn, year_month) pairs inserted in this session
+    Returns {"deleted_devices": N, "deleted_payments": N}
+    """
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            # Check session exists
+            cur.execute("SELECT import_type FROM import_sessions WHERE id = %s", (session_id,))
+            row = cur.fetchone()
+            if not row:
+                return {"error": "Sesja nie istnieje"}
+
+            del_dev = del_pay = 0
+
+            cur.execute("""
+                DELETE FROM devices
+                WHERE sn IN (
+                    SELECT sn FROM import_session_devices WHERE session_id = %s
+                )
+            """, (session_id,))
+            del_dev = cur.rowcount
+
+            cur.execute("""
+                DELETE FROM payments
+                WHERE (sn, year_month) IN (
+                    SELECT sn, year_month FROM import_session_payments WHERE session_id = %s
+                )
+            """, (session_id,))
+            del_pay = cur.rowcount
+
+            cur.execute("DELETE FROM import_sessions WHERE id = %s", (session_id,))
+
+    return {"deleted_devices": del_dev, "deleted_payments": del_pay}
+
+
+# ── bulk device update ─────────────────────────────────────────────────────────
+
+def bulk_update_devices(
+    sns: list,
+    firma: str = None,
+    operator: str = None,
+    device_type: str = None,
+) -> int:
+    """
+    Bulk-update firma / operator / device_type_override for a list of SNs.
+    Only non-None fields are updated.  Returns number of updated rows.
+    """
+    if not sns:
+        return 0
+    sets = []
+    params = []
+    if firma is not None:
+        sets.append("firma = %s"); params.append(firma)
+    if operator is not None:
+        sets.append("operator = %s"); params.append(operator)
+    if device_type is not None:
+        sets.append("device_type_override = %s"); params.append(device_type)
+    if not sets:
+        return 0
+    params.append(sns)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE devices SET {', '.join(sets)} WHERE sn = ANY(%s)",
+                params,
+            )
+            return cur.rowcount

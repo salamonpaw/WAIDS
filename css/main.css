@@ -339,3 +339,42 @@
 .imode-label { font-size: 13px; white-space: nowrap; }
 .imode-desc  { font-size: 11px; color: var(--text-muted); }
 .imode-safe  { font-size: 10px; color: var(--green); margin-left: auto; white-space: nowrap; opacity: .8; }
+
+/* ── Typ STARE ──────────────────────────────────────────────────── */
+.badge.stare    { background: #e5e7eb; color: #374151; border: 1.5px solid #9ca3af; }
+.dt-badge.stare { background: #e5e7eb; color: #374151; border: 1.5px solid #9ca3af;
+                  padding: 2px 7px; border-radius: 99px; font-size: 11px; font-weight:600; }
+
+/* ── Bulk-select toolbar ────────────────────────────────────────── */
+#bulkToolbar {
+  display: none;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--blue);
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  margin-bottom: 6px;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+#bulkToolbar.active { display: flex; }
+#bulkToolbar .bulk-count { font-size: 13px; font-weight: 600; flex: 1; }
+#bulkToolbar button {
+  background: rgba(255,255,255,.18);
+  border: 1px solid rgba(255,255,255,.35);
+  color: #fff;
+  border-radius: var(--radius-md);
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+#bulkToolbar button:hover { background: rgba(255,255,255,.28); }
+#bulkToolbar .bulk-cancel {
+  background: transparent; border-color: rgba(255,255,255,.4);
+  margin-left: auto;
+}
+.cb-col { width: 32px; text-align: center; padding: 4px 2px !important; }
