@@ -36,6 +36,7 @@ from database import (
     get_active_suspensions, get_all_suspensions_map,
     # firm-rep export/import
     get_firms_with_reps, get_firms_without_reps, import_firm_reps,
+    get_rep_bonus_check,
     VALID_FIRM_TYPES, VALID_CYCLES,
     # auth
     get_or_create_secret_key, create_admin_if_needed,
@@ -1687,6 +1688,29 @@ def firms_unassigned():
     """Firmy bez przypisanego handlowca."""
     try:
         return {"firms": get_firms_without_reps()}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# ── rep bonus check ────────────────────────────────────────────────────────────
+
+@app.get("/reps/bonus-check")
+def rep_bonus_check(
+    rep_id:     int,
+    from_month: str,
+    months:     int = 12,
+):
+    """
+    Weryfikacja podstawy do premii handlowca.
+    from_month: YYYY-MM, months: długość okna (domyślnie 12).
+    """
+    import re
+    if not re.match(r"^\d{4}-\d{2}$", from_month):
+        raise HTTPException(400, "from_month musi być w formacie YYYY-MM")
+    if not 1 <= months <= 36:
+        raise HTTPException(400, "months musi być między 1 a 36")
+    try:
+        return get_rep_bonus_check(rep_id, from_month, months)
     except Exception as e:
         raise HTTPException(500, str(e))
 

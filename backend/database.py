@@ -2,6 +2,7 @@ import os
 import secrets
 from contextlib import contextmanager
 from typing import Optional
+from datetime import date as _date
 
 import psycopg2
 import psycopg2.extras
@@ -1128,3 +1129,176 @@ def get_merge_history() -> list:
          "merged_at": r[3], "devices_affected": r[4]}
         for r in rows
     ]
+
+
+# ── Rep bonus check ────────────────────────────────────────────────────────────
+
+def _ym_add(ym: str, n: int) -> str:
+    """Add n months to YYYY-MM string."""
+    y, m = int(ym[:4]), int(ym[5:7])
+    m += n
+    while m > 12:
+        m -= 12; y += 1
+    while m < 1:
+        m += 12; y -= 1
+    return f"{y:04d}-{m:02d}"
+
+
+def get_rep_bonus_check(rep_id: int, from_month: str, months: int = 12) -> dict:
+    """
+    Dla wybranego handlowca i okna miesięcy zwraca per-urządzenie:
+    - ile miesięcy było opłaconych
+    - ile zawieszonych
+    - ile przerw-z-wznowieniem (gap_resumed)
+    - ile nie opłaconych (unpaid)
+    - siatkę miesięcy ze statusem każdego
+    """
+    window = [_ym_add(from_month, i) for i in range(months)]
+    end_month = window[-1]
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            # Devices for this rep (via firm_reps)
+            cur.execute("""
+                SELECT DISTINCT d.sn, d.firma, d.maszyna, d.operator,
+                       COALESCE(NULLIF(d.device_type_override,''),
+                           CASE WHEN COALESCE(d.maszyna,'') ILIKE '%OEM%%' THEN 'oem' ELSE 'master' END
+                       ) AS device_type
+                FROM devices d
+                JOIN firm_reps fr ON d.firma = fr.firma
+                WHERE fr.rep_id = %s AND d.firma <> ''
+                ORDER BY d.firma, d.sn
+            """, (rep_id,))
+            raw_devices = cur.fetchall()
+
+            if not raw_devices:
+                return {"devices": [], "window": window, "summary": _bonus_summary([])}
+
+            sns = [r[0] for r in raw_devices]
+
+            # Payments in window
+            cur.execute("""
+                SELECT sn, year_month,
+                       COALESCE(SUM(amount),0) AS amount,
+                       MAX(customer) FILTER (WHERE customer <> '') AS customer,
+                       MAX(currency) FILTER (WHERE currency <> '') AS currency
+                FROM payments
+                WHERE sn = ANY(%s) AND year_month >= %s AND year_month <= %s
+                GROUP BY sn, year_month
+            """, (sns, from_month, end_month))
+            pay_in_window: dict = {}
+            customer_map: dict = {}
+            currency_map: dict = {}
+            for sn, ym, amt, cust, curr in cur.fetchall():
+                pay_in_window.setdefault(sn, {})[ym] = float(amt)
+                if cust: customer_map[sn] = cust
+                if curr: currency_map[sn] = curr
+
+            # ALL payment months per SN (to detect resumed gaps)
+            cur.execute(
+                "SELECT DISTINCT sn, year_month FROM payments WHERE sn = ANY(%s)",
+                (sns,)
+            )
+            all_pay: dict = {}
+            for sn, ym in cur.fetchall():
+                all_pay.setdefault(sn, set()).add(ym)
+
+            # Device-level suspensions overlapping window
+            cur.execute("""
+                SELECT sn, date_from, date_to FROM device_suspensions
+                WHERE sn = ANY(%s) AND date_from <= %s AND date_to >= %s
+            """, (sns, end_month, from_month))
+            dev_susp: dict = {}
+            for sn, df, dt in cur.fetchall():
+                dev_susp.setdefault(sn, []).append((df, dt))
+
+            # Firm-level suspensions overlapping window
+            firms = list({r[1] for r in raw_devices})
+            cur.execute("""
+                SELECT firma, date_from, date_to FROM firm_suspensions
+                WHERE firma = ANY(%s) AND date_from <= %s AND date_to >= %s
+            """, (firms, end_month, from_month))
+            firm_susp: dict = {}
+            for firma, df, dt in cur.fetchall():
+                firm_susp.setdefault(firma, []).append((df, dt))
+
+    devices_out = []
+    for sn, firma, maszyna, operator, dtype in raw_devices:
+        if dtype == 'oem':
+            continue  # OEM — not billable
+
+        detail = []
+        months_paid = months_suspended = months_gap_resumed = months_unpaid = 0
+        total_amount = 0.0
+        sn_all = all_pay.get(sn, set())
+
+        for ym in window:
+            # Check suspension
+            susp = any(df <= ym <= dt for df, dt in dev_susp.get(sn, []))
+            if not susp:
+                susp = any(df <= ym <= dt for df, dt in firm_susp.get(firma, []))
+
+            if susp:
+                detail.append({"month": ym, "status": "suspended", "amount": 0})
+                months_suspended += 1
+                continue
+
+            amt = pay_in_window.get(sn, {}).get(ym, 0)
+            if amt > 0:
+                detail.append({"month": ym, "status": "paid", "amount": amt})
+                months_paid += 1
+                total_amount += amt
+            else:
+                # Was this gap eventually resumed (any payment AFTER this month)?
+                resumed = any(m > ym for m in sn_all)
+                if resumed:
+                    detail.append({"month": ym, "status": "gap_resumed", "amount": 0})
+                    months_gap_resumed += 1
+                else:
+                    detail.append({"month": ym, "status": "unpaid", "amount": 0})
+                    months_unpaid += 1
+
+        billable = months - months_suspended
+        pct = round(months_paid / billable * 100) if billable > 0 else 0
+
+        devices_out.append({
+            "sn":              sn,
+            "firma":           firma,
+            "maszyna":         maszyna or "",
+            "operator":        operator or "",
+            "customer":        customer_map.get(sn, ""),
+            "currency":        currency_map.get(sn, "PLN"),
+            "months_in_window":   months,
+            "months_suspended":   months_suspended,
+            "months_billable":    billable,
+            "months_paid":        months_paid,
+            "months_gap_resumed": months_gap_resumed,
+            "months_unpaid":      months_unpaid,
+            "total_amount":       round(total_amount, 2),
+            "coverage_pct":       pct,
+            "monthly_detail":     detail,
+        })
+
+    # Sort: fully paid first, then by coverage desc, then firma
+    devices_out.sort(key=lambda x: (-x["coverage_pct"], x["firma"], x["sn"]))
+
+    return {"devices": devices_out, "window": window, "summary": _bonus_summary(devices_out)}
+
+
+def _bonus_summary(devices: list) -> dict:
+    if not devices:
+        return {"total": 0, "full": 0, "partial": 0, "no_pay": 0,
+                "total_amount": 0.0, "avg_coverage": 0}
+    full = sum(1 for d in devices if d["coverage_pct"] == 100)
+    no_pay = sum(1 for d in devices if d["months_paid"] == 0)
+    partial = len(devices) - full - no_pay
+    total_amount = sum(d["total_amount"] for d in devices)
+    avg = round(sum(d["coverage_pct"] for d in devices) / len(devices)) if devices else 0
+    return {
+        "total":        len(devices),
+        "full":         full,
+        "partial":      partial,
+        "no_pay":       no_pay,
+        "total_amount": round(total_amount, 2),
+        "avg_coverage": avg,
+    }

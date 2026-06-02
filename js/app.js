@@ -11,6 +11,7 @@ function switchTab(name) {
   if (name === 'firstpay') loadFirstPayTab();
   if (name === 'device')   { /* data loaded on demand via searchBySN() */ }
   if (name === 'revenue')  { loadRevenue(); loadSeasonality(); }
+  if (name === 'bonus')    { loadBonusTab(); }
   if (name === 'config')   { loadConfig(); loadLicenseFees(); }
 }
 

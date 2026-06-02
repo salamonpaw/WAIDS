@@ -6,6 +6,20 @@ wersjonowanie zgodne z [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.9.5] — 2026-06-02
+
+### Dodano
+- **Zakładka 👑 Premie** — weryfikacja podstawy do premii handlowców
+  - Wybierz handlowca + miesiąc startowy + okno (3/6/12/24 miesięcy) + próg %
+  - Per-urządzenie: opłacone/zawieszone/przerwa+wznowienie/nie opłacone z siatką miesięcy
+  - Kolorowe kwadraciki miesięcy: 🟢 opłacone / 🔵 zawieszone / 🟡 przerwa z wznowieniem / 🔴 nie opłacone
+  - Kolumna „Opłacone" np. `10/12 +1⏸ 1⚠` — pełna informacja do oceny premii
+  - KPI: ile urządzeń kwalifikuje, ile częściowych, ile bez wpłat, łączna kwota
+  - Filtr tekstowy + eksport XLSX
+  - Endpoint: `GET /reps/bonus-check?rep_id=&from_month=YYYY-MM&months=12`
+
+---
+
 ## [1.9.4] — 2026-06-02
 
 ### Dodano

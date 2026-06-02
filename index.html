@@ -67,6 +67,7 @@
   <button class="tab-btn"        onclick="switchTab('firstpay')">🆕 Nowe płatności</button>
   <button class="tab-btn"        onclick="switchTab('device')">🔍 Urządzenie</button>
   <button class="tab-btn"        onclick="switchTab('revenue')">💰 Wyliczenia</button>
+  <button class="tab-btn"        onclick="switchTab('bonus')">👑 Premie</button>
   <button class="tab-btn"        onclick="switchTab('config')">⚙ Konfiguracja</button>
 </div>
 
@@ -982,6 +983,97 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
 </div>
 </div>
 
+<!-- ══════════════════ PREMIE TAB ══════════════════ -->
+<div class="tab-panel" id="tab-bonus">
+<div class="container">
+
+  <div class="section-card" style="margin-bottom:1rem">
+    <div class="section-title">👑 Weryfikacja premii handlowców</div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:1rem;line-height:1.7">
+      Wybierz handlowca i okno czasowe. Zobaczysz per-urządzenie ile miesięcy zostało opłacone,
+      ile było zawieszonych i czy wystąpiły przerwy. Podstawa do ustalenia czy premia przysługuje.
+    </p>
+
+    <!-- Controls -->
+    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:1rem">
+      <div class="input-group" style="min-width:180px;margin:0">
+        <label style="font-size:11px;color:var(--text-muted)">Handlowiec</label>
+        <select id="bonusRep" style="height:34px;font-size:13px">
+          <option value="">— wybierz —</option>
+        </select>
+      </div>
+      <div class="input-group" style="margin:0">
+        <label style="font-size:11px;color:var(--text-muted)">Okno od</label>
+        <input type="month" id="bonusFrom" style="height:34px;font-size:13px">
+      </div>
+      <div class="input-group" style="width:110px;margin:0">
+        <label style="font-size:11px;color:var(--text-muted)">Liczba miesięcy</label>
+        <select id="bonusMonths" style="height:34px;font-size:13px">
+          <option value="3">3</option>
+          <option value="6">6</option>
+          <option value="12" selected>12</option>
+          <option value="24">24</option>
+        </select>
+      </div>
+      <div class="input-group" style="width:130px;margin:0">
+        <label style="font-size:11px;color:var(--text-muted)">Próg premii (%)</label>
+        <input type="number" id="bonusThreshold" value="100" min="1" max="100"
+               style="height:34px;font-size:13px" oninput="bonusThresholdChanged()">
+      </div>
+      <button class="primary" onclick="runBonusCheck()" style="height:34px;padding:0 20px;flex-shrink:0">
+        🔍 Sprawdź
+      </button>
+    </div>
+    <div class="msg" id="msgBonus"></div>
+  </div>
+
+  <!-- Results -->
+  <div id="bonusResult" style="display:none">
+
+    <!-- KPI summary -->
+    <div id="bonusSummary" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:1rem"></div>
+
+    <!-- Legend -->
+    <div style="display:flex;gap:16px;flex-wrap:wrap;font-size:11px;margin-bottom:.75rem">
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#1D9E75;vertical-align:middle"></span> Opłacone</span>
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#3B82F6;vertical-align:middle"></span> Zawieszone</span>
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#F59E0B;vertical-align:middle"></span> Przerwa — wznowiono</span>
+      <span><span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#E24B4A;vertical-align:middle"></span> Nie opłacone</span>
+    </div>
+
+    <!-- Search + export -->
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:.75rem;flex-wrap:wrap">
+      <input type="text" placeholder="Szukaj firmy, SN, klienta…"
+             oninput="bonusSearchChanged(this.value)"
+             style="height:32px;font-size:12px;padding:0 10px;border-radius:var(--radius-md);
+                    border:0.5px solid var(--border-med);background:var(--bg);color:var(--text);flex:1;min-width:200px">
+      <button onclick="exportBonusXLSX()" class="ghost"
+              style="height:32px;padding:0 14px;font-size:12px">⬇ Eksportuj XLSX</button>
+    </div>
+
+    <!-- Table -->
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:700px">
+        <thead>
+          <tr style="border-bottom:2px solid var(--border);background:var(--bg-secondary)">
+            <th style="padding:6px 10px;text-align:center;width:32px">✓</th>
+            <th style="padding:6px 10px;text-align:left">Firma</th>
+            <th style="padding:6px 10px;text-align:left">Klient</th>
+            <th style="padding:6px 10px;text-align:left">SN</th>
+            <th style="padding:6px 10px;text-align:left">Maszyna</th>
+            <th style="padding:6px 10px;text-align:center">Opłacone</th>
+            <th style="padding:6px 10px;text-align:right">Kwota</th>
+            <tr id="bonusMonthsHeader"></tr>
+          </tr>
+        </thead>
+        <tbody id="bonusTableBody"></tbody>
+      </table>
+    </div>
+
+  </div>
+</div>
+</div>
+
 <!-- ══════════════════ CONFIG TAB ══════════════════ -->
 <div class="tab-panel" id="tab-config">
 <div class="container">
@@ -1443,6 +1535,7 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <script src="js/firstpay.js"></script>
 <script src="js/device.js"></script>
 <script src="js/revenue.js"></script>
+<script src="js/bonus.js"></script>
 <script src="js/tooltip.js"></script>
 
 </body>
