@@ -3,13 +3,14 @@ from __future__ import annotations
 import io
 import os
 import re
+import openpyxl
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Annotated, List, Optional
 
 import pandas as pd
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
@@ -29,6 +30,12 @@ from database import (
     get_monthly_revenue,
     get_license_fees, upsert_license_fee, delete_license_fee,
     merge_firms, get_merge_history,
+    # suspensions
+    get_device_suspensions, add_device_suspension, delete_device_suspension,
+    get_firm_suspensions, add_firm_suspension, delete_firm_suspension,
+    get_active_suspensions, get_all_suspensions_map,
+    # firm-rep export/import
+    get_firms_with_reps, get_firms_without_reps, import_firm_reps,
     VALID_FIRM_TYPES, VALID_CYCLES,
     # auth
     get_or_create_secret_key, create_admin_if_needed,
@@ -812,13 +819,33 @@ def analyze(
 ):
     """Return joined result with optional filters. First call hits DB, subsequent calls use cache."""
     try:
-        rows = _get_cached_analysis()
+        cached_rows = _get_cached_analysis()
     except Exception as e:
         raise HTTPException(503, f"Błąd bazy danych: {e}")
 
+    # Overlay active suspensions (small DB query, not cached — time-sensitive)
+    try:
+        susp_map = get_all_suspensions_map()
+    except Exception:
+        susp_map = {"sns": {}, "firms": {}}
+
+    susp_sns   = susp_map["sns"]
+    susp_firms = susp_map["firms"]
+
+    rows = []
+    for r in cached_rows:
+        row = dict(r)
+        sn    = row.get("sn", "")
+        firma = row.get("firma", "")
+        is_suspended = sn in susp_sns or firma in susp_firms
+        row["is_suspended"] = is_suspended
+        rows.append(row)
+
     # Apply filters in Python on cached data (fast O(n) scan)
-    if status:
-        rows = [r for r in rows if r["status"] == status]
+    if status == "suspended":
+        rows = [r for r in rows if r["is_suspended"]]
+    elif status:
+        rows = [r for r in rows if r["status"] == status and not r["is_suspended"]]
     if customer:
         rows = [r for r in rows if r["customer"] == customer]
     if operator:
@@ -832,12 +859,13 @@ def analyze(
     if date_to:
         rows = [r for r in rows if not r["prod_date"] or r["prod_date"] <= date_to]
 
-    paid        = sum(1 for r in rows if r["status"] == "paid")
-    unpaid      = sum(1 for r in rows if r["status"] == "unpaid")
-    only        = sum(1 for r in rows if r["status"] == "only")
+    suspended   = sum(1 for r in rows if r["is_suspended"])
+    paid        = sum(1 for r in rows if r["status"] == "paid"   and not r["is_suspended"])
+    unpaid      = sum(1 for r in rows if r["status"] == "unpaid" and not r["is_suspended"])
+    only        = sum(1 for r in rows if r["status"] == "only"   and not r["is_suspended"])
     excluded    = sum(1 for r in rows if r["status"] == "excluded")
     oem         = sum(1 for r in rows if r["status"] == "oem")
-    master_paid = sum(1 for r in rows if r["status"] == "paid" and r["device_type"] == "master")
+    master_paid = sum(1 for r in rows if r["status"] == "paid" and r["device_type"] == "master" and not r["is_suspended"])
 
     return {
         "results": rows,
@@ -848,6 +876,7 @@ def analyze(
             "only":        only,
             "excluded":    excluded,
             "oem":         oem,
+            "suspended":   suspended,
             "noBill":      oem + excluded,
             "masterPaid":  master_paid,
             "pct":         round(master_paid / (master_paid + unpaid) * 100) if (master_paid + unpaid) > 0 else 0,
@@ -1508,6 +1537,156 @@ def firms_stats():
                 """)
                 rows = cur.fetchall()
         return {"firms": [{"firma": r[0], "devices": r[1]} for r in rows]}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# ── suspensions ───────────────────────────────────────────────────────────────
+
+class SuspensionIn(BaseModel):
+    date_from: str
+    date_to:   str
+    note:      str = ""
+
+
+@app.get("/suspensions/active")
+def suspensions_active():
+    try:
+        return get_active_suspensions()
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.get("/devices/{sn}/suspensions")
+def list_device_suspensions(sn: str):
+    try:
+        return {"suspensions": get_device_suspensions(sn)}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.post("/devices/{sn}/suspensions")
+def add_device_susp(sn: str, body: SuspensionIn):
+    if body.date_from > body.date_to:
+        raise HTTPException(400, "date_from nie może być późniejsza niż date_to")
+    try:
+        new_id = add_device_suspension(sn, body.date_from, body.date_to, body.note)
+        return {"ok": True, "id": new_id}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.delete("/suspensions/device/{susp_id}")
+def del_device_susp(susp_id: int):
+    try:
+        ok = delete_device_suspension(susp_id)
+        if not ok:
+            raise HTTPException(404, "Nie znaleziono zawieszenia")
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.get("/firms/{firma}/suspensions")
+def list_firm_suspensions(firma: str):
+    try:
+        return {"suspensions": get_firm_suspensions(firma)}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.post("/firms/{firma}/suspensions")
+def add_firm_susp(firma: str, body: SuspensionIn):
+    if body.date_from > body.date_to:
+        raise HTTPException(400, "date_from nie może być późniejsza niż date_to")
+    try:
+        new_id = add_firm_suspension(firma, body.date_from, body.date_to, body.note)
+        _invalidate_cache()
+        return {"ok": True, "id": new_id}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.delete("/suspensions/firm/{susp_id}")
+def del_firm_susp(susp_id: int):
+    try:
+        ok = delete_firm_suspension(susp_id)
+        if not ok:
+            raise HTTPException(404, "Nie znaleziono zawieszenia")
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# ── firm-rep export / import ───────────────────────────────────────────────────
+
+@app.get("/firms/reps/export")
+def export_firm_reps():
+    """Pobierz listę firm z handlowcami jako plik Excel."""
+    try:
+        rows = get_firms_with_reps()
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Firmy_Handlowcy"
+    ws.append(["firma", "handlowiec_1", "handlowiec_2"])
+    for r in rows:
+        ws.append([r["firma"], r["handlowiec_1"], r["handlowiec_2"]])
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    headers = {"Content-Disposition": 'attachment; filename="firmy_handlowcy.xlsx"'}
+    return Response(
+        content=buf.read(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers=headers,
+    )
+
+
+@app.post("/firms/reps/import")
+async def import_firm_reps_endpoint(file: UploadFile = File(...)):
+    """Importuj przypisania handlowców z pliku Excel (tryb nadpisz)."""
+    content = await file.read()
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+    except Exception:
+        raise HTTPException(400, "Nieprawidłowy plik Excel")
+    ws = wb.active
+    rows = []
+    headers_done = False
+    for row in ws.iter_rows(values_only=True):
+        if not headers_done:
+            headers_done = True
+            continue
+        if not row or not row[0]:
+            continue
+        rows.append({
+            "firma":        str(row[0]).strip() if row[0] else "",
+            "handlowiec_1": str(row[1]).strip() if len(row) > 1 and row[1] else "",
+            "handlowiec_2": str(row[2]).strip() if len(row) > 2 and row[2] else "",
+        })
+    if not rows:
+        raise HTTPException(400, "Plik nie zawiera danych")
+    try:
+        result = import_firm_reps(rows)
+        _invalidate_cache()
+        return {"ok": True, **result}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.get("/firms/unassigned")
+def firms_unassigned():
+    """Firmy bez przypisanego handlowca."""
+    try:
+        return {"firms": get_firms_without_reps()}
     except Exception as e:
         raise HTTPException(500, str(e))
 

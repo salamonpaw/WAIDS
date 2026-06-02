@@ -65,6 +65,7 @@ function openFirmConfigModal(firma) {
   document.getElementById('fcmCurrency').value = cfg.currency || 'PLN';
   const showLic = ['licencja', 'ids'].includes(cfg.firm_type || 'ids');
   document.getElementById('fcmLicFields').style.display = showLic ? '' : 'none';
+  loadFirmSuspensionsInModal(firma);
   document.getElementById('firmConfigModal').showModal();
 }
 
@@ -739,4 +740,105 @@ function renderFirmsList(filter) {
   <div style="margin-top:6px;font-size:11px;color:var(--text-muted)">
     Łącznie: ${rows.length} firm, ${rows.reduce((s,f)=>s+f.devices,0)} urządzeń
   </div>`;
+}
+
+// ── Firm-level suspensions (in firm config modal) ───────────────────────────
+async function loadFirmSuspensionsInModal(firma) {
+  const wrap = document.getElementById('fcmSuspWrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<span style="color:var(--text-muted);font-size:12px">⏳…</span>';
+  try {
+    const d = await (await fetch(`${API}/firms/${encodeURIComponent(firma)}/suspensions`)).json();
+    const items = d.suspensions || [];
+    if (!items.length) {
+      wrap.innerHTML = '<span style="color:var(--text-muted);font-size:12px">Brak zawieszonych okresów.</span>';
+      return;
+    }
+    wrap.innerHTML = items.map(s => `
+      <div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border-light)">
+        <span style="font-size:12px;font-family:monospace">${esc(s.date_from)} – ${esc(s.date_to)}</span>
+        ${s.note ? `<span style="font-size:11px;color:var(--text-muted)">${esc(s.note)}</span>` : ''}
+        <button onclick="deleteFirmSuspension(${s.id})"
+                style="margin-left:auto;background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px"
+                title="Usuń">✕</button>
+      </div>`).join('');
+  } catch(e) {
+    wrap.innerHTML = `<span style="color:var(--danger);font-size:12px">Błąd: ${e.message}</span>`;
+  }
+}
+
+async function addFirmSuspension() {
+  const modal = document.getElementById('firmConfigModal');
+  const firma = modal.dataset.firma;
+  const df  = document.getElementById('fcmSuspFrom').value;
+  const dt2 = document.getElementById('fcmSuspTo').value;
+  const note = document.getElementById('fcmSuspNote').value.trim();
+  if (!df || !dt2) { alert('Wybierz zakres miesięcy.'); return; }
+  if (df > dt2) { alert('Data od nie może być późniejsza niż data do.'); return; }
+  try {
+    const r = await fetch(`${API}/firms/${encodeURIComponent(firma)}/suspensions`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({date_from: df, date_to: dt2, note})
+    });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    document.getElementById('fcmSuspFrom').value = '';
+    document.getElementById('fcmSuspTo').value = '';
+    document.getElementById('fcmSuspNote').value = '';
+    loadFirmSuspensionsInModal(firma);
+  } catch(e) { alert('Błąd: ' + e.message); }
+}
+
+async function deleteFirmSuspension(id) {
+  if (!confirm('Usunąć ten okres zawieszenia?')) return;
+  try {
+    const r = await fetch(`${API}/suspensions/firm/${id}`, {method: 'DELETE'});
+    if (!r.ok) throw new Error((await r.json()).detail);
+    const firma = document.getElementById('firmConfigModal').dataset.firma;
+    loadFirmSuspensionsInModal(firma);
+  } catch(e) { alert('Błąd: ' + e.message); }
+}
+
+// ── Firm-rep export / import ─────────────────────────────────────────────────
+function exportFirmReps() {
+  window.location.href = `${API}/firms/reps/export`;
+}
+
+async function importFirmReps(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+  const fd = new FormData();
+  fd.append('file', file);
+  setMsg('msgFirmReps', '⏳ Importuję…', 'info');
+  try {
+    const r = await fetch(`${API}/firms/reps/import`, {method: 'POST', body: fd});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || r.statusText);
+    setMsg('msgFirmReps', `✅ Zaktualizowano ${d.updated} firm. Pominięto: ${d.skipped}.`, 'ok');
+    loadUnassignedFirms();
+    loadMergeFirmaLists();
+  } catch(e) {
+    setMsg('msgFirmReps', '❌ Błąd: ' + e.message, 'err');
+  }
+}
+
+async function loadUnassignedFirms() {
+  const wrap = document.getElementById('unassignedFirmsWrap');
+  if (!wrap) return;
+  try {
+    const d = await (await fetch(`${API}/firms/unassigned`)).json();
+    const firms = d.firms || [];
+    if (!firms.length) {
+      wrap.innerHTML = '<span style="color:var(--green)">✅ Wszystkie firmy mają przypisanego handlowca.</span>';
+      return;
+    }
+    wrap.innerHTML = `<span style="color:var(--amber);font-weight:600">${firms.length} firm bez handlowca:</span>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">
+        ${firms.map(f => `<span style="background:var(--amber-light);color:var(--amber);
+                                padding:2px 8px;border-radius:99px;font-size:11px">${esc(f)}</span>`).join('')}
+      </div>`;
+  } catch(e) {
+    wrap.innerHTML = `<span style="color:var(--danger)">Błąd: ${e.message}</span>`;
+  }
 }

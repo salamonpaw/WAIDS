@@ -73,7 +73,8 @@ function onFilterChange() {
                     .join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
     }
-    if (st  && r.status !== st)  return false;
+    if (st === 'suspended') { if (!r.is_suspended) return false; }
+    else if (st && r.status !== st) return false;
     if (dt  && r.device_type !== dt) return false;
     if (ft  && (r.firm_type || 'ids') !== ft) return false;
     if (rep && !r.handlowcy.includes(rep)) return false;
@@ -140,12 +141,13 @@ function makeClickHandler(mapRef, selectId, scrollToTable=true) {
 // ── Pie chart ──────────────────────────────────────────────────────────────
 function renderPie(data, s) {
   const entries = [
-    { label:'Opłacone',    status:'paid',     val:s.paid,     color:'#1D9E75' },
-    { label:'Brak opłaty', status:'unpaid',   val:s.unpaid,   color:'#E24B4A' },
-    { label:'Bez opłat',   status:'free',     val:s.free,     color:'#0e7490' },
-    { label:'Brak w prod.',status:'only',     val:s.only,     color:'#BA7517' },
-    { label:'OEM',         status:'oem',      val:s.oem,      color:'#9ca3af' },
-    { label:'Wykluczone',  status:'excluded', val:s.excluded, color:'#2563EB' },
+    { label:'Opłacone',    status:'paid',      val:s.paid,      color:'#1D9E75' },
+    { label:'Brak opłaty', status:'unpaid',    val:s.unpaid,    color:'#E24B4A' },
+    { label:'Zawieszone',  status:'suspended', val:s.suspended, color:'#3B82F6' },
+    { label:'Bez opłat',   status:'free',      val:s.free,      color:'#0e7490' },
+    { label:'Brak w prod.',status:'only',      val:s.only,      color:'#BA7517' },
+    { label:'OEM',         status:'oem',       val:s.oem,       color:'#9ca3af' },
+    { label:'Wykluczone',  status:'excluded',  val:s.excluded,  color:'#2563EB' },
   ].filter(e => e.val > 0);
   _pieMap = entries.map(e => e.status);
 
@@ -456,8 +458,8 @@ function renderTable(data) {
                  onclick="toggleRowSelect(event,'${esc(r.sn)}')"
                  style="width:14px;height:14px;cursor:pointer">
         </td>
-        <td>${statusBadge(r.status)}</td>
-        <td>${dtBadge(r.device_type, r.sn, r.type_override||'', r.showroom_until||'')}</td>
+        <td>${statusBadge(r.status, r.is_suspended)}</td>
+        <td>${dtBadge(r.device_type, r.sn, r.type_override||'', r.showroom_until||'', r.is_suspended)}</td>
         <td style="font-family:monospace;font-size:11px;white-space:nowrap">${esc(r.sn)}<button class="copy-sn" onclick="copySN('${esc(r.sn)}')" title="Kopiuj SN">⎘</button></td>
         <td>${esc(r.customer||'—')}</td>
         <td>${esc(r.firma||'—')}</td>
@@ -651,6 +653,7 @@ function openOverrideModal(sn) {
   pickerRow.style.display = cur === 'showroom' ? 'block' : 'none';
   document.getElementById('ovShowroomUntil').value = curUntil || '';
   document.getElementById('ovComment').value = r?.comment || '';
+  loadSuspensionsInModal(sn);
   document.getElementById('overrideModal').showModal();
 }
 
@@ -681,6 +684,75 @@ async function applyOverride(deviceType) {
       } else if (rec.status === 'oem' || rec.status === 'showroom') {
         rec.status = rec.total_months > 0 ? 'paid' : 'unpaid';
       }
+    }
+    onFilterChange();
+  } catch(e) { alert('Błąd: ' + e.message); }
+}
+
+// ── Suspension management (override modal) ─────────────────────────────────
+
+async function loadSuspensionsInModal(sn) {
+  const wrap = document.getElementById('ovSuspWrap');
+  if (!wrap) return;
+  wrap.innerHTML = '<span style="color:var(--text-muted);font-size:12px">⏳…</span>';
+  try {
+    const d = await (await fetch(`${API}/devices/${encodeURIComponent(sn)}/suspensions`)).json();
+    const items = d.suspensions || [];
+    if (!items.length) {
+      wrap.innerHTML = '<span style="color:var(--text-muted);font-size:12px">Brak zawieszonych okresów.</span>';
+      return;
+    }
+    wrap.innerHTML = items.map(s => `
+      <div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border-light)">
+        <span style="font-size:12px;font-family:monospace">${esc(s.date_from)} – ${esc(s.date_to)}</span>
+        ${s.note ? `<span style="font-size:11px;color:var(--text-muted)">${esc(s.note)}</span>` : ''}
+        <button onclick="deleteSuspension(${s.id},'device')"
+                style="margin-left:auto;background:none;border:none;color:var(--danger);cursor:pointer;font-size:14px"
+                title="Usuń">✕</button>
+      </div>`).join('');
+  } catch(e) {
+    wrap.innerHTML = `<span style="color:var(--danger);font-size:12px">Błąd: ${e.message}</span>`;
+  }
+}
+
+async function addSuspension() {
+  const df  = document.getElementById('ovSuspFrom').value;
+  const dt2 = document.getElementById('ovSuspTo').value;
+  const note = document.getElementById('ovSuspNote').value.trim();
+  if (!df || !dt2) { alert('Wybierz zakres miesięcy zawieszenia.'); return; }
+  if (df > dt2) { alert('Data od nie może być późniejsza niż data do.'); return; }
+  try {
+    const r = await fetch(`${API}/devices/${encodeURIComponent(_overrideSN)}/suspensions`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({date_from: df, date_to: dt2, note})
+    });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    document.getElementById('ovSuspFrom').value = '';
+    document.getElementById('ovSuspTo').value = '';
+    document.getElementById('ovSuspNote').value = '';
+    await loadSuspensionsInModal(_overrideSN);
+    // Update is_suspended flag in local results
+    const today = nowYM();
+    const rec = results.find(x => x.sn === _overrideSN);
+    if (rec && df <= today && today <= dt2) rec.is_suspended = true;
+    onFilterChange();
+  } catch(e) { alert('Błąd: ' + e.message); }
+}
+
+async function deleteSuspension(id, type) {
+  if (!confirm('Usunąć ten okres zawieszenia?')) return;
+  try {
+    const r = await fetch(`${API}/suspensions/${type}/${id}`, {method: 'DELETE'});
+    if (!r.ok) throw new Error((await r.json()).detail);
+    await loadSuspensionsInModal(_overrideSN);
+    // Refresh is_suspended in local data
+    const today = nowYM();
+    const rec = results.find(x => x.sn === _overrideSN);
+    if (rec) {
+      // Re-check from remaining suspensions
+      const d2 = await (await fetch(`${API}/devices/${encodeURIComponent(_overrideSN)}/suspensions`)).json();
+      rec.is_suspended = (d2.suspensions || []).some(s => s.date_from <= today && today <= s.date_to);
     }
     onFilterChange();
   } catch(e) { alert('Błąd: ' + e.message); }

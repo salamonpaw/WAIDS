@@ -43,11 +43,15 @@ const STATUS_LABELS = {
   paid:'Opłacone', unpaid:'Brak opłaty',
   only:'Brak w prod.', excluded:'Wykluczone',
   showroom:'Showroom', oem:'OEM',
-  licencja:'Licencja', inne:'Inne'
+  licencja:'Licencja', inne:'Inne',
+  suspended:'Zawieszone'
 };
 const DT_LABELS = { master:'Master', oem:'OEM', showroom:'Showroom' };
 
-function statusBadge(s) { return `<span class="badge ${s}">${STATUS_LABELS[s]||s}</span>`; }
+function statusBadge(s, isSuspended) {
+  if (isSuspended) return `<span class="badge suspended">⏸ Zawieszone</span>`;
+  return `<span class="badge ${s}">${STATUS_LABELS[s]||s}</span>`;
+}
 
 // ── Rep color chips ───────────────────────────────────────────────────────
 const REP_PALETTE = [
@@ -104,28 +108,32 @@ function renderRepLegend() {
 
 // ── Device type badge ─────────────────────────────────────────────────────
 // dt = computed type, override = raw override value ('' = auto), showroomUntil = YYYY-MM
-function dtBadge(dt, sn, override, showroomUntil='') {
+function dtBadge(dt, sn, override, showroomUntil='', isSuspended=false) {
   if (!dt) return '—';
+  const suspBadge = isSuspended
+    ? `<span class="dt-badge suspended" data-action="open-override" data-sn="${esc(sn)}" title="Zawieszenie opłat aktywne. Kliknij aby zarządzać.">⏸</span> `
+    : '';
   if (dt === 'showroom') {
     const expired = showroomUntil && showroomUntil < nowYM();
     const cls = 'dt-badge showroom override-set' + (expired ? ' expired' : '');
     const untilTxt = showroomUntil ? ` do ${showroomUntil}` : '';
     const expiredTxt = expired ? ' ⚠ wygasł!' : '';
     const tip = `title="Showroom${untilTxt}${expiredTxt}. Kliknij aby zmienić."`;
-    return `<span class="${cls}" data-action="open-override" data-sn="${esc(sn)}" ${tip}>🏪${untilTxt}${expiredTxt} ✏</span>`;
+    return suspBadge + `<span class="${cls}" data-action="open-override" data-sn="${esc(sn)}" ${tip}>🏪${untilTxt}${expiredTxt} ✏</span>`;
   }
   const cls  = override ? 'dt-badge ' + dt + ' override-set' : 'dt-badge ' + dt;
   const icon = override ? ' ✏' : ' ✎';
   const tip  = override
     ? `title="Ręcznie: ${DT_LABELS[override]||override}. Kliknij aby zmienić."`
     : `title="Auto-wykryty. Kliknij aby nadpisać."`;
-  return `<span class="${cls}" data-action="open-override" data-sn="${esc(sn)}" ${tip}>${DT_LABELS[dt]||dt}${icon}</span>`;
+  return suspBadge + `<span class="${cls}" data-action="open-override" data-sn="${esc(sn)}" ${tip}>${DT_LABELS[dt]||dt}${icon}</span>`;
 }
 
 // ── Summary computation ───────────────────────────────────────────────────
 function computeSummary(data) {
-  let paid=0, unpaid=0, only=0, excluded=0, oem=0, showroom=0, masterPaid=0;
+  let paid=0, unpaid=0, only=0, excluded=0, oem=0, showroom=0, masterPaid=0, suspended=0;
   for (const r of data) {
+    if (r.is_suspended) { suspended++; continue; }
     if      (r.status==='paid')     { paid++;     if (r.device_type==='master') masterPaid++; }
     else if (r.status==='unpaid')   unpaid++;
     else if (r.status==='only')     only++;
@@ -135,7 +143,7 @@ function computeSummary(data) {
   }
   const noBill = oem + excluded + showroom;
   const pct = (masterPaid+unpaid) > 0 ? Math.round(masterPaid/(masterPaid+unpaid)*100) : 0;
-  return { total:data.length, paid, unpaid, only, excluded, oem, showroom, noBill, masterPaid, pct };
+  return { total:data.length, paid, unpaid, only, excluded, oem, showroom, suspended, noBill, masterPaid, pct };
 }
 
 function updateKpis(s) {

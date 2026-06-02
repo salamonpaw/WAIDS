@@ -191,6 +191,38 @@ def init_db() -> None:
                 );
             """)
 
+            # Zawieszenia opłat — per urządzenie
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS device_suspensions (
+                    id          SERIAL PRIMARY KEY,
+                    sn          VARCHAR NOT NULL,
+                    date_from   VARCHAR NOT NULL,
+                    date_to     VARCHAR NOT NULL,
+                    note        VARCHAR NOT NULL DEFAULT '',
+                    created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_dev_susp_sn
+                ON device_suspensions(sn);
+            """)
+
+            # Zawieszenia opłat — per firma (wszystkie urządzenia firmy)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS firm_suspensions (
+                    id          SERIAL PRIMARY KEY,
+                    firma       VARCHAR NOT NULL,
+                    date_from   VARCHAR NOT NULL,
+                    date_to     VARCHAR NOT NULL,
+                    note        VARCHAR NOT NULL DEFAULT '',
+                    created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_firm_susp_firma
+                ON firm_suspensions(firma);
+            """)
+
             # Seed domyślnych handlowców (idempotentne)
             for name in DEFAULT_REPS:
                 cur.execute(
@@ -876,6 +908,207 @@ def merge_firms(source: str, target: str) -> dict:
             )
 
     return counts
+
+
+# ── Suspensions ───────────────────────────────────────────────────────────────
+
+def _susp_row(r) -> dict:
+    return {"id": r[0], "date_from": r[1], "date_to": r[2], "note": r[3],
+            "created_at": r[4].strftime("%Y-%m-%d %H:%M") if r[4] else ""}
+
+
+def get_device_suspensions(sn: str) -> list:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, date_from, date_to, note, created_at "
+                "FROM device_suspensions WHERE sn = %s ORDER BY date_from",
+                (sn,),
+            )
+            return [_susp_row(r) for r in cur.fetchall()]
+
+
+def add_device_suspension(sn: str, date_from: str, date_to: str, note: str) -> int:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO device_suspensions (sn, date_from, date_to, note) "
+                "VALUES (%s, %s, %s, %s) RETURNING id",
+                (sn, date_from, date_to, note),
+            )
+            return cur.fetchone()[0]
+
+
+def delete_device_suspension(susp_id: int) -> bool:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM device_suspensions WHERE id = %s", (susp_id,))
+            return cur.rowcount > 0
+
+
+def get_firm_suspensions(firma: str) -> list:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT id, date_from, date_to, note, created_at "
+                "FROM firm_suspensions WHERE firma = %s ORDER BY date_from",
+                (firma,),
+            )
+            return [_susp_row(r) for r in cur.fetchall()]
+
+
+def add_firm_suspension(firma: str, date_from: str, date_to: str, note: str) -> int:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO firm_suspensions (firma, date_from, date_to, note) "
+                "VALUES (%s, %s, %s, %s) RETURNING id",
+                (firma, date_from, date_to, note),
+            )
+            return cur.fetchone()[0]
+
+
+def delete_firm_suspension(susp_id: int) -> bool:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM firm_suspensions WHERE id = %s", (susp_id,))
+            return cur.rowcount > 0
+
+
+def get_active_suspensions() -> dict:
+    """Zwraca SN-y i firmy, które są zawieszone w bieżącym miesiącu."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            today = __import__('datetime').date.today().strftime("%Y-%m")
+            cur.execute(
+                "SELECT sn FROM device_suspensions "
+                "WHERE date_from <= %s AND date_to >= %s",
+                (today, today),
+            )
+            sns = {r[0] for r in cur.fetchall()}
+            cur.execute(
+                "SELECT firma FROM firm_suspensions "
+                "WHERE date_from <= %s AND date_to >= %s",
+                (today, today),
+            )
+            firms = {r[0] for r in cur.fetchall()}
+    return {"suspended_sns": list(sns), "suspended_firms": list(firms)}
+
+
+def get_all_suspensions_map() -> dict:
+    """
+    Zwraca pełną mapę zawieszeń: {sn: [periods]} i {firma: [periods]}
+    Używane przez endpoint /analyze do nakładania is_suspended.
+    """
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            today = __import__('datetime').date.today().strftime("%Y-%m")
+            cur.execute(
+                "SELECT sn, date_from, date_to FROM device_suspensions "
+                "WHERE date_from <= %s AND date_to >= %s",
+                (today, today),
+            )
+            sn_map = {}
+            for r in cur.fetchall():
+                sn_map.setdefault(r[0], []).append({"date_from": r[1], "date_to": r[2]})
+            cur.execute(
+                "SELECT firma, date_from, date_to FROM firm_suspensions "
+                "WHERE date_from <= %s AND date_to >= %s",
+                (today, today),
+            )
+            firm_map = {}
+            for r in cur.fetchall():
+                firm_map.setdefault(r[0], []).append({"date_from": r[1], "date_to": r[2]})
+    return {"sns": sn_map, "firms": firm_map}
+
+
+# ── Firm-rep export/import ─────────────────────────────────────────────────────
+
+def get_firms_with_reps() -> list:
+    """Zwraca listę firm z przypisanymi handlowcami (max 2)."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            # Distinct firms from devices
+            cur.execute(
+                "SELECT DISTINCT firma FROM devices WHERE firma <> '' ORDER BY firma"
+            )
+            all_firms = [r[0] for r in cur.fetchall()]
+            # Rep assignments
+            cur.execute("""
+                SELECT fr.firma, sr.name
+                FROM firm_reps fr
+                JOIN sales_reps sr ON fr.rep_id = sr.id
+                ORDER BY fr.firma, sr.name
+            """)
+            rep_map: dict = {}
+            for firma, name in cur.fetchall():
+                rep_map.setdefault(firma, []).append(name)
+    result = []
+    for firma in all_firms:
+        reps = rep_map.get(firma, [])
+        result.append({
+            "firma":       firma,
+            "handlowiec_1": reps[0] if len(reps) > 0 else "",
+            "handlowiec_2": reps[1] if len(reps) > 1 else "",
+        })
+    return result
+
+
+def get_firms_without_reps() -> list:
+    """Firmy z devices, które nie mają żadnego przypisanego handlowca."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT DISTINCT d.firma
+                FROM devices d
+                WHERE d.firma <> ''
+                  AND NOT EXISTS (
+                      SELECT 1 FROM firm_reps fr WHERE fr.firma = d.firma
+                  )
+                ORDER BY d.firma
+            """)
+            return [r[0] for r in cur.fetchall()]
+
+
+def import_firm_reps(rows: list) -> dict:
+    """
+    Nadpisz przypisania handlowców dla firm z listy.
+    rows = [{"firma": ..., "handlowiec_1": ..., "handlowiec_2": ...}]
+    Firmy nieobecne w liście — bez zmian.
+    """
+    updated = skipped = errors = 0
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            # Build rep name→id map
+            cur.execute("SELECT id, name FROM sales_reps")
+            rep_id_map = {name.strip().lower(): rid for rid, name in cur.fetchall()}
+
+            for row in rows:
+                firma = (row.get("firma") or "").strip()
+                if not firma:
+                    skipped += 1
+                    continue
+                rep_names = [
+                    (row.get("handlowiec_1") or "").strip(),
+                    (row.get("handlowiec_2") or "").strip(),
+                ]
+                rep_ids = []
+                for rn in rep_names:
+                    if rn:
+                        rid = rep_id_map.get(rn.lower())
+                        if rid:
+                            rep_ids.append(rid)
+                # Delete existing assignments for this firma
+                cur.execute("DELETE FROM firm_reps WHERE firma = %s", (firma,))
+                # Insert new ones
+                for rid in rep_ids:
+                    cur.execute(
+                        "INSERT INTO firm_reps (firma, rep_id) VALUES (%s, %s) "
+                        "ON CONFLICT DO NOTHING",
+                        (firma, rid),
+                    )
+                updated += 1
+    return {"updated": updated, "skipped": skipped}
 
 
 def get_merge_history() -> list:

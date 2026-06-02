@@ -6,6 +6,26 @@ wersjonowanie zgodne z [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.9.4] — 2026-06-02
+
+### Dodano
+- **Zawieszone opłaty** — nowy stan urządzenia/firmy: brak naliczania w określonym przedziale miesięcy
+  - Tabele `device_suspensions` + `firm_suspensions`: wiele niezależnych okresów per urządzenie / per firma
+  - Niebieski badge `⏸ Zawieszone` w raporcie; nie wlicza się do opłaconych/nieopłaconych
+  - Niebieski wskaźnik `⏸` w kolumnie Typ urządzenia
+  - Filtr `⏸ Zawieszone` w liście urządzeń
+  - Niebieski wycinek w pie chart (kategoria `Zawieszone`)
+  - Sekcja zarządzania zawieszeniami w modalu override (per urządzenie: zakres od–do + powód)
+  - Sekcja zawieszenia firmy w modalu konfiguracji firmy (obejmuje wszystkie urządzenia firmy)
+  - Endpoints: `GET/POST /devices/{sn}/suspensions`, `DELETE /suspensions/device/{id}`, `GET/POST /firms/{firma}/suspensions`, `DELETE /suspensions/firm/{id}`, `GET /suspensions/active`
+- **Export/Import handlowców** — sekcja w Konfiguracji
+  - `GET /firms/reps/export` → Excel: `firma`, `handlowiec_1`, `handlowiec_2` (maks. 2 per firma)
+  - `POST /firms/reps/import` → tryb nadpisz (dla firm z pliku)
+  - `GET /firms/unassigned` → firmy bez żadnego przypisanego handlowca
+  - Widok „Firmy bez handlowca" z odświeżaniem
+
+---
+
 ## [1.9.3] — 2026-06-01
 
 ### Dodano

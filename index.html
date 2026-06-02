@@ -267,6 +267,7 @@
         <option value="oem">OEM</option>
         <option value="licencja">Licencja</option>
         <option value="inne">Inne</option>
+        <option value="suspended">⏸ Zawieszone</option>
       </select>
       <select id="fFirmType" onchange="onFilterChange()" title="Filtruj po typie firmy (konfigurowanym w zakładce Konfiguracja)">
         <option value="">Wszystkie typy firm</option>
@@ -793,6 +794,35 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
       <span style="display:block;font-size:11px;color:var(--text-muted);margin-top:2px">Wykryj automatycznie na podstawie nazwy maszyny</span>
     </button>
   </div>
+  <!-- Suspension section -->
+  <div style="padding:0 1.5rem .75rem;border-top:1px solid var(--border-light);margin-top:.5rem;padding-top:.75rem">
+    <div style="font-size:12px;font-weight:600;color:#3B82F6;margin-bottom:.5rem">⏸ Zawieszenie opłat</div>
+    <p style="font-size:11px;color:var(--text-muted);margin:0 0 .5rem">
+      Dodaj okresy, w których urządzenie nie podlega naliczaniu opłat (np. darmowy IDS, umowa gwarancyjna).
+      Zawieszenie nie jest wliczane do statystyk, ale widoczne w zestawieniach (niebieski).
+    </p>
+    <!-- Existing periods -->
+    <div id="ovSuspWrap" style="margin-bottom:.5rem"></div>
+    <!-- Add new period -->
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <input type="month" id="ovSuspFrom" placeholder="Od"
+             style="font-size:12px;padding:4px 8px;border-radius:var(--radius-md);
+                    border:0.5px solid var(--border-med);background:var(--bg);color:var(--text);height:30px">
+      <span style="color:var(--text-muted);font-size:12px">–</span>
+      <input type="month" id="ovSuspTo" placeholder="Do"
+             style="font-size:12px;padding:4px 8px;border-radius:var(--radius-md);
+                    border:0.5px solid var(--border-med);background:var(--bg);color:var(--text);height:30px">
+      <input type="text" id="ovSuspNote" placeholder="Powód (opcjonalnie)"
+             style="font-size:12px;padding:4px 8px;border-radius:var(--radius-md);
+                    border:0.5px solid var(--border-med);background:var(--bg);color:var(--text);
+                    height:30px;flex:1;min-width:100px">
+      <button onclick="addSuspension()"
+              style="height:30px;padding:0 12px;border-radius:var(--radius-md);
+                     background:#3B82F6;color:#fff;border:none;cursor:pointer;font-size:12px;
+                     font-weight:600;white-space:nowrap">+ Dodaj</button>
+    </div>
+  </div>
+
   <div style="padding:0 1.5rem .75rem">
     <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px">
       💬 Komentarz (opcjonalny)
@@ -854,6 +884,27 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
           </select>
         </div>
       </div>
+    </div>
+  </div>
+  <!-- Firm-level suspensions -->
+  <div style="padding:.75rem 1.5rem;border-top:1px solid var(--border-light)">
+    <div style="font-size:12px;font-weight:600;color:#3B82F6;margin-bottom:.5rem">⏸ Zawieszenia opłat dla całej firmy</div>
+    <div id="fcmSuspWrap" style="margin-bottom:.5rem;min-height:20px"></div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <input type="month" id="fcmSuspFrom"
+             style="font-size:12px;padding:4px 8px;border-radius:var(--radius-md);
+                    border:0.5px solid var(--border-med);background:var(--bg);color:var(--text);height:30px">
+      <span style="color:var(--text-muted);font-size:12px">–</span>
+      <input type="month" id="fcmSuspTo"
+             style="font-size:12px;padding:4px 8px;border-radius:var(--radius-md);
+                    border:0.5px solid var(--border-med);background:var(--bg);color:var(--text);height:30px">
+      <input type="text" id="fcmSuspNote" placeholder="Powód"
+             style="font-size:12px;padding:4px 8px;border-radius:var(--radius-md);
+                    border:0.5px solid var(--border-med);background:var(--bg);color:var(--text);
+                    height:30px;flex:1;min-width:80px">
+      <button onclick="addFirmSuspension()"
+              style="height:30px;padding:0 12px;border-radius:var(--radius-md);
+                     background:#3B82F6;color:#fff;border:none;cursor:pointer;font-size:12px;font-weight:600">+ Dodaj</button>
     </div>
   </div>
   <div class="dialog-footer" style="gap:8px">
@@ -1134,6 +1185,36 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
     <div id="firmsListWrap" style="max-height:320px;overflow-y:auto">
       <span style="color:var(--text-muted);font-size:12px">⏳ Ładowanie…</span>
     </div>
+  </div>
+
+  <!-- ══ EXPORT/IMPORT HANDLOWCÓW ════════════════════════════════════════ -->
+  <div class="section-card" style="margin-top:1rem">
+    <div class="section-title">📋 Przypisania handlowców do firm</div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:.75rem;line-height:1.6">
+      Pobierz plik Excel z listą firm i przypisanymi handlowcami (maks. 2 per firma), uzupełnij i zaimportuj.
+      Import <strong>nadpisuje</strong> przypisania dla firm z pliku — pozostałe firmy bez zmian.
+    </p>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:.75rem">
+      <button onclick="exportFirmReps()" class="primary" style="height:34px;padding:0 16px">
+        ⬇ Pobierz Excel (firmy + handlowcy)
+      </button>
+      <label class="primary" style="height:34px;display:inline-flex;align-items:center;padding:0 16px;cursor:pointer;
+             border-radius:var(--radius-md);font-size:13px;font-weight:600">
+        ⬆ Importuj Excel
+        <input type="file" accept=".xlsx" onchange="importFirmReps(this)" style="display:none">
+      </label>
+    </div>
+    <!-- Unassigned firms -->
+    <div style="margin-top:.5rem">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:.4rem">
+        <span style="font-size:12px;font-weight:600;color:var(--text-muted)">Firmy bez handlowca</span>
+        <button onclick="loadUnassignedFirms()" class="ghost sm" style="font-size:11px;height:24px;padding:0 10px">Odśwież</button>
+      </div>
+      <div id="unassignedFirmsWrap" style="font-size:12px;color:var(--text-muted)">
+        Kliknij „Odśwież" aby załadować.
+      </div>
+    </div>
+    <div class="msg" id="msgFirmReps"></div>
   </div>
 
   <!-- ══ SCALANIE FIRM ════════════════════════════════════════════════════ -->
