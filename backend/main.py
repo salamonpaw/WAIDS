@@ -1841,7 +1841,7 @@ class BulkUpdateIn(BaseModel):
 
 
 @app.patch("/devices/bulk")
-def bulk_update_devices_endpoint(body: BulkUpdateIn, _=Depends(require_auth)):
+def bulk_update_devices_endpoint(body: BulkUpdateIn, _=Depends(require_admin)):
     """Grupowa edycja wielu urządzeń naraz (firma / operator / device_type_override)."""
     if not body.sns:
         raise HTTPException(400, "Brak listy SN")
