@@ -14,7 +14,8 @@ services:
 
   backend:
     build:
-      context: ./backend
+      context: .
+      dockerfile: backend/Dockerfile
     container_name: waids_backend
     environment:
       DATABASE_URL: ${DATABASE_URL}

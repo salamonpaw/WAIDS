@@ -36,7 +36,7 @@ from database import (
     get_active_suspensions, get_all_suspensions_map,
     # firm-rep export/import
     get_firms_with_reps, get_firms_without_reps, import_firm_reps,
-    get_rep_bonus_check,
+    get_rep_first_ids_check,
     VALID_FIRM_TYPES, VALID_CYCLES,
     # auth
     get_or_create_secret_key, create_admin_if_needed,
@@ -136,7 +136,7 @@ def get_version():
 @app.get("/changelog")
 def get_changelog():
     """Zwraca zawartość CHANGELOG.md."""
-    p = Path(__file__).parent.parent / "CHANGELOG.md"
+    p = Path(__file__).parent / "CHANGELOG.md"
     return {"content": p.read_text(encoding="utf-8") if p.exists() else "Brak CHANGELOG.md"}
 
 
@@ -1694,23 +1694,28 @@ def firms_unassigned():
 
 # ── rep bonus check ────────────────────────────────────────────────────────────
 
-@app.get("/reps/bonus-check")
-def rep_bonus_check(
-    rep_id:     int,
-    from_month: str,
-    months:     int = 12,
+@app.get("/reps/first-ids-check")
+def rep_first_ids_check(
+    rep_id:          int,
+    first_pay_from:  str,
+    first_pay_to:    str,
+    window_months:   int = 12,
 ):
     """
-    Weryfikacja podstawy do premii handlowca.
-    from_month: YYYY-MM, months: długość okna (domyślnie 12).
+    Pierwsze IDS — Handlowiec.
+    Urządzenia handlowca, których PIERWSZA płatność mieści się w przedziale
+    [first_pay_from, first_pay_to]. Okno: window_months od daty pierwszej płatności.
     """
     import re
-    if not re.match(r"^\d{4}-\d{2}$", from_month):
-        raise HTTPException(400, "from_month musi być w formacie YYYY-MM")
-    if not 1 <= months <= 36:
-        raise HTTPException(400, "months musi być między 1 a 36")
+    ym_re = r"^\d{4}-\d{2}$"
+    if not re.match(ym_re, first_pay_from) or not re.match(ym_re, first_pay_to):
+        raise HTTPException(400, "Daty muszą być w formacie YYYY-MM")
+    if first_pay_from > first_pay_to:
+        raise HTTPException(400, "first_pay_from nie może być późniejsza niż first_pay_to")
+    if not 1 <= window_months <= 36:
+        raise HTTPException(400, "window_months musi być między 1 a 36")
     try:
-        return get_rep_bonus_check(rep_id, from_month, months)
+        return get_rep_first_ids_check(rep_id, first_pay_from, first_pay_to, window_months)
     except Exception as e:
         raise HTTPException(500, str(e))
 
