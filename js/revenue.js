@@ -326,8 +326,8 @@ function renderRevTop() {
     data: {
       labels: top.map(c => c.customer.length > 32 ? c.customer.slice(0,30)+'…' : c.customer),
       datasets: [
-        { label: 'PLN netto', data: top.map(c => c.netto),  backgroundColor: REV_COLORS.pln + 'cc', borderRadius: 3 },
-        { label: 'EUR',       data: top.map(c => c.eur),    backgroundColor: REV_COLORS.eur + 'aa', borderRadius: 3, yAxisID: 'y2' },
+        { label: 'PLN netto', data: top.map(c => c.netto),  backgroundColor: REV_COLORS.pln + 'cc', borderRadius: 3, xAxisID: 'x' },
+        { label: 'EUR',       data: top.map(c => c.eur),    backgroundColor: REV_COLORS.eur + 'aa', borderRadius: 3, xAxisID: 'x2' },
       ],
     },
     options: {
@@ -348,8 +348,8 @@ function renderRevTop() {
       },
       scales: {
         x:  { beginAtZero: true, ticks: { callback: v => fmtNum(v), font: { size: 10 } } },
+        x2: { display: false, beginAtZero: true },
         y:  { ticks: { font: { size: 10 } } },
-        y2: { display: false },
       },
     },
   });

@@ -411,9 +411,19 @@
       <button class="ghost sm" onclick="bulkChangeType('stare')"  title="Oznacz jako Stare (archiwalne)">📦 Stare</button>
       <button class="ghost sm" onclick="bulkChangeType('')"       title="Resetuj do auto-wykrywania">🔄 Auto</button>
       <span style="color:var(--border-med)">|</span>
-      <button class="ghost sm" onclick="bulkChangeFirma()"    title="Zmień firmę produkcji dla zaznaczonych">🏢 Zmień firmę…</button>
-      <button class="ghost sm" onclick="bulkChangeOperator()" title="Zmień operatora dla zaznaczonych">👤 Zmień oper.…</button>
+      <button class="ghost sm" onclick="bulkShowInput('firma')"    title="Zmień firmę produkcji dla zaznaczonych">🏢 Zmień firmę…</button>
+      <button class="ghost sm" onclick="bulkShowInput('operator')" title="Zmień operatora dla zaznaczonych">👤 Zmień oper.…</button>
       <button class="ghost sm" style="margin-left:auto" onclick="clearSelection()">✕ Odznacz</button>
+      <!-- inline input row -->
+      <div id="bulkInputRow" style="display:none;width:100%;display:none;align-items:center;gap:8px;padding-top:6px;border-top:1px solid var(--border)">
+        <span id="bulkInputLabel" style="font-size:12px;color:var(--text-muted);white-space:nowrap"></span>
+        <input id="bulkInputVal" type="text" placeholder="Wpisz wartość…"
+               style="flex:1;height:30px;font-size:12px;padding:0 10px;border-radius:var(--radius-md);
+                      border:1px solid var(--border-med);background:var(--bg);color:var(--text)"
+               onkeydown="if(event.key==='Enter') bulkApplyInput(); if(event.key==='Escape') bulkHideInput()">
+        <button class="primary" style="height:30px;padding:0 14px;font-size:12px" onclick="bulkApplyInput()">✓ Zastosuj</button>
+        <button class="ghost sm"  onclick="bulkHideInput()">✕</button>
+      </div>
     </div>
 
     <div class="table-wrap" id="tableWrap">

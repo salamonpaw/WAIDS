@@ -541,39 +541,39 @@ async function bulkChangeType(dtype) {
   } catch(e) { alert('Błąd: ' + e.message); }
 }
 
-async function bulkChangeFirma() {
-  if (!selectedSNs.size) return;
-  const val = prompt(`Podaj nową nazwę firmy produkcji dla ${selectedSNs.size} zaznaczonych urządzeń:`);
-  if (val === null) return;
-  try {
-    const r = await fetch(`${API}/devices/bulk`, {
-      method: 'PATCH',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({sns: [...selectedSNs], firma: val.trim()}),
-    });
-    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
-    const d = await r.json();
-    clearSelection();
-    await loadReport();
-    alert(`Zaktualizowano firmę dla ${d.updated} urządzeń.`);
-  } catch(e) { alert('Błąd: ' + e.message); }
+let _bulkInputField = '';   // 'firma' | 'operator'
+
+function bulkShowInput(field) {
+  _bulkInputField = field;
+  const label = field === 'firma' ? '🏢 Nowa firma produkcji:' : '👤 Nowy operator:';
+  document.getElementById('bulkInputLabel').textContent = label;
+  document.getElementById('bulkInputVal').value = '';
+  const row = document.getElementById('bulkInputRow');
+  row.style.display = 'flex';
+  setTimeout(() => document.getElementById('bulkInputVal').focus(), 50);
 }
 
-async function bulkChangeOperator() {
-  if (!selectedSNs.size) return;
-  const val = prompt(`Podaj nowego operatora dla ${selectedSNs.size} zaznaczonych urządzeń:`);
-  if (val === null) return;
+function bulkHideInput() {
+  document.getElementById('bulkInputRow').style.display = 'none';
+  _bulkInputField = '';
+}
+
+async function bulkApplyInput() {
+  if (!_bulkInputField || !selectedSNs.size) return;
+  const val = document.getElementById('bulkInputVal').value.trim();
+  const body = { sns: [...selectedSNs] };
+  body[_bulkInputField] = val;
   try {
     const r = await fetch(`${API}/devices/bulk`, {
       method: 'PATCH',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({sns: [...selectedSNs], operator: val.trim()}),
+      body: JSON.stringify(body),
     });
     if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
     const d = await r.json();
+    bulkHideInput();
     clearSelection();
     await loadReport();
-    alert(`Zaktualizowano operatora dla ${d.updated} urządzeń.`);
   } catch(e) { alert('Błąd: ' + e.message); }
 }
 
