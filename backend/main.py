@@ -380,19 +380,11 @@ def read_upload(data: bytes, filename: str) -> pd.DataFrame:
             try:
                 df = pd.read_csv(
                     io.BytesIO(data), dtype=str, encoding=enc, sep=sep,
-                    on_bad_lines="skip",   # pandas ≥ 1.3; ignoruje wiersze z za dużą liczbą pól
+                    on_bad_lines="skip",
                 )
                 break
-            except (UnicodeDecodeError, TypeError):
-                # TypeError gdy starsza pandas nie zna on_bad_lines — fallback
-                try:
-                    df = pd.read_csv(
-                        io.BytesIO(data), dtype=str, encoding=enc, sep=sep,
-                        error_bad_lines=False,  # pandas < 1.3
-                    )
-                    break
-                except UnicodeDecodeError:
-                    continue
+            except UnicodeDecodeError:
+                continue
         else:
             raise ValueError("Nie można odczytać pliku CSV (spróbuj zapisać jako UTF-8).")
     elif name.endswith(".ods"):
