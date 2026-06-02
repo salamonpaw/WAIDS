@@ -35,16 +35,20 @@ function checkImportReady() {
 async function importProduction() {
   const files = document.getElementById('fileP').files;
   if (!files.length) return;
+  const mode = document.querySelector('input[name="modeP"]:checked')?.value || 'append';
   document.getElementById('btnProd').disabled = true;
   setMsg('msgProd', `⏳ Importuję ${files.length} plik(ów)…`);
   const form = new FormData();
   [...files].forEach(f => form.append('files', f));
+  form.append('mode', mode);
   try {
     const r = await fetch(`${API}/import/production`, { method:'POST', body:form });
     const d = await r.json();
     if (!r.ok) throw new Error(d.detail || r.statusText);
+    const skipNote = (d.skipped > 0)
+      ? ` · pominięto ${d.skipped} istniejących` : '';
     const warn = d.errors.length ? ` ⚠ ${d.errors.length} błędów: ${d.errors.join(' | ')}` : '';
-    setMsg('msgProd', `✓ Zaimportowano ${d.imported} urządzeń.${warn}`, d.errors.length?'':'ok');
+    setMsg('msgProd', `✓ Dodano ${d.imported} urządzeń${skipNote}.${warn}`, d.errors.length?'':'ok');
     refreshStatus();
   } catch(e) { setMsg('msgProd', '❌ '+e.message, 'err'); }
   finally    { checkImportReady(); }
@@ -54,20 +58,26 @@ async function importProduction() {
 async function importPayments() {
   const file = document.getElementById('filePay').files[0];
   if (!file) return;
+  const mode = document.querySelector('input[name="modePay"]:checked')?.value || 'append';
   document.getElementById('btnPay').disabled = true;
   setMsg('msgPay', '⏳ Importuję płatności…');
   const form = new FormData();
   form.append('file', file);
   const ym = document.getElementById('yearMonth').value;
   if (ym) form.append('year_month', ym);
+  form.append('mode', mode);
   try {
     const r = await fetch(`${API}/import/payments`, { method:'POST', body:form });
     const d = await r.json();
     if (!r.ok) throw new Error(d.detail || r.statusText);
-    const skipNote = d.skipped_unpaid > 0
-      ? ` · pominięto ${d.skipped_unpaid} nieopłaconych (brak daty spłaty)`
-      : (d.pay_date_col ? '' : ' · ⚠ brak kolumny daty spłaty — nie walidowano');
-    setMsg('msgPay', `✓ Zaimportowano ${d.inserted} rekordów (${d.format}). Miesiące: ${d.months.join(', ')}${skipNote}`, 'ok');
+    const skipExist  = d.skipped > 0
+      ? ` · pominięto ${d.skipped} istniejących` : '';
+    const skipUnpaid = d.skipped_unpaid > 0
+      ? ` · pominięto ${d.skipped_unpaid} nieopłaconych`
+      : (d.pay_date_col ? '' : ' · ⚠ brak kolumny daty spłaty');
+    setMsg('msgPay',
+      `✓ Dodano ${d.inserted} rekordów (${d.format}). Miesiące: ${d.months.join(', ')}${skipExist}${skipUnpaid}`,
+      'ok');
     refreshStatus();
   } catch(e) { setMsg('msgPay', '❌ '+e.message, 'err'); }
   finally    { checkImportReady(); }

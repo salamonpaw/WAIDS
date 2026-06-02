@@ -309,3 +309,33 @@
     .config-table td { padding: 7px 10px; border-bottom: 0.5px solid var(--border); vertical-align: middle; }
     .config-table tr:last-child td { border-bottom: none; }
     .config-table tr:hover td { background: var(--bg-secondary); }
+
+/* ── Import mode toggle ──────────────────────────────────────── */
+.import-mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: .75rem;
+  padding: .5rem .75rem;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+  border: 0.5px solid var(--border);
+}
+.import-mode-opt {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  padding: 5px 10px;
+  border-radius: var(--radius-md);
+  border: 0.5px solid transparent;
+  transition: border-color .15s, background .15s;
+  user-select: none;
+}
+.import-mode-opt:hover { background: var(--bg); border-color: var(--border-med); }
+.import-mode-opt input[type="radio"] { accent-color: var(--blue); margin: 0; }
+.import-mode-opt input[type="radio"]:checked + .imode-label { color: var(--blue); font-weight: 600; }
+.imode-label { font-size: 13px; white-space: nowrap; }
+.imode-desc  { font-size: 11px; color: var(--text-muted); }
+.imode-safe  { font-size: 10px; color: var(--green); margin-left: auto; white-space: nowrap; opacity: .8; }

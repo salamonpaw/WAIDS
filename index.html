@@ -103,6 +103,21 @@
       </button>
     </div>
 
+    <!-- Tryb importu urządzeń -->
+    <div class="import-mode-row">
+      <label class="import-mode-opt">
+        <input type="radio" name="modeP" value="append" checked>
+        <span class="imode-label">➕ Dopisz brakujące</span>
+        <span class="imode-desc">Dodaje tylko nowe SN — istniejące urządzenia nie są zmieniane</span>
+      </label>
+      <label class="import-mode-opt">
+        <input type="radio" name="modeP" value="overwrite">
+        <span class="imode-label">🔄 Nadpisz istniejące</span>
+        <span class="imode-desc">Aktualizuje firmę, model, operatora dla już istniejących SN</span>
+      </label>
+      <span class="imode-safe">🔒 Dane konfiguracyjne (handlowcy, przypisania, licencje, zawieszenia) nigdy nie są dotykane</span>
+    </div>
+
     <div class="upload-grid">
       <div>
         <label class="upload-zone" id="zoneP">
@@ -174,6 +189,21 @@
       </label>
       <input type="month" id="yearMonth" title="Format YYYY-MM np. 2026-01 — wymagany tylko gdy wgrywasz prostą listę SN bez kolumny daty">
     </div>
+    <!-- Tryb importu płatności -->
+    <div class="import-mode-row">
+      <label class="import-mode-opt">
+        <input type="radio" name="modePay" value="append" checked>
+        <span class="imode-label">➕ Dopisz brakujące</span>
+        <span class="imode-desc">Dodaje tylko nowe miesiące — już istniejące rekordy nie są zmieniane</span>
+      </label>
+      <label class="import-mode-opt">
+        <input type="radio" name="modePay" value="overwrite">
+        <span class="imode-label">🔄 Nadpisz istniejące</span>
+        <span class="imode-desc">Aktualizuje kwoty i klientów dla już istniejących wpisów (sn + miesiąc)</span>
+      </label>
+      <span class="imode-safe">🔒 Dane konfiguracyjne (handlowcy, przypisania, licencje, zawieszenia) nigdy nie są dotykane</span>
+    </div>
+
     <div class="btn-row">
       <button class="primary" id="btnPay" disabled onclick="importPayments()">⬆ Importuj płatności</button>
       <button class="danger" onclick="confirmClearPayments()">🗑 Wyczyść miesiąc…</button>

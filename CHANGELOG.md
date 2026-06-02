@@ -6,6 +6,17 @@ wersjonowanie zgodne z [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.9.6] — 2026-06-02
+
+### Dodano
+- **Tryb importu** — przełącznik przy obu formularzach importu (urządzenia + płatności):
+  - ➕ **Dopisz brakujące** *(domyślnie)* — `ON CONFLICT DO NOTHING`: dodaje tylko nowe rekordy, istniejące SN / pary (sn, miesiąc) są pomijane; w komunikacie widać ile pominięto
+  - 🔄 **Nadpisz istniejące** — `ON CONFLICT DO UPDATE`: aktualizuje pola istniejących rekordów (dotychczasowe zachowanie)
+  - 🔒 Dane konfiguracyjne (handlowcy, przypisania firm, licencje, zawieszenia, scalenia) są **nigdy** nie dotykane przez żaden tryb importu
+- Odpowiedź API wzbogacona o `skipped` (liczba pominiętych rekordów) i `mode` (użyty tryb)
+
+---
+
 ## [1.9.5] — 2026-06-02
 
 ### Dodano

@@ -414,12 +414,17 @@ def db_status():
 
 
 @app.post("/import/production")
-async def import_production(files: List[UploadFile] = File(...)):
+async def import_production(
+    files: List[UploadFile] = File(...),
+    mode:  Annotated[str, Form()] = "append",
+):
     """
     Import one or more production files (zestawienie produkcji).
-    Records are upserted — re-importing the same file is safe.
+    mode=append  (default) → INSERT … ON CONFLICT DO NOTHING (skip existing SNs)
+    mode=overwrite         → INSERT … ON CONFLICT DO UPDATE  (update existing SNs)
     """
-    total = 0
+    total   = 0
+    skipped = 0
     errors: List[str] = []
 
     for file in files:
@@ -513,29 +518,40 @@ async def import_production(files: List[UploadFile] = File(...)):
                 deduped = list({r[0]: r for r in records}.values())
                 with get_conn() as conn:
                     with conn.cursor() as cur:
-                        execute_values(cur, """
-                            INSERT INTO devices (sn, firma, maszyna, operator, prod_date)
-                            VALUES %s
-                            ON CONFLICT (sn) DO UPDATE SET
-                                firma      = EXCLUDED.firma,
-                                maszyna    = EXCLUDED.maszyna,
-                                operator   = EXCLUDED.operator,
-                                prod_date  = EXCLUDED.prod_date,
-                                updated_at = NOW()
-                        """, deduped)
-                total += len(deduped)
+                        if mode == "overwrite":
+                            execute_values(cur, """
+                                INSERT INTO devices (sn, firma, maszyna, operator, prod_date)
+                                VALUES %s
+                                ON CONFLICT (sn) DO UPDATE SET
+                                    firma      = EXCLUDED.firma,
+                                    maszyna    = EXCLUDED.maszyna,
+                                    operator   = EXCLUDED.operator,
+                                    prod_date  = EXCLUDED.prod_date,
+                                    updated_at = NOW()
+                            """, deduped)
+                            total += len(deduped)
+                        else:  # append — skip existing SNs
+                            rows = execute_values(cur, """
+                                INSERT INTO devices (sn, firma, maszyna, operator, prod_date)
+                                VALUES %s
+                                ON CONFLICT (sn) DO NOTHING
+                                RETURNING sn
+                            """, deduped, fetch=True)
+                            total   += len(rows)
+                            skipped += len(deduped) - len(rows)
 
         except Exception as e:
             errors.append(f"{file.filename}: {e}")
 
     _invalidate_cache()
-    return {"imported": total, "errors": errors}
+    return {"imported": total, "skipped": skipped, "mode": mode, "errors": errors}
 
 
 @app.post("/import/payments")
 async def import_payments(
-    file: UploadFile = File(...),
+    file:       UploadFile = File(...),
     year_month: Annotated[Optional[str], Form()] = None,
+    mode:       Annotated[str, Form()] = "append",
 ):
     """
     Obsługuje trzy formaty pliku płatności:
@@ -728,24 +744,37 @@ async def import_payments(
             )
     deduped_list = list(deduped_pay.values())
 
+    pay_inserted = 0
+    pay_skipped  = 0
     try:
         with get_conn() as conn:
             with conn.cursor() as cur:
-                execute_values(cur, """
-                    INSERT INTO payments (sn, year_month, customer, amount, currency, amount_netto, amount_brutto)
-                    VALUES %s
-                    ON CONFLICT (sn, year_month) DO UPDATE SET
-                        customer      = CASE WHEN EXCLUDED.customer <> '' THEN EXCLUDED.customer
-                                             ELSE payments.customer END,
-                        amount        = CASE WHEN EXCLUDED.amount   > 0   THEN EXCLUDED.amount
-                                             ELSE payments.amount   END,
-                        currency      = CASE WHEN EXCLUDED.currency <> '' THEN EXCLUDED.currency
-                                             ELSE payments.currency END,
-                        amount_netto  = CASE WHEN EXCLUDED.amount_netto  > 0 THEN EXCLUDED.amount_netto
-                                             ELSE payments.amount_netto  END,
-                        amount_brutto = CASE WHEN EXCLUDED.amount_brutto > 0 THEN EXCLUDED.amount_brutto
-                                             ELSE payments.amount_brutto END
-                """, deduped_list)
+                if mode == "overwrite":
+                    execute_values(cur, """
+                        INSERT INTO payments (sn, year_month, customer, amount, currency, amount_netto, amount_brutto)
+                        VALUES %s
+                        ON CONFLICT (sn, year_month) DO UPDATE SET
+                            customer      = CASE WHEN EXCLUDED.customer <> '' THEN EXCLUDED.customer
+                                                 ELSE payments.customer END,
+                            amount        = CASE WHEN EXCLUDED.amount   > 0   THEN EXCLUDED.amount
+                                                 ELSE payments.amount   END,
+                            currency      = CASE WHEN EXCLUDED.currency <> '' THEN EXCLUDED.currency
+                                                 ELSE payments.currency END,
+                            amount_netto  = CASE WHEN EXCLUDED.amount_netto  > 0 THEN EXCLUDED.amount_netto
+                                                 ELSE payments.amount_netto  END,
+                            amount_brutto = CASE WHEN EXCLUDED.amount_brutto > 0 THEN EXCLUDED.amount_brutto
+                                                 ELSE payments.amount_brutto END
+                    """, deduped_list)
+                    pay_inserted = len(deduped_list)
+                else:  # append — skip existing (sn, year_month) pairs
+                    rows = execute_values(cur, """
+                        INSERT INTO payments (sn, year_month, customer, amount, currency, amount_netto, amount_brutto)
+                        VALUES %s
+                        ON CONFLICT (sn, year_month) DO NOTHING
+                        RETURNING sn
+                    """, deduped_list, fetch=True)
+                    pay_inserted = len(rows)
+                    pay_skipped  = len(deduped_list) - len(rows)
     except Exception as e:
         raise HTTPException(500, f"Błąd zapisu do bazy: {e}")
 
@@ -755,7 +784,9 @@ async def import_payments(
     skipped_unpaid_count = skipped_unpaid if invoice_date_col else 0
     _invalidate_cache()
     return {
-        "inserted":          len(deduped_list),
+        "inserted":          pay_inserted,
+        "skipped":           pay_skipped,
+        "mode":              mode,
         "months":            months,
         "format":            fmt,
         "duplicates_merged": len(records) - len(deduped_list),
