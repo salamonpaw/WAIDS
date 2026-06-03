@@ -41,7 +41,7 @@ from database import (
     # auth
     get_or_create_secret_key, create_admin_if_needed,
     verify_user, get_user_by_id,
-    list_users, create_user_db, set_user_status, reset_user_password,
+    list_users, create_user_db, set_user_status, reset_user_password, set_user_can_edit,
     # import sessions
     create_import_session, get_import_sessions, undo_import_session,
     # bulk device update
@@ -85,6 +85,13 @@ def get_auth_user(request: Request) -> dict:
 def require_admin(user: dict = Depends(get_auth_user)) -> dict:
     if not user.get("is_admin"):
         raise HTTPException(403, "Wymagane uprawnienia administratora")
+    return user
+
+
+def require_edit(user: dict = Depends(get_auth_user)) -> dict:
+    """Admin lub użytkownik z uprawnieniem can_edit_devices."""
+    if not (user.get("is_admin") or user.get("can_edit_devices")):
+        raise HTTPException(403, "Brak uprawnienia do edycji urządzeń")
     return user
 
 
@@ -157,10 +164,11 @@ def login(body: LoginIn):
     if not user:
         raise HTTPException(401, "Nieprawidłowy email lub hasło")
     return {
-        "token":    _make_token(user["id"]),
-        "name":     user["name"],
-        "email":    user["email"],
-        "is_admin": user["is_admin"],
+        "token":            _make_token(user["id"]),
+        "name":             user["name"],
+        "email":            user["email"],
+        "is_admin":         user["is_admin"],
+        "can_edit_devices": user.get("can_edit_devices", False),
     }
 
 
@@ -212,6 +220,16 @@ def admin_set_password(uid: int, body: SetPasswordIn, _: dict = Depends(require_
 @app.post("/admin/users/{uid}/set-active")
 def admin_set_active(uid: int, body: SetActiveIn, _: dict = Depends(require_admin)):
     set_user_status(uid, body.active)
+    return {"ok": True}
+
+
+class SetPermissionsIn(BaseModel):
+    can_edit_devices: bool = False
+
+
+@app.patch("/admin/users/{uid}/permissions")
+def admin_set_permissions(uid: int, body: SetPermissionsIn, _: dict = Depends(require_admin)):
+    set_user_can_edit(uid, body.can_edit_devices)
     return {"ok": True}
 
 
@@ -1040,8 +1058,8 @@ class DeviceTypeIn(BaseModel):
 
 
 @app.patch("/devices/{sn}/type")
-def override_device_type(sn: str, body: DeviceTypeIn):
-    if body.device_type not in ("", "master", "oem", "showroom"):
+def override_device_type(sn: str, body: DeviceTypeIn, _: dict = Depends(require_edit)):
+    if body.device_type not in ("", "master", "oem", "showroom", "stare"):
         raise HTTPException(400, "device_type must be 'master', 'oem', 'showroom', or '' (reset)")
     if body.device_type == "showroom" and not body.showroom_until:
         raise HTTPException(400, "showroom_until (YYYY-MM) is required for showroom type")
@@ -1075,7 +1093,7 @@ class BulkTypeIn(BaseModel):
 
 
 @app.post("/devices/bulk-type")
-def bulk_override_type(body: BulkTypeIn):
+def bulk_override_type(body: BulkTypeIn, _: dict = Depends(require_edit)):
     """Change device_type_override for multiple SNs at once."""
     if body.device_type not in ("", "master", "oem"):
         raise HTTPException(400, "Bulk type must be 'master', 'oem', or '' (reset)")
@@ -1833,7 +1851,7 @@ class BulkUpdateIn(BaseModel):
 
 
 @app.patch("/devices/bulk")
-def bulk_update_devices_endpoint(body: BulkUpdateIn, _=Depends(require_admin)):
+def bulk_update_devices_endpoint(body: BulkUpdateIn, _=Depends(require_edit)):
     """Grupowa edycja wielu urządzeń naraz (firma / operator / device_type_override)."""
     if not body.sns:
         raise HTTPException(400, "Brak listy SN")

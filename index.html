@@ -406,13 +406,13 @@
     <div id="bulkBar">
       <span><span id="bulkCount" style="font-weight:600"></span> zaznaczonych</span>
       <span style="color:var(--text-muted);font-size:11px">Zmień typ:</span>
-      <button class="ghost sm" onclick="bulkChangeType('master')" title="Ustaw typ Master dla zaznaczonych">🔵 Master</button>
-      <button class="ghost sm" onclick="bulkChangeType('oem')"    title="Ustaw typ OEM">⚪ OEM</button>
-      <button class="ghost sm" onclick="bulkChangeType('stare')"  title="Oznacz jako Stare (archiwalne)">📦 Stare</button>
-      <button class="ghost sm" onclick="bulkChangeType('')"       title="Resetuj do auto-wykrywania">🔄 Auto</button>
-      <span style="color:var(--border-med)">|</span>
-      <button class="ghost sm" onclick="bulkShowInput('firma')"    title="Zmień firmę produkcji dla zaznaczonych">🏢 Zmień firmę…</button>
-      <button class="ghost sm" onclick="bulkShowInput('operator')" title="Zmień operatora dla zaznaczonych">👤 Zmień oper.…</button>
+      <button id="bulkBtnMaster" class="ghost sm" onclick="bulkChangeType('master')" title="Ustaw typ Master dla zaznaczonych">🔵 Master</button>
+      <button id="bulkBtnOem"    class="ghost sm" onclick="bulkChangeType('oem')"    title="Ustaw typ OEM">⚪ OEM</button>
+      <button id="bulkBtnStare"  class="ghost sm" onclick="bulkChangeType('stare')"  title="Oznacz jako Stare (archiwalne)">📦 Stare</button>
+      <button id="bulkBtnAuto"   class="ghost sm" onclick="bulkChangeType('')"       title="Resetuj do auto-wykrywania">🔄 Auto</button>
+      <span id="bulkEditSep" style="color:var(--border-med)">|</span>
+      <button id="bulkBtnFirma" class="ghost sm" onclick="bulkShowInput('firma')"    title="Zmień firmę produkcji dla zaznaczonych">🏢 Zmień firmę…</button>
+      <button id="bulkBtnOper"  class="ghost sm" onclick="bulkShowInput('operator')" title="Zmień operatora dla zaznaczonych">👤 Zmień oper.…</button>
       <button class="ghost sm" style="margin-left:auto" onclick="clearSelection()">✕ Odznacz</button>
       <!-- inline input row -->
       <div id="bulkInputRow" style="display:none;width:100%;display:none;align-items:center;gap:8px;padding-top:6px;border-top:1px solid var(--border)">
@@ -1229,6 +1229,7 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
           <th>Email</th>
           <th>Nazwa</th>
           <th>Rola</th>
+          <th style="text-align:center" title="Uprawnienie do zmiany firmy, operatora i typu urządzenia">✏ Edycja urządzeń</th>
           <th>Status</th>
           <th>Akcje</th>
         </tr></thead>

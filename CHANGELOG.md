@@ -6,6 +6,24 @@ wersjonowanie zgodne z [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.9.8] — 2026-06-03
+
+### Naprawiono
+- **Kopiowanie SN do schowka** — fallback działa teraz na HTTP (brak HTTPS); `navigator.clipboard` sprawdzany przed użyciem, fallback przez `execCommand` z poprawnym stylem elementu tymczasowego
+- **Badge „Zawieszone"** — po dodaniu/usunięciu zawieszenia następuje cichy refresh danych z API (bez resetowania filtrów/paginacji), badge zawsze aktualny
+- **Wyszukiwarka** — normalizacja numerów seryjnych: szukanie „1028732" lub „001028732" znajdzie „SN001028732" (cyfry bez prefiksu i wiodących zer są porównywane niezależnie)
+
+### Dodano
+- **Uprawnienie: Edycja urządzeń** (`can_edit_devices`) — nowe uprawnienie niezależne od roli Admina
+  - Admin → zawsze może edytować
+  - Zwykły użytkownik → może edytować tylko gdy przyznano uprawnienie
+  - Zarządzanie w Konfiguracja → Użytkownicy → przycisk „✏ Nadaj edycję" / „✏ Odbierz edycję"
+  - Chronione: zmiana typu (`PATCH /devices/{sn}/type`), bulk typ (`/devices/bulk-type`), bulk edycja (`PATCH /devices/bulk`)
+  - W raporcie: przyciski zmiany typu i firmy/operatora w pasku bulk widoczne tylko gdy uprawnienie aktywne
+  - Kolumna DB: `users.can_edit_devices BOOLEAN DEFAULT FALSE`
+
+---
+
 ## [1.9.7] — 2026-06-02
 
 ### Dodano

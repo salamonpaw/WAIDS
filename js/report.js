@@ -10,6 +10,17 @@ let _barMap   = [];   // prod_date month values per bar
 let _firmConfigData = [];   // current firm config rows (for modal pre-fill)
 let _revenueData    = [];   // current monthly revenue rows (for CSV export)
 
+// ── Silent background refresh (bez resetowania filtrów/stron) ─────────────
+async function _refreshReportData() {
+  try {
+    const r = await fetch(`${API}/analyze`);
+    if (!r.ok) return;
+    const data = await r.json();
+    results = data.results;
+    onFilterChange();
+  } catch(e) {}
+}
+
 // ── Load report ────────────────────────────────────────────────────────────
 async function loadReport() {
   setMsg('msgReport', '⏳ Ładuję z bazy…');
@@ -69,9 +80,15 @@ function onFilterChange() {
 
   filtered = results.filter(r => {
     if (q) {
-      const hay = [r.sn, r.firma, r.maszyna, r.customer, r.operator, r.handlowcy]
+      // Normalizacja SN: cyfry bez prefiksu i wiodących zer
+      // → "SN001028732" i "1028732" i "001028732" trafią na to samo
+      const snDigits = (r.sn || '').replace(/\D/g, '').replace(/^0+/, '');
+      const qDigits  = q.replace(/\D/g, '').replace(/^0+/, '');
+      const hay = [r.sn, snDigits, r.firma, r.maszyna, r.customer, r.operator, r.handlowcy]
                     .join(' ').toLowerCase();
-      if (!hay.includes(q)) return false;
+      const matchHay    = hay.includes(q);
+      const matchDigits = qDigits.length >= 3 && snDigits && snDigits.includes(qDigits);
+      if (!matchHay && !matchDigits) return false;
     }
     if (st === 'suspended') { if (!r.is_suspended) return false; }
     else if (st && r.status !== st) return false;
@@ -178,21 +195,31 @@ function renderPie(data, s) {
 
 // ── Copy SN to clipboard ───────────────────────────────────────────────────
 function copySN(sn) {
-  navigator.clipboard.writeText(sn).then(() => {
+  const flashBtn = () => {
     const btns = document.querySelectorAll('.copy-sn');
     for (const b of btns) {
-      if (b.closest('td,tr')?.textContent?.includes(sn)) {
+      if (b.dataset.sn === sn) {
         const orig = b.textContent;
         b.textContent = '✓'; b.style.color='var(--green)'; b.style.opacity='1';
-        setTimeout(()=>{ b.textContent=orig; b.style.color=''; b.style.opacity=''; },900);
+        setTimeout(()=>{ b.textContent=orig; b.style.color=''; b.style.opacity=''; }, 900);
         break;
       }
     }
-  }).catch(() => {
+  };
+  const fallback = () => {
     const el = document.createElement('textarea');
-    el.value = sn; document.body.appendChild(el); el.select();
-    document.execCommand('copy'); document.body.removeChild(el);
-  });
+    el.value = sn;
+    el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+    document.body.appendChild(el);
+    el.focus(); el.select();
+    try { document.execCommand('copy'); flashBtn(); } catch(e) {}
+    document.body.removeChild(el);
+  };
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    navigator.clipboard.writeText(sn).then(flashBtn).catch(fallback);
+  } else {
+    fallback();
+  }
 }
 
 // ── Global nav date range ──────────────────────────────────────────────────
@@ -461,7 +488,7 @@ function renderTable(data) {
         </td>
         <td>${statusBadge(r.status, r.is_suspended)}</td>
         <td>${dtBadge(r.device_type, r.sn, r.type_override||'', r.showroom_until||'', r.is_suspended)}</td>
-        <td style="font-family:monospace;font-size:11px;white-space:nowrap">${esc(r.sn)}<button class="copy-sn" onclick="copySN('${esc(r.sn)}')" title="Kopiuj SN">⎘</button></td>
+        <td style="font-family:monospace;font-size:11px;white-space:nowrap">${esc(r.sn)}<button class="copy-sn" data-sn="${esc(r.sn)}" onclick="copySN('${esc(r.sn)}')" title="Kopiuj SN">⎘</button></td>
         <td>${esc(r.customer||'—')}</td>
         <td>${esc(r.firma||'—')}</td>
         <td>${esc(r.maszyna||'—')}</td>
@@ -520,6 +547,17 @@ function updateBulkBar() {
   const cnt = selectedSNs.size;
   document.getElementById('bulkCount').textContent = cnt;
   bar.classList.toggle('active', cnt > 0);
+  // pokaż przyciski edycji tylko gdy użytkownik ma uprawnienia
+  const canEdit = currentUser?.is_admin || currentUser?.can_edit_devices;
+  ['bulkEditSep','bulkBtnFirma','bulkBtnOper'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = canEdit ? '' : 'none';
+  });
+  // ukryj przyciski zmiany typu tylko dla zalogowanych bez uprawnień
+  ['bulkBtnMaster','bulkBtnOem','bulkBtnStare','bulkBtnAuto'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = canEdit ? '' : 'none';
+  });
 }
 
 async function bulkChangeType(dtype) {
@@ -773,11 +811,8 @@ async function addSuspension() {
     document.getElementById('ovSuspTo').value = '';
     document.getElementById('ovSuspNote').value = '';
     await loadSuspensionsInModal(_overrideSN);
-    // Update is_suspended flag in local results
-    const today = nowYM();
-    const rec = results.find(x => x.sn === _overrideSN);
-    if (rec && df <= today && today <= dt2) rec.is_suspended = true;
-    onFilterChange();
+    // Odśwież dane raportu żeby badge był aktualny
+    await _refreshReportData();
   } catch(e) { alert('Błąd: ' + e.message); }
 }
 
@@ -787,15 +822,7 @@ async function deleteSuspension(id, type) {
     const r = await fetch(`${API}/suspensions/${type}/${id}`, {method: 'DELETE'});
     if (!r.ok) throw new Error((await r.json()).detail);
     await loadSuspensionsInModal(_overrideSN);
-    // Refresh is_suspended in local data
-    const today = nowYM();
-    const rec = results.find(x => x.sn === _overrideSN);
-    if (rec) {
-      // Re-check from remaining suspensions
-      const d2 = await (await fetch(`${API}/devices/${encodeURIComponent(_overrideSN)}/suspensions`)).json();
-      rec.is_suspended = (d2.suspensions || []).some(s => s.date_from <= today && today <= s.date_to);
-    }
-    onFilterChange();
+    await _refreshReportData();
   } catch(e) { alert('Błąd: ' + e.message); }
 }
 

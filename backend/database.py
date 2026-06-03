@@ -153,15 +153,21 @@ def init_db() -> None:
             # Użytkownicy systemu
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS users (
-                    id            SERIAL PRIMARY KEY,
-                    email         VARCHAR UNIQUE NOT NULL,
-                    name          VARCHAR NOT NULL DEFAULT '',
-                    password_hash VARCHAR NOT NULL,
-                    is_active     BOOLEAN NOT NULL DEFAULT TRUE,
-                    is_admin      BOOLEAN NOT NULL DEFAULT FALSE,
-                    created_at    TIMESTAMPTZ DEFAULT now(),
-                    last_login    TIMESTAMPTZ
+                    id               SERIAL PRIMARY KEY,
+                    email            VARCHAR UNIQUE NOT NULL,
+                    name             VARCHAR NOT NULL DEFAULT '',
+                    password_hash    VARCHAR NOT NULL,
+                    is_active        BOOLEAN NOT NULL DEFAULT TRUE,
+                    is_admin         BOOLEAN NOT NULL DEFAULT FALSE,
+                    can_edit_devices BOOLEAN NOT NULL DEFAULT FALSE,
+                    created_at       TIMESTAMPTZ DEFAULT now(),
+                    last_login       TIMESTAMPTZ
                 );
+            """)
+            # migracja: dodaj kolumnę jeśli tabela już istnieje bez niej
+            cur.execute("""
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS can_edit_devices BOOLEAN NOT NULL DEFAULT FALSE;
             """)
 
             # ── tabela opłat licencyjnych ──────────────────────────────
@@ -775,7 +781,7 @@ def list_users() -> list:
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
-                "SELECT id, email, name, is_active, is_admin, created_at, last_login"
+                "SELECT id, email, name, is_active, is_admin, can_edit_devices, created_at, last_login"
                 " FROM users ORDER BY id"
             )
             return [dict(r) for r in cur.fetchall()]
@@ -787,10 +793,19 @@ def create_user_db(email: str, name: str, password: str, is_admin: bool = False)
             cur.execute(
                 "INSERT INTO users (email, name, password_hash, is_admin)"
                 " VALUES (%s, %s, %s, %s)"
-                " RETURNING id, email, name, is_active, is_admin",
+                " RETURNING id, email, name, is_active, is_admin, can_edit_devices",
                 (email.strip().lower(), name, _hash_pwd(password), is_admin),
             )
             return dict(cur.fetchone())
+
+
+def set_user_can_edit(user_id: int, can_edit: bool) -> None:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET can_edit_devices = %s WHERE id = %s",
+                (can_edit, user_id),
+            )
 
 
 def set_user_status(user_id: int, active: bool) -> None:

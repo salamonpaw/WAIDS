@@ -369,18 +369,43 @@ async function loadAdminUsers() {
 function renderAdminUsers(users) {
   const tbody = document.getElementById('adminUsersList');
   if (!tbody) return;
-  tbody.innerHTML = users.map(u => `<tr>
-    <td style="font-size:12px">${esc(u.email)}</td>
-    <td style="font-size:12px">${esc(u.name)}</td>
-    <td>${u.is_admin ? '<span class="badge paid">Admin</span>' : '<span class="badge" style="background:var(--gray-light)">User</span>'}</td>
-    <td>${u.is_active ? '<span class="badge paid">Aktywny</span>' : '<span class="badge unpaid">Nieaktywny</span>'}</td>
-    <td>
-      <button class="ghost sm" onclick="adminToggleActive(${u.id},${!u.is_active})" title="${u.is_active?'Dezaktywuj':'Aktywuj'}">
-        ${u.is_active ? '🔒 Dezaktywuj' : '🔓 Aktywuj'}
-      </button>
-      <button class="ghost sm" onclick="adminResetPassword(${u.id})" title="Resetuj hasło">🔑 Hasło</button>
-    </td>
-  </tr>`).join('');
+  tbody.innerHTML = users.map(u => {
+    const editPerm = u.can_edit_devices || u.is_admin;
+    const editBadge = u.is_admin
+      ? '<span class="badge paid" style="font-size:10px">✓ (Admin)</span>'
+      : u.can_edit_devices
+        ? '<span class="badge paid" style="font-size:10px">✓ Tak</span>'
+        : '<span class="badge" style="background:var(--gray-light);font-size:10px">✗ Nie</span>';
+    return `<tr>
+      <td style="font-size:12px">${esc(u.email)}</td>
+      <td style="font-size:12px">${esc(u.name)}</td>
+      <td>${u.is_admin ? '<span class="badge paid">Admin</span>' : '<span class="badge" style="background:var(--gray-light)">User</span>'}</td>
+      <td style="text-align:center">${editBadge}</td>
+      <td>${u.is_active ? '<span class="badge paid">Aktywny</span>' : '<span class="badge unpaid">Nieaktywny</span>'}</td>
+      <td style="white-space:nowrap">
+        ${!u.is_admin ? `<button class="ghost sm" onclick="adminToggleEditPerm(${u.id},${!u.can_edit_devices})"
+          title="${u.can_edit_devices?'Odbierz uprawnienie edycji':'Nadaj uprawnienie edycji urządzeń'}">
+          ${u.can_edit_devices ? '✏ Odbierz edycję' : '✏ Nadaj edycję'}
+        </button>` : ''}
+        <button class="ghost sm" onclick="adminToggleActive(${u.id},${!u.is_active})" title="${u.is_active?'Dezaktywuj':'Aktywuj'}">
+          ${u.is_active ? '🔒 Dezaktywuj' : '🔓 Aktywuj'}
+        </button>
+        <button class="ghost sm" onclick="adminResetPassword(${u.id})" title="Resetuj hasło">🔑 Hasło</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function adminToggleEditPerm(uid, canEdit) {
+  try {
+    const r = await fetch(`${API}/admin/users/${uid}/permissions`, {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({can_edit_devices: canEdit})
+    });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    await loadAdminUsers();
+  } catch(e) { alert('Błąd: '+e.message); }
 }
 
 async function adminToggleActive(uid, active) {
