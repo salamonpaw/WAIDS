@@ -370,7 +370,7 @@
       </select>
       <select id="fRep"      onchange="onFilterChange()"><option value="">Wszyscy handlowcy</option></select>
       <select id="fCustomer" onchange="onFilterChange()"><option value="">Wszyscy klienci</option></select>
-      <select id="fOperator" onchange="onFilterChange()"><option value="">Wszyscy operatorzy</option></select>
+      <select id="fOperator" onchange="onFilterChange()"><option value="">Wszyscy BOK</option></select>
       <label style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text-muted);white-space:nowrap"
              title="Filtruj po dacie produkcji urządzenia">
         Prod. od:
@@ -411,8 +411,8 @@
       <button id="bulkBtnStare"  class="ghost sm" onclick="bulkChangeType('stare')"  title="Oznacz jako Stare (archiwalne)">📦 Stare</button>
       <button id="bulkBtnAuto"   class="ghost sm" onclick="bulkChangeType('')"       title="Resetuj do auto-wykrywania">🔄 Auto</button>
       <span id="bulkEditSep" style="color:var(--border-med)">|</span>
-      <button id="bulkBtnFirma" class="ghost sm" onclick="bulkShowInput('firma')"    title="Zmień firmę produkcji dla zaznaczonych">🏢 Zmień firmę…</button>
-      <button id="bulkBtnOper"  class="ghost sm" onclick="bulkShowInput('operator')" title="Zmień operatora dla zaznaczonych">👤 Zmień oper.…</button>
+      <button id="bulkBtnFirma" class="ghost sm" onclick="bulkShowInput('firma')"    title="Zmień operatora (firmę produkcji) dla zaznaczonych">🏢 Zmień operatora…</button>
+      <button id="bulkBtnOper"  class="ghost sm" onclick="bulkShowInput('operator')" title="Zmień BOK dla zaznaczonych">👤 Zmień BOK…</button>
       <button class="ghost sm" style="margin-left:auto" onclick="clearSelection()">✕ Odznacz</button>
       <!-- inline input row -->
       <div id="bulkInputRow" style="display:none;width:100%;display:none;align-items:center;gap:8px;padding-top:6px;border-top:1px solid var(--border)">
@@ -441,7 +441,7 @@
           <th title="Nazwa firmy z pliku produkcji — firma, u której zainstalowano urządzenie">Firma (produkcja)</th>
           <th title="Model urządzenia z pliku produkcji">Maszyna</th>
           <th title="Handlowcy przypisani do tej firmy — konfigurowane ręcznie w zakładce Konfiguracja">Handlowcy</th>
-          <th title="Operator urządzenia z pliku produkcji">Operator</th>
+          <th title="BOK — osoba kontaktowa / back-office z pliku produkcji">BOK</th>
           <th title="Data produkcji urządzenia z pliku produkcji (format YYYY-MM-DD)">Data prod.</th>
           <th title="Miesiąc pierwszej zarejestrowanej płatności abonamentu (format YYYY-MM)">Pierwsza opłata</th>
           <th title="Miesiąc ostatniej zarejestrowanej płatności abonamentu (format YYYY-MM)">Ostatnia opłata</th>

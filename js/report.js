@@ -583,7 +583,7 @@ let _bulkInputField = '';   // 'firma' | 'operator'
 
 function bulkShowInput(field) {
   _bulkInputField = field;
-  const label = field === 'firma' ? '🏢 Nowa firma produkcji:' : '👤 Nowy operator:';
+  const label = field === 'firma' ? '🏢 Nowy operator (firma prod.):' : '👤 Nowy BOK:';
   document.getElementById('bulkInputLabel').textContent = label;
   document.getElementById('bulkInputVal').value = '';
   const row = document.getElementById('bulkInputRow');
