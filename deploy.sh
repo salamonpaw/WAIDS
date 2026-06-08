@@ -23,6 +23,9 @@ systemctl stop waids 2>/dev/null || true
 fuser -k 8001/tcp 2>/dev/null || true
 sleep 1
 docker compose down --remove-orphans
+# Usuń starą sieć Docker (fix DNS resolution między kontenerami)
+docker network rm waids_waids_net 2>/dev/null || true
+docker network rm subscription-checker_waids_net 2>/dev/null || true
 docker compose up -d --build
 
 # 3. Poczekaj aż backend odpowie (max 60s)

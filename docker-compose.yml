@@ -11,6 +11,8 @@ services:
     volumes:
       - waids_pgdata:/var/lib/postgresql/data
     restart: unless-stopped
+    networks:
+      - waids_net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -31,6 +33,12 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      - waids_net
+
+networks:
+  waids_net:
+    driver: bridge
 
 volumes:
   waids_pgdata:
