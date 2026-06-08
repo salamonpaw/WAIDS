@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-  <link rel="stylesheet" href="css/main.css?v=2.0.0">
+  <link rel="stylesheet" href="css/main.css?v=2.0.1">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -426,17 +426,29 @@
         <button class="ghost sm" onclick="bulkHideInput()">✕</button>
       </div>
       <!-- inline suspension row -->
-      <div id="bulkSuspendRow" style="display:none;width:100%;align-items:center;gap:8px;padding-top:6px;border-top:1px solid var(--border)">
+      <div id="bulkSuspendRow" style="display:none;width:100%;align-items:center;gap:6px;padding-top:6px;border-top:1px solid var(--border);flex-wrap:wrap">
         <span style="font-size:12px;color:var(--text-muted);white-space:nowrap">⏸ Zawieś od:</span>
-        <input id="bulkSuspFrom" type="month"
-               style="height:30px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);
-                      border:1px solid var(--border-med);background:var(--bg);color:var(--text)">
+        <select id="bulkSuspFromM" style="height:30px;font-size:12px;padding:0 4px;border-radius:var(--radius-md);border:1px solid var(--border-med);background:var(--bg);color:var(--text)">
+          <option value="01">Styczeń</option><option value="02">Luty</option><option value="03">Marzec</option>
+          <option value="04">Kwiecień</option><option value="05">Maj</option><option value="06">Czerwiec</option>
+          <option value="07">Lipiec</option><option value="08">Sierpień</option><option value="09">Wrzesień</option>
+          <option value="10">Październik</option><option value="11">Listopad</option><option value="12">Grudzień</option>
+        </select>
+        <select id="bulkSuspFromY" style="height:30px;font-size:12px;padding:0 4px;border-radius:var(--radius-md);border:1px solid var(--border-med);background:var(--bg);color:var(--text)">
+          <option value="2024">2024</option><option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option><option value="2028">2028</option>
+        </select>
         <span style="font-size:12px;color:var(--text-muted);white-space:nowrap">do:</span>
-        <input id="bulkSuspTo" type="month"
-               style="height:30px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);
-                      border:1px solid var(--border-med);background:var(--bg);color:var(--text)">
+        <select id="bulkSuspToM" style="height:30px;font-size:12px;padding:0 4px;border-radius:var(--radius-md);border:1px solid var(--border-med);background:var(--bg);color:var(--text)">
+          <option value="01">Styczeń</option><option value="02">Luty</option><option value="03">Marzec</option>
+          <option value="04">Kwiecień</option><option value="05">Maj</option><option value="06">Czerwiec</option>
+          <option value="07">Lipiec</option><option value="08">Sierpień</option><option value="09">Wrzesień</option>
+          <option value="10">Październik</option><option value="11">Listopad</option><option value="12" selected>Grudzień</option>
+        </select>
+        <select id="bulkSuspToY" style="height:30px;font-size:12px;padding:0 4px;border-radius:var(--radius-md);border:1px solid var(--border-med);background:var(--bg);color:var(--text)">
+          <option value="2024">2024</option><option value="2025">2025</option><option value="2026" selected>2026</option><option value="2027">2027</option><option value="2028">2028</option>
+        </select>
         <input id="bulkSuspNote" type="text" placeholder="Notatka (opcjonalnie)"
-               style="flex:1;height:30px;font-size:12px;padding:0 10px;border-radius:var(--radius-md);
+               style="flex:1;min-width:120px;height:30px;font-size:12px;padding:0 10px;border-radius:var(--radius-md);
                       border:1px solid var(--border-med);background:var(--bg);color:var(--text)"
                onkeydown="if(event.key==='Enter') bulkApplySuspend(); if(event.key==='Escape') bulkHideSuspend()">
         <button class="primary" style="height:30px;padding:0 14px;font-size:12px" onclick="bulkApplySuspend()">✓ Zawieś</button>
@@ -1659,18 +1671,18 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.0.0"></script>
-<script src="js/auth.js?v=2.0.0"></script>
-<script src="js/app.js?v=2.0.0"></script>
-<script src="js/import.js?v=2.0.0"></script>
-<script src="js/report.js?v=2.0.0"></script>
-<script src="js/monitoring.js?v=2.0.0"></script>
-<script src="js/config.js?v=2.0.0"></script>
-<script src="js/firstpay.js?v=2.0.0"></script>
-<script src="js/device.js?v=2.0.0"></script>
-<script src="js/revenue.js?v=2.0.0"></script>
-<script src="js/bonus.js?v=2.0.0"></script>
-<script src="js/tooltip.js?v=2.0.0"></script>
+<script src="js/utils.js?v=2.0.1"></script>
+<script src="js/auth.js?v=2.0.1"></script>
+<script src="js/app.js?v=2.0.1"></script>
+<script src="js/import.js?v=2.0.1"></script>
+<script src="js/report.js?v=2.0.1"></script>
+<script src="js/monitoring.js?v=2.0.1"></script>
+<script src="js/config.js?v=2.0.1"></script>
+<script src="js/firstpay.js?v=2.0.1"></script>
+<script src="js/device.js?v=2.0.1"></script>
+<script src="js/revenue.js?v=2.0.1"></script>
+<script src="js/bonus.js?v=2.0.1"></script>
+<script src="js/tooltip.js?v=2.0.1"></script>
 
 </body>
 </html>

@@ -619,30 +619,44 @@ async function bulkApplyInput() {
 // ── Bulk suspension ──────────────────────────────────────────────────────────
 
 function bulkShowSuspend() {
-  bulkHideInput();   // zamknij wiersz tekstowy jeśli otwarty
+  bulkHideInput();
   const row = document.getElementById('bulkSuspendRow');
   row.style.display = 'flex';
-  setTimeout(() => document.getElementById('bulkSuspFrom').focus(), 50);
+  // Domyślnie: od = bieżący miesiąc, do = Grudzień bieżącego roku
+  const now = new Date();
+  const y   = String(now.getFullYear());
+  const m   = String(now.getMonth() + 1).padStart(2, '0');
+  const fM  = document.getElementById('bulkSuspFromM');
+  const fY  = document.getElementById('bulkSuspFromY');
+  const tY  = document.getElementById('bulkSuspToY');
+  if (fM) fM.value = m;
+  if (fY) fY.value = y;
+  if (tY) tY.value = y;
+  // "do" miesiąc zostaje Grudzień (selected w HTML)
+  setTimeout(() => document.getElementById('bulkSuspNote').focus(), 50);
 }
 
 function bulkHideSuspend() {
   const row = document.getElementById('bulkSuspendRow');
   if (!row) return;
   row.style.display = 'none';
-  document.getElementById('bulkSuspFrom').value  = '';
-  document.getElementById('bulkSuspTo').value    = '';
-  document.getElementById('bulkSuspNote').value  = '';
+  const note = document.getElementById('bulkSuspNote');
+  if (note) note.value = '';
 }
 
 async function bulkApplySuspend() {
-  const df   = document.getElementById('bulkSuspFrom').value;
-  const dt   = document.getElementById('bulkSuspTo').value;
-  const note = document.getElementById('bulkSuspNote').value.trim();
-  if (!df || !dt) { alert('Wybierz zakres miesięcy zawieszenia.'); return; }
-  if (df > dt)    { alert('Data od nie może być późniejsza niż data do.'); return; }
+  const fromM = document.getElementById('bulkSuspFromM').value;
+  const fromY = document.getElementById('bulkSuspFromY').value;
+  const toM   = document.getElementById('bulkSuspToM').value;
+  const toY   = document.getElementById('bulkSuspToY').value;
+  const df    = `${fromY}-${fromM}`;
+  const dt    = `${toY}-${toM}`;
+  const note  = document.getElementById('bulkSuspNote').value.trim();
+  if (df > dt) { alert('Data „od" nie może być późniejsza niż „do".'); return; }
   if (!selectedSNs.size) return;
-  const n = selectedSNs.size;
-  if (!confirm(`Zawiesić abonament od ${df} do ${dt} dla ${n} urządzeń?`)) return;
+  const MONTHS = ['','Sty','Lut','Mar','Kwi','Maj','Cze','Lip','Sie','Wrz','Paź','Lis','Gru'];
+  const label  = `${MONTHS[+fromM]} ${fromY} — ${MONTHS[+toM]} ${toY}`;
+  if (!confirm(`Zawiesić abonament (${label}) dla ${selectedSNs.size} urządzeń?`)) return;
   try {
     const r = await fetch(`${API}/devices/bulk-suspensions`, {
       method: 'POST',
@@ -654,7 +668,7 @@ async function bulkApplySuspend() {
     bulkHideSuspend();
     clearSelection();
     await _refreshReportData();
-    alert(`Zawieszono abonament dla ${d.suspended} urządzeń.`);
+    alert(`Zawieszono abonament dla ${d.suspended} urządzeń (${label}).`);
   } catch(e) { alert('Błąd: ' + e.message); }
 }
 

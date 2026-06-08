@@ -49,6 +49,12 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.0.1', date: '2026-06-08',
+    fixed: [
+      '<b>Picker zawieszenia</b> — dropdowny Miesiąc + Rok zamiast <code>type=month</code> (działa na HTTP bez HTTPS); domyślnie bieżący miesiąc → Grudzień bieżącego roku'
+    ]
+  },
+  {
     version: '2.0.0', date: '2026-06-08',
     changed: [
       '<b>Stabilna wersja produkcyjna</b> — Docker Compose z jawną siecią <code>waids_net</code> (fix DNS między kontenerami); <code>deploy.sh</code> jako jedyna komenda wdrożenia; automatyczny restart po restarcie VM'
