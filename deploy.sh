@@ -9,10 +9,11 @@ WEB_DIR="/var/www/waids"
 
 echo "=== WAIDS deploy: $(date '+%Y-%m-%d %H:%M:%S') ==="
 
-# 1. Pobierz najnowszy kod
+# 1. Pobierz najnowszy kod (jako oryginalny użytkownik, nie root)
 echo "[1/4] git pull..."
 cd "$APP_DIR"
-git pull
+REAL_USER="${SUDO_USER:-$USER}"
+sudo -u "$REAL_USER" git pull
 
 # 2. Przebuduj i uruchom kontenery
 echo "[2/4] Docker build + up..."
