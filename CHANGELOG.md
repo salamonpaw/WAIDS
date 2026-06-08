@@ -6,6 +6,13 @@ wersjonowanie zgodne z [Semantic Versioning](https://semver.org/lang/pl/).
 
 ---
 
+## [1.9.9] — 2026-06-08
+
+### Dodano
+- **Masowe zawieszenie abonamentu** — nowy przycisk „⏸ Zawieś…" w pasku bulk (widoczny dla użytkowników z uprawnieniem edycji); po kliknięciu otwiera wiersz z wyborem zakresu miesięcy (od/do) i opcjonalną notatką; jedno kliknięcie zawiesza abonament dla wszystkich zaznaczonych urządzeń
+
+---
+
 ## [1.9.8] — 2026-06-03
 
 ### Naprawiono

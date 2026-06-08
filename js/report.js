@@ -549,7 +549,7 @@ function updateBulkBar() {
   bar.classList.toggle('active', cnt > 0);
   // pokaż przyciski edycji tylko gdy użytkownik ma uprawnienia
   const canEdit = currentUser?.is_admin || currentUser?.can_edit_devices;
-  ['bulkEditSep','bulkBtnFirma','bulkBtnOper'].forEach(id => {
+  ['bulkEditSep','bulkBtnFirma','bulkBtnOper','bulkBtnSusp'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.style.display = canEdit ? '' : 'none';
   });
@@ -582,6 +582,7 @@ async function bulkChangeType(dtype) {
 let _bulkInputField = '';   // 'firma' | 'operator'
 
 function bulkShowInput(field) {
+  bulkHideSuspend();   // zamknij wiersz zawieszenia jeśli otwarty
   _bulkInputField = field;
   const label = field === 'firma' ? '🏢 Nowy operator (firma prod.):' : '👤 Nowy BOK:';
   document.getElementById('bulkInputLabel').textContent = label;
@@ -612,6 +613,48 @@ async function bulkApplyInput() {
     bulkHideInput();
     clearSelection();
     await loadReport();
+  } catch(e) { alert('Błąd: ' + e.message); }
+}
+
+// ── Bulk suspension ──────────────────────────────────────────────────────────
+
+function bulkShowSuspend() {
+  bulkHideInput();   // zamknij wiersz tekstowy jeśli otwarty
+  const row = document.getElementById('bulkSuspendRow');
+  row.style.display = 'flex';
+  setTimeout(() => document.getElementById('bulkSuspFrom').focus(), 50);
+}
+
+function bulkHideSuspend() {
+  const row = document.getElementById('bulkSuspendRow');
+  if (!row) return;
+  row.style.display = 'none';
+  document.getElementById('bulkSuspFrom').value  = '';
+  document.getElementById('bulkSuspTo').value    = '';
+  document.getElementById('bulkSuspNote').value  = '';
+}
+
+async function bulkApplySuspend() {
+  const df   = document.getElementById('bulkSuspFrom').value;
+  const dt   = document.getElementById('bulkSuspTo').value;
+  const note = document.getElementById('bulkSuspNote').value.trim();
+  if (!df || !dt) { alert('Wybierz zakres miesięcy zawieszenia.'); return; }
+  if (df > dt)    { alert('Data od nie może być późniejsza niż data do.'); return; }
+  if (!selectedSNs.size) return;
+  const n = selectedSNs.size;
+  if (!confirm(`Zawiesić abonament od ${df} do ${dt} dla ${n} urządzeń?`)) return;
+  try {
+    const r = await fetch(`${API}/devices/bulk-suspensions`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({sns: [...selectedSNs], date_from: df, date_to: dt, note}),
+    });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const d = await r.json();
+    bulkHideSuspend();
+    clearSelection();
+    await _refreshReportData();
+    alert(`Zawieszono abonament dla ${d.suspended} urządzeń.`);
   } catch(e) { alert('Błąd: ' + e.message); }
 }
 

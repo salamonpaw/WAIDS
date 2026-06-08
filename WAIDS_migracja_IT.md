@@ -1,171 +1,81 @@
-# WAIDS — Instrukcja migracji na adres wewnętrzny
+# WAIDS — zmiana adresu dostępu (notatka dev)
 
-**Aplikacja:** WAIDS (Weryfikator Abonamentów IDS)  
-**Serwer:** `192.168.20.244` (devenv-psalamon)  
-**Użytkownik systemu:** `psalamon`  
-**Obecny dostęp:** `http://192.168.20.244`  
-**Docelowy adres:** `http://<NOWY_ADRES>` ← uzupełnić przed wykonaniem
+**Serwer:** `devenv-psalamon` / `192.168.20.244`  
+**Obecny URL:** `http://192.168.20.244`  
+**Docelowy URL:** `http://waids.asdsystems.eu`
 
 ---
 
-## 1. Architektura aplikacji
+## Stack
 
 ```
-Przeglądarka
-     │  HTTP :80
-     ▼
-  nginx
-  ├── / → pliki statyczne z /var/www/waids/  (HTML + CSS + JS)
-  └── /api/* → proxy → localhost:8001  (FastAPI w Dockerze)
-                              │
-                         Docker Compose
-                         ├── waids_backend  (FastAPI + Python 3.13)
-                         └── waids_db       (PostgreSQL 16)
-                                  │
-                             /var/lib/docker/volumes/
-                             (dane bazy persystentne)
+nginx :80
+  /         → /var/www/waids/          (statyczny frontend)
+  /api/*    → proxy 127.0.0.1:8001     (FastAPI w Dockerze)
+
+Docker Compose (/home/psalamon/apps/WAIDS/):
+  waids_backend   FastAPI + Python 3.13
+  waids_db        PostgreSQL 16  (volume: waids_pgdata)
 ```
 
-**Pliki aplikacji na serwerze:**
-| Ścieżka | Zawartość |
-|---|---|
-| `/var/www/waids/` | Frontend (index.html, css/, js/) |
-| `/home/psalamon/apps/WAIDS/` | Kod backendu + docker-compose.yml |
-| `/etc/nginx/sites-enabled/waids` | Konfiguracja nginx |
-| `/var/lib/docker/volumes/waids_pgdata/` | Dane PostgreSQL |
+Frontend używa wyłącznie względnych ścieżek `/api/…` — żadne pliki JS/HTML nie wymagają zmian przy zmianie adresu.
 
 ---
 
-## 2. Co trzeba zmienić
+## Co trzeba zrobić
 
-Ponieważ frontend używa **względnych ścieżek** (`/api/...`), żadne pliki statyczne nie wymagają modyfikacji.
+### 1. DNS (dział IT)
 
-Jedyna zmiana: **nginx `server_name`** + ewentualnie wpis DNS.
-
----
-
-## 3. Kroki migracji
-
-### 3.1 Sprawdź aktualną konfigurację nginx
-
-```bash
-cat /etc/nginx/sites-enabled/waids
+Rekord A lub CNAME:
+```
+waids.asdsystems.eu → 192.168.20.244
 ```
 
-Powinno wyglądać mniej więcej tak:
+### 2. nginx `server_name` (dev / admin VM)
+
+Plik: `/etc/nginx/sites-enabled/waids`
 
 ```nginx
-server {
-    listen 80;
-    server_name 192.168.20.244;
-    root /var/www/waids;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    location /api/ {
-        proxy_pass         http://127.0.0.1:8001/;
-        proxy_set_header   Host $host;
-        proxy_set_header   X-Real-IP $remote_addr;
-        proxy_read_timeout 120s;
-    }
-}
-```
-
-### 3.2 Zmień `server_name`
-
-```bash
-sudo nano /etc/nginx/sites-enabled/waids
-```
-
-Zamień:
-```nginx
+# było:
 server_name 192.168.20.244;
-```
-Na:
-```nginx
-server_name <NOWY_ADRES> 192.168.20.244;
-```
 
-> ℹ️ Zostaw stary IP jako drugi człon — aplikacja będzie dostępna pod oboma adresami w czasie przejścia. Po weryfikacji możesz usunąć stary IP.
-
-### 3.3 Sprawdź i przeładuj nginx
+# zmienić na (oba, żeby stary IP działał w czasie przejścia):
+server_name waids.asdsystems.eu 192.168.20.244;
+```
 
 ```bash
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-### 3.4 Wpis DNS (jeśli nowy adres to hostname, nie IP)
-
-Na serwerze DNS / w pliku hosts na serwerze dodaj:
-
-```
-192.168.20.244   <NOWY_ADRES>
-```
-
-Lub przekaż administratorowi DNS że `<NOWY_ADRES>` ma wskazywać na `192.168.20.244`.
-
----
-
-## 4. Weryfikacja po migracji
-
-```bash
-# nginx odpowiada na nowym adresie
-curl -I http://<NOWY_ADRES>/
-# oczekiwane: HTTP/1.1 200 OK
-
-# API działa
-curl -s http://<NOWY_ADRES>/api/version
-# oczekiwane: {"version":"1.9.2"}
-
-# Pliki statyczne dostępne
-curl -I http://<NOWY_ADRES>/css/main.css
-curl -I http://<NOWY_ADRES>/js/app.js
-# oczekiwane: HTTP/1.1 200 OK, Content-Type: text/css / application/javascript
-```
-
-Otwórz w przeglądarce `http://<NOWY_ADRES>` — aplikacja powinna się zalogować normalnie.
-
----
-
-## 5. Rollback
-
-Jeśli coś nie działa — przywróć oryginalny `server_name`:
-
-```bash
-sudo nano /etc/nginx/sites-enabled/waids
-# przywróć: server_name 192.168.20.244;
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
 ---
 
-## 6. Dodatkowe informacje
+## Weryfikacja
 
-- **Backend nie wymaga zmian** — nasłuchuje wyłącznie na `127.0.0.1:8001` (nie jest wystawiony na zewnątrz)
-- **Baza danych** — PostgreSQL działa w Dockerze, dane w named volume (`waids_pgdata`), persystentne przez restarty
-- **JWT** — klucz sesji przechowywany w bazie, nie w plikach konfiguracyjnych
-- **Restart backendu** (gdyby był potrzebny):
-  ```bash
-  cd /home/psalamon/apps/WAIDS
-  docker compose restart backend
-  ```
-- **Logi backendu:**
-  ```bash
-  cd /home/psalamon/apps/WAIDS
-  docker compose logs backend --tail=50
-  ```
-- **Logi nginx:**
-  ```bash
-  sudo tail -50 /var/log/nginx/error.log
-  sudo tail -50 /var/log/nginx/access.log
-  ```
+```bash
+curl -s http://waids.asdsystems.eu/api/version   # → {"version":"1.9.x"}
+curl -I http://waids.asdsystems.eu/               # → 200 OK
+```
 
 ---
 
-## 7. Kontakt
+## Rollback
 
-W razie problemów: Paweł Salamon (właściciel aplikacji)
+```bash
+# /etc/nginx/sites-enabled/waids → przywrócić: server_name 192.168.20.244;
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+---
+
+## Notatki
+
+- Backend binduje wyłącznie `127.0.0.1:8001`, nie jest wystawiony na sieć
+- JWT secret przechowywany w bazie, nie w plikach konfiguracyjnych — restart nie inwaliduje sesji
+- Dane PostgreSQL: named volume `waids_pgdata`, persystentne przez restarty/rebuild
+- SSL/HTTPS: na razie poza zakresem; jeśli będzie potrzebny — certbot na nginx lub wewnętrzny CA
+
+```bash
+# logi w razie problemów
+docker compose -f /home/psalamon/apps/WAIDS/docker-compose.yml logs backend --tail=50
+sudo tail -30 /var/log/nginx/error.log
+```

@@ -413,16 +413,34 @@
       <span id="bulkEditSep" style="color:var(--border-med)">|</span>
       <button id="bulkBtnFirma" class="ghost sm" onclick="bulkShowInput('firma')"    title="Zmień operatora (firmę produkcji) dla zaznaczonych">🏢 Zmień operatora…</button>
       <button id="bulkBtnOper"  class="ghost sm" onclick="bulkShowInput('operator')" title="Zmień BOK dla zaznaczonych">👤 Zmień BOK…</button>
+      <button id="bulkBtnSusp"  class="ghost sm" onclick="bulkShowSuspend()"         title="Zawieś abonament dla zaznaczonych urządzeń">⏸ Zawieś…</button>
       <button class="ghost sm" style="margin-left:auto" onclick="clearSelection()">✕ Odznacz</button>
-      <!-- inline input row -->
-      <div id="bulkInputRow" style="display:none;width:100%;display:none;align-items:center;gap:8px;padding-top:6px;border-top:1px solid var(--border)">
+      <!-- inline text input row (firma / operator) -->
+      <div id="bulkInputRow" style="display:none;width:100%;align-items:center;gap:8px;padding-top:6px;border-top:1px solid var(--border)">
         <span id="bulkInputLabel" style="font-size:12px;color:var(--text-muted);white-space:nowrap"></span>
         <input id="bulkInputVal" type="text" placeholder="Wpisz wartość…"
                style="flex:1;height:30px;font-size:12px;padding:0 10px;border-radius:var(--radius-md);
                       border:1px solid var(--border-med);background:var(--bg);color:var(--text)"
                onkeydown="if(event.key==='Enter') bulkApplyInput(); if(event.key==='Escape') bulkHideInput()">
         <button class="primary" style="height:30px;padding:0 14px;font-size:12px" onclick="bulkApplyInput()">✓ Zastosuj</button>
-        <button class="ghost sm"  onclick="bulkHideInput()">✕</button>
+        <button class="ghost sm" onclick="bulkHideInput()">✕</button>
+      </div>
+      <!-- inline suspension row -->
+      <div id="bulkSuspendRow" style="display:none;width:100%;align-items:center;gap:8px;padding-top:6px;border-top:1px solid var(--border)">
+        <span style="font-size:12px;color:var(--text-muted);white-space:nowrap">⏸ Zawieś od:</span>
+        <input id="bulkSuspFrom" type="month"
+               style="height:30px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);
+                      border:1px solid var(--border-med);background:var(--bg);color:var(--text)">
+        <span style="font-size:12px;color:var(--text-muted);white-space:nowrap">do:</span>
+        <input id="bulkSuspTo" type="month"
+               style="height:30px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);
+                      border:1px solid var(--border-med);background:var(--bg);color:var(--text)">
+        <input id="bulkSuspNote" type="text" placeholder="Notatka (opcjonalnie)"
+               style="flex:1;height:30px;font-size:12px;padding:0 10px;border-radius:var(--radius-md);
+                      border:1px solid var(--border-med);background:var(--bg);color:var(--text)"
+               onkeydown="if(event.key==='Enter') bulkApplySuspend(); if(event.key==='Escape') bulkHideSuspend()">
+        <button class="primary" style="height:30px;padding:0 14px;font-size:12px" onclick="bulkApplySuspend()">✓ Zawieś</button>
+        <button class="ghost sm" onclick="bulkHideSuspend()">✕</button>
       </div>
     </div>
 

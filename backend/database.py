@@ -1027,6 +1027,21 @@ def delete_firm_suspension(susp_id: int) -> bool:
             return cur.rowcount > 0
 
 
+def bulk_suspend_devices(sns: list, date_from: str, date_to: str, note: str) -> int:
+    """Dodaje zawieszenie dla listy SN-ów. Zwraca liczbę wstawionych wierszy."""
+    count = 0
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            for sn in sns:
+                cur.execute(
+                    "INSERT INTO device_suspensions (sn, date_from, date_to, note) "
+                    "VALUES (%s, %s, %s, %s)",
+                    (sn, date_from, date_to, note),
+                )
+                count += 1
+    return count
+
+
 def get_active_suspensions() -> dict:
     """Zwraca SN-y i firmy, które są zawieszone w bieżącym miesiącu."""
     with get_conn() as conn:

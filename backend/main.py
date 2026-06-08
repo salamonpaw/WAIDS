@@ -46,6 +46,7 @@ from database import (
     create_import_session, get_import_sessions, undo_import_session,
     # bulk device update
     bulk_update_devices,
+    bulk_suspend_devices,
 )
 from version import APP_VERSION
 
@@ -1867,6 +1868,30 @@ def bulk_update_devices_endpoint(body: BulkUpdateIn, _=Depends(require_edit)):
         )
         _invalidate_cache()
         return {"updated": updated}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# ── bulk suspension ────────────────────────────────────────────────────────────
+
+class BulkSuspendIn(BaseModel):
+    sns:       List[str]
+    date_from: str
+    date_to:   str
+    note:      str = ""
+
+
+@app.post("/devices/bulk-suspensions")
+def bulk_suspend_endpoint(body: BulkSuspendIn, _: dict = Depends(require_edit)):
+    """Masowe zawieszenie abonamentu dla listy SN-ów."""
+    if not body.sns:
+        raise HTTPException(400, "Brak listy SN")
+    if body.date_from > body.date_to:
+        raise HTTPException(400, "date_from nie może być późniejsza niż date_to")
+    try:
+        count = bulk_suspend_devices(body.sns, body.date_from, body.date_to, body.note)
+        _invalidate_cache()
+        return {"suspended": count}
     except Exception as e:
         raise HTTPException(500, str(e))
 
