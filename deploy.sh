@@ -17,6 +17,11 @@ sudo -u "$REAL_USER" git pull
 
 # 2. Przebuduj i uruchom kontenery
 echo "[2/4] Docker build + up..."
+# Zatrzymaj legacy systemd service (jeśli jeszcze działa)
+systemctl stop waids 2>/dev/null || true
+# Zwolnij port 8001 gdyby coś go trzymało
+fuser -k 8001/tcp 2>/dev/null || true
+sleep 1
 docker compose down --remove-orphans
 docker compose up -d --build
 
