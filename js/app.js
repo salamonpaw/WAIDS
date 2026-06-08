@@ -46,16 +46,155 @@ async function refreshStatus() {
 }
 
 // ── Changelog modal ────────────────────────────────────────────────────────
-let _changelogLoaded = false;
 
-async function showChangelog() {
-  document.getElementById('changelogModal').showModal();
-  if (_changelogLoaded) return;
-  const pre = document.getElementById('changelogContent');
-  pre.textContent = '⏳ Ładowanie…';
-  try {
-    const d = await (await fetch(`${API}/changelog`)).json();
-    pre.textContent = d.content || 'Brak danych.';
-    _changelogLoaded = true;
-  } catch(e) { pre.textContent = '❌ Nie można załadować: '+e.message; }
+const CHANGELOG_ENTRIES = [
+  {
+    version: '1.9.9', date: '2026-06-08', added: [
+      '<b>Masowe zawieszenie abonamentu</b> — nowy przycisk „⏸ Zawieś…" w pasku bulk; otwiera wiersz z wyborem zakresu miesięcy (od/do) i notatką; jednym kliknięciem zawiesza wszystkie zaznaczone urządzenia'
+    ]
+  },
+  {
+    version: '1.9.8', date: '2026-06-03',
+    fixed: [
+      '<b>Kopiowanie SN do schowka</b> — fallback na HTTP (brak HTTPS); execCommand gdy clipboard API niedostępne',
+      '<b>Badge „Zawieszone"</b> — cichy refresh po dodaniu/usunięciu zawieszenia; badge aktualny bez resetowania filtrów',
+      '<b>Wyszukiwarka</b> — normalizacja SN: „1028732" znajdzie „SN001028732"'
+    ],
+    added: [
+      '<b>Uprawnienie: Edycja urządzeń</b> (<code>can_edit_devices</code>) — niezależne od roli Admina; zarządzanie w Konfiguracja → Użytkownicy'
+    ]
+  },
+  {
+    version: '1.9.7', date: '2026-06-02', added: [
+      '<b>Typ urządzenia: Stare</b> — szara kategoria archiwalna; wykluczona z bilingów; filtr, pie chart, wykres typów',
+      '<b>Oznaczanie zaimportowanych urządzeń typem</b> — select przy imporcie produkcji (Stare / OEM / Master / auto)',
+      '<b>Historia importów</b> — tabela sesji z przyciskiem ↩ Cofnij',
+      '<b>Bulk edycja</b> — zmiana firmy i operatora dla zaznaczonych; endpoint PATCH /devices/bulk'
+    ]
+  },
+  {
+    version: '1.9.6', date: '2026-06-02', added: [
+      '<b>Tryb importu</b> — ➕ Dopisz brakujące (ON CONFLICT DO NOTHING) lub 🔄 Nadpisz istniejące'
+    ]
+  },
+  {
+    version: '1.9.5', date: '2026-06-02', added: [
+      '<b>Zakładka 🆕 Pierwsze IDS</b> — weryfikacja pokrycia płatności po pierwszym abonamencie; siatka miesięcy per urządzenie; KPI; eksport XLSX'
+    ]
+  },
+  {
+    version: '1.9.4', date: '2026-06-02', added: [
+      '<b>Zawieszone opłaty</b> — per urządzenie i per firma; badge ⏸ Zawieszone; niebieski wycinek w pie chart; sekcja zarządzania w modalu',
+      '<b>Export/Import handlowców</b> — Excel; widok firm bez handlowca'
+    ]
+  },
+  {
+    version: '1.9.3', date: '2026-06-01', added: [
+      '<b>Podgląd firm w bazie</b> — sekcja „🏢 Firmy w bazie" z wyszukiwarką i liczbą urządzeń'
+    ]
+  },
+  {
+    version: '1.9.2', date: '2026-06-01', added: [
+      '<b>Historia scaleń firm</b> — tabela w sekcji Scalanie firm; tabela DB <code>firm_merges</code>'
+    ]
+  },
+  {
+    version: '1.9.1', date: '2026-06-01',
+    fixed: ['<b>Crash przy zapisie opłaty licencyjnej</b> — undefined showMsg() → setMsg()'],
+    changed: [
+      'Scalanie firm przeniesione na górę Konfiguracji',
+      'Autouzupełnianie firm w scalaniu z 3 źródeł; walidacja i normalizacja nazwy'
+    ]
+  },
+  {
+    version: '1.9.0', date: '2026-06-01',
+    changed: [
+      '<b>Refaktoring frontendu</b> — index.html podzielony na css/main.css + 10 plików JS (utils, auth, app, import, report, monitoring, config, firstpay, device, revenue)'
+    ],
+    fixed: ['showMsg undefined w sekcjach Opłaty licencyjne i Scalanie', 'loadMergeFirmaLists — błędny endpoint (Excel zamiast JSON)']
+  },
+  {
+    version: '1.8.0', date: '2026-06-01', added: [
+      '<b>Prognoza przychodów</b> — przerywana linia na wykresie trendu; średnia z ostatnich 3 miesięcy'
+    ],
+    changed: ['<b>Scalanie firm</b> — UI chip-based zamiast pola tekstowego']
+  },
+  {
+    version: '1.7.0', date: '2026-06-01', added: [
+      '<b>Wykres sezonowości produkcji</b> — linie rok-do-roku; filtr typu i modelu; X=Sty–Gru',
+      '<b>Opłaty licencyjne</b> — pełne CRUD; tabela <code>firm_license_fees</code>',
+      '<b>Scalanie firm</b> — podgląd przed wykonaniem; kaskadowe scalenie przez API'
+    ],
+    fixed: ['Popover ⓘ — lazy lookup; wymuszenie layout przed pozycjonowaniem']
+  },
+  {
+    version: '1.6.0', date: '2026-06-01', added: [
+      '<b>Zakładka 💰 Wyliczenia</b> — KPI, trend miesięczny, przychody roczne, top klienci, donut wg typu, tabela sortowalna; endpoint /revenue'
+    ]
+  },
+  {
+    version: '1.5.0', date: '2026-06-01', added: [
+      'Filtr lat wykresu słupkowego; przycisk Rozwiń ⤢',
+      'Globalny filtr dat w nagłówku',
+      '<b>Kopiuj SN</b> — ikonka ⎘ przy każdym numerze seryjnym'
+    ]
+  },
+  {
+    version: '1.4.0', date: '2026-06-01', added: [
+      '<b>Indeksy bazy danych</b> + <b>cache /analyze w RAM</b> — raport natychmiastowy; inwalidacja po każdym imporcie/edycji'
+    ]
+  },
+  {
+    version: '1.3.0', date: '2026-06-01', added: [
+      'Kolumny kwot w imporcie: ob_CenaWaluta, ob_CenaNetto, ob_WartBrutto',
+      'Historia płatności w zakładce Urządzenie — Netto PLN i Brutto PLN'
+    ]
+  },
+  {
+    version: '1.2.0', date: '2026-06-01', added: [
+      'Historia płatności urządzenia w zakładce Monitoring'
+    ],
+    fixed: ['Scroll poziomy tabeli w Raporcie']
+  },
+  {
+    version: '1.1.0', date: '2026-05-31', added: [
+      '<b>Autoryzacja JWT</b> — logowanie emailem i hasłem; panel administracyjny',
+      'Changelog / Release notes — przycisk wersji w nagłówku'
+    ]
+  },
+  {
+    version: '1.0.0', date: '2026-05-30', added: [
+      'Pierwsza wersja: import produkcji + płatności, raport/dashboard, monitoring masterów, konfiguracja firm i handlowców, eksport Excel, dark mode'
+    ]
+  }
+];
+
+function showChangelog() {
+  const modal = document.getElementById('changelogModal');
+  const div   = document.getElementById('changelogContent');
+
+  const sectionLabel = { added: '✅ Dodano', fixed: '🔧 Naprawiono', changed: '🔄 Zmieniono' };
+  const sectionColor = { added: '#16a34a', fixed: '#d97706', changed: '#2563eb'  };
+
+  div.innerHTML = CHANGELOG_ENTRIES.map(e => {
+    const sections = ['added','fixed','changed']
+      .filter(k => e[k]?.length)
+      .map(k => `
+        <div style="margin:8px 0 4px;font-size:11px;font-weight:700;color:${sectionColor[k]};
+                    text-transform:uppercase;letter-spacing:.04em">${sectionLabel[k]}</div>
+        <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:3px">
+          ${e[k].map(item => `<li style="font-size:13px;line-height:1.5">${item}</li>`).join('')}
+        </ul>`).join('');
+
+    return `
+      <div style="border-bottom:1px solid var(--border);padding:14px 0 12px">
+        <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:4px">
+          <span style="font-weight:700;font-size:15px;color:var(--text)">v${e.version}</span>
+          <span style="font-size:12px;color:var(--text-muted)">${e.date}</span>
+        </div>
+        ${sections}
+      </div>`;
+  }).join('');
+
+  modal.showModal();
 }
