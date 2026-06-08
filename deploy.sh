@@ -41,12 +41,12 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
-# 4. Skopiuj frontend do nginx
+# 4. Skopiuj frontend do nginx (rm+cp zamiast cp -r — unika problemu z nadpisywaniem)
 echo "[4/4] Kopiowanie frontendu..."
-cp "$APP_DIR/index.html"    "$WEB_DIR/index.html"
-cp -r "$APP_DIR/css/"       "$WEB_DIR/css/"
-cp -r "$APP_DIR/js/"        "$WEB_DIR/js/"
-chown -R www-data:www-data  "$WEB_DIR/"
+cp "$APP_DIR/index.html" "$WEB_DIR/index.html"
+rm -rf "$WEB_DIR/css" && cp -r "$APP_DIR/css" "$WEB_DIR/css"
+rm -rf "$WEB_DIR/js"  && cp -r "$APP_DIR/js"  "$WEB_DIR/js"
+chown -R www-data:www-data "$WEB_DIR/"
 
 echo ""
 echo "=== Gotowe! ==="
