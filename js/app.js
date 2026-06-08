@@ -49,6 +49,12 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.0.0', date: '2026-06-08',
+    changed: [
+      '<b>Stabilna wersja produkcyjna</b> — Docker Compose z jawną siecią <code>waids_net</code> (fix DNS między kontenerami); <code>deploy.sh</code> jako jedyna komenda wdrożenia; automatyczny restart po restarcie VM'
+    ]
+  },
+  {
     version: '1.9.9', date: '2026-06-08', added: [
       '<b>Masowe zawieszenie abonamentu</b> — nowy przycisk „⏸ Zawieś…" w pasku bulk; otwiera wiersz z wyborem zakresu miesięcy (od/do) i notatką; jednym kliknięciem zawiesza wszystkie zaznaczone urządzenia'
     ]
