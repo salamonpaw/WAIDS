@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-  <link rel="stylesheet" href="css/main.css?v=2.0.1">
+  <link rel="stylesheet" href="css/main.css?v=2.0.2">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -1512,18 +1512,7 @@ Operacja jest nieodwracalna!">i</i>
       <p id="mergeHistoryEmpty" style="font-size:12px;color:var(--text-muted)">
         Brak wykonanych scaleń.
       </p>
-      <table style="width:100%;font-size:12px;border-collapse:collapse;display:none" id="mergeHistoryTable">
-        <thead>
-          <tr style="color:var(--text-muted);border-bottom:1px solid var(--border-light)">
-            <th style="text-align:left;padding:4px 8px;font-weight:500">Data</th>
-            <th style="text-align:left;padding:4px 8px;font-weight:500">Źródło</th>
-            <th style="padding:4px 4px"></th>
-            <th style="text-align:left;padding:4px 8px;font-weight:500">Cel</th>
-            <th style="text-align:right;padding:4px 8px;font-weight:500">Urządzeń</th>
-          </tr>
-        </thead>
-        <tbody id="mergeHistoryBody"></tbody>
-      </table>
+      <div id="mergeHistoryWrap" style="font-size:12px"></div>
     </div>
   </div>
 
@@ -1671,18 +1660,18 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.0.1"></script>
-<script src="js/auth.js?v=2.0.1"></script>
-<script src="js/app.js?v=2.0.1"></script>
-<script src="js/import.js?v=2.0.1"></script>
-<script src="js/report.js?v=2.0.1"></script>
-<script src="js/monitoring.js?v=2.0.1"></script>
-<script src="js/config.js?v=2.0.1"></script>
-<script src="js/firstpay.js?v=2.0.1"></script>
-<script src="js/device.js?v=2.0.1"></script>
-<script src="js/revenue.js?v=2.0.1"></script>
-<script src="js/bonus.js?v=2.0.1"></script>
-<script src="js/tooltip.js?v=2.0.1"></script>
+<script src="js/utils.js?v=2.0.2"></script>
+<script src="js/auth.js?v=2.0.2"></script>
+<script src="js/app.js?v=2.0.2"></script>
+<script src="js/import.js?v=2.0.2"></script>
+<script src="js/report.js?v=2.0.2"></script>
+<script src="js/monitoring.js?v=2.0.2"></script>
+<script src="js/config.js?v=2.0.2"></script>
+<script src="js/firstpay.js?v=2.0.2"></script>
+<script src="js/device.js?v=2.0.2"></script>
+<script src="js/revenue.js?v=2.0.2"></script>
+<script src="js/bonus.js?v=2.0.2"></script>
+<script src="js/tooltip.js?v=2.0.2"></script>
 
 </body>
 </html>

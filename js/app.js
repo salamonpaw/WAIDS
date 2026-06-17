@@ -49,6 +49,15 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.0.2', date: '2026-06-17',
+    added: [
+      '<b>Scalanie firm — lista rozwijana</b> — historia scaleń pogrupowana wg firmy docelowej; kliknięcie nazwy rozwija/zwija listę scalonych źródeł; przycisk ✕ usuwa wpis z historii (urządzenia bez zmian)'
+    ],
+    fixed: [
+      '<b>Token JWT</b> — TTL przedłużone z 8h do 24h; sesja nie wygasa w ciągu dnia pracy'
+    ]
+  },
+  {
     version: '2.0.1', date: '2026-06-08',
     fixed: [
       '<b>Picker zawieszenia</b> — dropdowny Miesiąc + Rok zamiast <code>type=month</code> (działa na HTTP bez HTTPS); domyślnie bieżący miesiąc → Grudzień bieżącego roku'

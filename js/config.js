@@ -695,35 +695,72 @@ async function executeMerge() {
 }
 
 // ── Merge history ───────────────────────────────────────────────────────────
+const _mergeExpanded = new Set();
+
 async function loadMergeHistory() {
-  const tbody = document.getElementById('mergeHistoryBody');
+  const wrap  = document.getElementById('mergeHistoryWrap');
   const empty = document.getElementById('mergeHistoryEmpty');
-  const table = document.getElementById('mergeHistoryTable');
-  if (!tbody) return;
+  if (!wrap) return;
   try {
     const d = await (await fetch(`${API}/firms/merges`)).json();
     const rows = d.merges || [];
     if (!rows.length) {
-      tbody.innerHTML = '';
+      wrap.innerHTML = '';
       if (empty) empty.style.display = '';
-      if (table) table.style.display = 'none';
       return;
     }
     if (empty) empty.style.display = 'none';
-    if (table) table.style.display = '';
-    tbody.innerHTML = rows.map(r => `
-      <tr style="border-bottom:1px solid var(--border-light)">
-        <td style="padding:5px 8px;color:var(--text-muted);white-space:nowrap">${esc(r.merged_at)}</td>
-        <td style="padding:5px 8px;color:var(--danger)">${esc(r.source)}</td>
-        <td style="padding:5px 4px;text-align:center;color:var(--text-muted)">→</td>
-        <td style="padding:5px 8px;font-weight:600">${esc(r.target)}</td>
-        <td style="padding:5px 8px;text-align:right;color:var(--text-muted)">${r.devices_affected}</td>
-      </tr>`).join('');
+    // Grupuj po target
+    const groups = {};
+    for (const r of rows) {
+      if (!groups[r.target]) groups[r.target] = [];
+      groups[r.target].push(r);
+    }
+    wrap.innerHTML = Object.entries(groups).map(([target, items]) => {
+      const expanded = _mergeExpanded.has(target);
+      const total = items.reduce((s, r) => s + (r.devices_affected||0), 0);
+      const arrow = expanded ? '▼' : '▶';
+      const detail = expanded ? `
+        <div style="padding:4px 0 6px 20px;display:flex;flex-direction:column;gap:3px">
+          ${items.map(r => `
+            <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-muted)">
+              <span style="color:var(--danger);min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                    title="${esc(r.source)}">${esc(r.source)}</span>
+              <span style="white-space:nowrap">${esc(r.merged_at)}</span>
+              <span style="white-space:nowrap">${r.devices_affected} urządzeń</span>
+              <button class="ghost sm" style="font-size:10px;padding:1px 6px;color:var(--danger)"
+                      onclick="deleteMergeRecord(${r.id})" title="Usuń z historii scaleń">✕</button>
+            </div>`).join('')}
+        </div>` : '';
+      return `
+        <div style="border-bottom:1px solid var(--border-light)">
+          <div style="display:flex;align-items:center;gap:8px;padding:6px 4px;cursor:pointer;
+                      font-size:12px;user-select:none" onclick="toggleMergeGroup('${esc(target)}')">
+            <span style="color:var(--text-muted);font-size:10px;width:12px;text-align:center">${arrow}</span>
+            <span style="font-weight:600;flex:1">${esc(target)}</span>
+            <span style="color:var(--text-muted);white-space:nowrap">${items.length} scal. · ${total} urządzeń</span>
+          </div>
+          ${detail}
+        </div>`;
+    }).join('');
   } catch(e) {
-    if (tbody) tbody.innerHTML = `<tr><td colspan="5" style="color:var(--danger);padding:6px 8px">Błąd ładowania historii</td></tr>`;
-    if (table) table.style.display = '';
-    if (empty) empty.style.display = 'none';
+    if (wrap) wrap.innerHTML = `<p style="color:var(--danger);font-size:12px">Błąd ładowania historii</p>`;
   }
+}
+
+function toggleMergeGroup(target) {
+  if (_mergeExpanded.has(target)) _mergeExpanded.delete(target);
+  else _mergeExpanded.add(target);
+  loadMergeHistory();
+}
+
+async function deleteMergeRecord(id) {
+  if (!confirm('Usunąć ten wpis z historii scaleń?\n(Urządzenia pozostaną bez zmian — scalenie nie jest cofane.)')) return;
+  try {
+    const r = await fetch(`${API}/firms/merges/${id}`, {method: 'DELETE'});
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    loadMergeHistory();
+  } catch(e) { alert('Błąd: ' + e.message); }
 }
 
 // ── Firms list ──────────────────────────────────────────────────────────────

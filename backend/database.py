@@ -1178,6 +1178,13 @@ def import_firm_reps(rows: list) -> dict:
     return {"updated": updated, "skipped": skipped}
 
 
+def delete_merge(merge_id: int):
+    """Usuwa wpis z historii scaleń (nie cofa scalenia na urządzeniach)."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM firm_merges WHERE id = %s", (merge_id,))
+
+
 def get_merge_history() -> list:
     """Zwraca historię scaleń firm (od najnowszych)."""
     with get_conn() as conn:

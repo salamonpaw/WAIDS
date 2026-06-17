@@ -29,7 +29,7 @@ from database import (
     get_firms_for_export, import_firms_table,
     get_monthly_revenue,
     get_license_fees, upsert_license_fee, delete_license_fee,
-    merge_firms, get_merge_history,
+    merge_firms, get_merge_history, delete_merge,
     # suspensions
     get_device_suspensions, add_device_suspension, delete_device_suspension,
     get_firm_suspensions, add_firm_suspension, delete_firm_suspension,
@@ -54,7 +54,7 @@ app = FastAPI(title="Weryfikator Abonamentów API", version=APP_VERSION)
 
 # ── JWT config (key stored in DB, survives restarts) ─────────────────────────
 _JWT_ALGO   = "HS256"
-_TOKEN_TTL  = 8   # hours
+_TOKEN_TTL  = 24  # hours
 _SECRET_KEY = ""  # filled in startup
 _bearer     = HTTPBearer(auto_error=False)
 
@@ -1908,6 +1908,16 @@ def list_merges():
     """Historia scaleń firm."""
     try:
         return {"merges": get_merge_history()}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.delete("/firms/merges/{merge_id}")
+def delete_merge_record(merge_id: int, _: dict = Depends(require_admin)):
+    """Usuwa wpis z historii scaleń (nie cofa scalenia na urządzeniach)."""
+    try:
+        delete_merge(merge_id)
+        return {"ok": True}
     except Exception as e:
         raise HTTPException(500, str(e))
 
