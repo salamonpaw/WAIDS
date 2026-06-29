@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-  <link rel="stylesheet" href="css/main.css?v=2.0.3">
+  <link rel="stylesheet" href="css/main.css?v=2.0.4">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -390,6 +390,13 @@
         <option value="6">Zaległość &gt; 6 mies.</option>
         <option value="12">Zaległość &gt; 12 mies.</option>
         <option value="24">Zaległość &gt; 24 mies.</option>
+      </select>
+      <select id="fChurn" onchange="onFilterChange()" title="Urządzenia które kiedyś płaciły abonament, a przestały">
+        <option value="">Wszyscy aktywni</option>
+        <option value="3">Porzucone &gt; 3 mies.</option>
+        <option value="6">Porzucone &gt; 6 mies.</option>
+        <option value="12">Porzucone &gt; rok</option>
+        <option value="24">Porzucone &gt; 2 lata</option>
       </select>
       <button class="ghost sm" onclick="clearFilters()" title="Wyczyść wszystkie filtry">✕ Wyczyść</button>
       <div class="spacer"></div>
@@ -1660,18 +1667,18 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.0.3"></script>
-<script src="js/auth.js?v=2.0.3"></script>
-<script src="js/app.js?v=2.0.3"></script>
-<script src="js/import.js?v=2.0.3"></script>
-<script src="js/report.js?v=2.0.3"></script>
-<script src="js/monitoring.js?v=2.0.3"></script>
-<script src="js/config.js?v=2.0.3"></script>
-<script src="js/firstpay.js?v=2.0.3"></script>
-<script src="js/device.js?v=2.0.3"></script>
-<script src="js/revenue.js?v=2.0.3"></script>
-<script src="js/bonus.js?v=2.0.3"></script>
-<script src="js/tooltip.js?v=2.0.3"></script>
+<script src="js/utils.js?v=2.0.4"></script>
+<script src="js/auth.js?v=2.0.4"></script>
+<script src="js/app.js?v=2.0.4"></script>
+<script src="js/import.js?v=2.0.4"></script>
+<script src="js/report.js?v=2.0.4"></script>
+<script src="js/monitoring.js?v=2.0.4"></script>
+<script src="js/config.js?v=2.0.4"></script>
+<script src="js/firstpay.js?v=2.0.4"></script>
+<script src="js/device.js?v=2.0.4"></script>
+<script src="js/revenue.js?v=2.0.4"></script>
+<script src="js/bonus.js?v=2.0.4"></script>
+<script src="js/tooltip.js?v=2.0.4"></script>
 
 </body>
 </html>

@@ -76,6 +76,7 @@ function onFilterChange() {
   const df      = document.getElementById('fDateFrom').value;
   const dto     = document.getElementById('fDateTo').value;
   const overdue = document.getElementById('fOverdue').value;
+  const churn   = document.getElementById('fChurn').value;
   const curYM   = nowYM();
 
   filtered = results.filter(r => {
@@ -110,10 +111,18 @@ function onFilterChange() {
       const gap = monthsDiff(ref, curYM);
       if (gap === null || gap < threshold) return false;
     }
+    if (churn) {
+      const threshold = parseInt(churn);
+      if (!r.total_months || r.total_months < 1) return false;  // musi mieć historię płatności
+      if (r.status !== 'unpaid') return false;                   // aktualnie nie płaci
+      if (!r.last_pay) return false;
+      const gap = monthsDiff(r.last_pay.slice(0, 7), curYM);
+      if (gap === null || gap < threshold) return false;
+    }
     return true;
   });
 
-  ['fSearch','fStatus','fDeviceType','fFirmType','fRep','fCustomer','fOperator','fDateFrom','fDateTo','fOverdue'].forEach(id => {
+  ['fSearch','fStatus','fDeviceType','fFirmType','fRep','fCustomer','fOperator','fDateFrom','fDateTo','fOverdue','fChurn'].forEach(id => {
     const el = document.getElementById(id);
     el.classList.toggle('filter-active', !!el.value);
   });
@@ -131,7 +140,7 @@ function onFilterChange() {
 }
 
 function clearFilters(reapply = true) {
-  ['fSearch','fStatus','fDeviceType','fFirmType','fRep','fCustomer','fOperator','fDateFrom','fDateTo','fOverdue'].forEach(id => {
+  ['fSearch','fStatus','fDeviceType','fFirmType','fRep','fCustomer','fOperator','fDateFrom','fDateTo','fOverdue','fChurn'].forEach(id => {
     const el = document.getElementById(id);
     el.value = '';
     el.classList.remove('filter-active');

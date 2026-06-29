@@ -58,6 +58,12 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.0.4', date: '2026-06-29',
+    added: [
+      '<b>Filtr „Porzucone"</b> — wyłania urządzenia które kiedyś płaciły abonament (min. 1 wpłata) i przestały: opcje &gt;3, &gt;6, &gt;12, &gt;24 mies. od ostatniej wpłaty; działa niezależnie od filtra zaległości'
+    ]
+  },
+  {
     version: '2.0.3', date: '2026-06-29',
     changed: [
       '<b>Dostęp do zakładek Wyliczenia i Konfiguracja</b> — widoczne i dostępne wyłącznie dla administratorów'
