@@ -1,7 +1,10 @@
 // ── WAIDS — app shell: tab switching, status bar, changelog ──────────────
 
 // ── Tab switching ──────────────────────────────────────────────────────────
+const ADMIN_TABS = ['revenue', 'config'];
+
 function switchTab(name) {
+  if (ADMIN_TABS.includes(name) && !currentUser?.is_admin) return;
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
@@ -13,6 +16,12 @@ function switchTab(name) {
   if (name === 'revenue')  { loadRevenue(); loadSeasonality(); }
   if (name === 'bonus')    { loadBonusTab(); }
   if (name === 'config')   { loadConfig(); loadLicenseFees(); }
+}
+
+function applyAdminTabs() {
+  const isAdmin = currentUser?.is_admin || false;
+  document.getElementById('tabBtnRevenue').style.display = isAdmin ? '' : 'none';
+  document.getElementById('tabBtnConfig').style.display  = isAdmin ? '' : 'none';
 }
 
 // ── DB status bar ──────────────────────────────────────────────────────────
@@ -48,6 +57,12 @@ async function refreshStatus() {
 // ── Changelog modal ────────────────────────────────────────────────────────
 
 const CHANGELOG_ENTRIES = [
+  {
+    version: '2.0.3', date: '2026-06-29',
+    changed: [
+      '<b>Dostęp do zakładek Wyliczenia i Konfiguracja</b> — widoczne i dostępne wyłącznie dla administratorów'
+    ]
+  },
   {
     version: '2.0.2', date: '2026-06-17',
     added: [

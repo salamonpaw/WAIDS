@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-  <link rel="stylesheet" href="css/main.css?v=2.0.2">
+  <link rel="stylesheet" href="css/main.css?v=2.0.3">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -66,9 +66,9 @@
   <button class="tab-btn"        onclick="switchTab('monitor')">📈 Monitoring</button>
   <button class="tab-btn"        onclick="switchTab('firstpay')">🆕 Nowe płatności</button>
   <button class="tab-btn"        onclick="switchTab('device')">🔍 Urządzenie</button>
-  <button class="tab-btn"        onclick="switchTab('revenue')">💰 Wyliczenia</button>
+  <button class="tab-btn" id="tabBtnRevenue" onclick="switchTab('revenue')" style="display:none">💰 Wyliczenia</button>
   <button class="tab-btn"        onclick="switchTab('bonus')">🆕 Pierwsze IDS</button>
-  <button class="tab-btn"        onclick="switchTab('config')">⚙ Konfiguracja</button>
+  <button class="tab-btn" id="tabBtnConfig"  onclick="switchTab('config')"  style="display:none">⚙ Konfiguracja</button>
 </div>
 
 <!-- ══════════════════ IMPORT TAB ══════════════════ -->
@@ -1660,18 +1660,18 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.0.2"></script>
-<script src="js/auth.js?v=2.0.2"></script>
-<script src="js/app.js?v=2.0.2"></script>
-<script src="js/import.js?v=2.0.2"></script>
-<script src="js/report.js?v=2.0.2"></script>
-<script src="js/monitoring.js?v=2.0.2"></script>
-<script src="js/config.js?v=2.0.2"></script>
-<script src="js/firstpay.js?v=2.0.2"></script>
-<script src="js/device.js?v=2.0.2"></script>
-<script src="js/revenue.js?v=2.0.2"></script>
-<script src="js/bonus.js?v=2.0.2"></script>
-<script src="js/tooltip.js?v=2.0.2"></script>
+<script src="js/utils.js?v=2.0.3"></script>
+<script src="js/auth.js?v=2.0.3"></script>
+<script src="js/app.js?v=2.0.3"></script>
+<script src="js/import.js?v=2.0.3"></script>
+<script src="js/report.js?v=2.0.3"></script>
+<script src="js/monitoring.js?v=2.0.3"></script>
+<script src="js/config.js?v=2.0.3"></script>
+<script src="js/firstpay.js?v=2.0.3"></script>
+<script src="js/device.js?v=2.0.3"></script>
+<script src="js/revenue.js?v=2.0.3"></script>
+<script src="js/bonus.js?v=2.0.3"></script>
+<script src="js/tooltip.js?v=2.0.3"></script>
 
 </body>
 </html>

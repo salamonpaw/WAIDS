@@ -57,6 +57,7 @@ async function doLogin() {
     if (uname) uname.textContent = '👤 ' + (d.name || d.email);
     if (uinfo) uinfo.style.display = 'flex';
     refreshStatus();
+    applyAdminTabs();
     if (d.is_admin) loadAdminUsers();
   } catch(e) {
     errEl.textContent = e.message; errEl.style.display = 'block';
@@ -66,6 +67,7 @@ async function doLogin() {
 function doLogout() {
   localStorage.removeItem('waids_token');
   currentUser = null;
+  applyAdminTabs();
   const uinfo = document.getElementById('userInfo');
   if (uinfo) uinfo.style.display = 'none';
   showLoginOverlay();
@@ -87,6 +89,7 @@ async function _initAuth() {
         if (uinfo) uinfo.style.display = 'flex';
         hideLoginOverlay();
         refreshStatus();
+        applyAdminTabs();
         if (currentUser.is_admin) loadAdminUsers();
         return;
       }
