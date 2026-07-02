@@ -230,6 +230,20 @@ def init_db() -> None:
                 ON firm_suspensions(firma);
             """)
 
+            # Komentarze do urządzeń — osobna tabela, działa też dla SNów bez wiersza w devices
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS device_comments (
+                    sn      VARCHAR PRIMARY KEY,
+                    comment VARCHAR NOT NULL DEFAULT ''
+                );
+            """)
+            # Jednorazowa migracja: przenieś komentarze z devices.comment
+            cur.execute("""
+                INSERT INTO device_comments (sn, comment)
+                SELECT sn, comment FROM devices WHERE comment <> ''
+                ON CONFLICT (sn) DO NOTHING;
+            """)
+
             # Historia sesji importu (urządzenia + płatności)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS import_sessions (
@@ -313,6 +327,9 @@ def get_analysis() -> list:
                     FROM firm_reps fr
                     JOIN sales_reps sr ON fr.rep_id = sr.id
                     GROUP BY fr.firma
+                ),
+                all_comments AS (
+                    SELECT sn, comment FROM device_comments
                 )
                 SELECT
                     COALESCE(d.sn, ps.sn) AS sn,
@@ -350,7 +367,7 @@ def get_analysis() -> list:
                     COALESCE(ps.total_amount, 0)  AS total_amount,
                     COALESCE(ps.currency,    '')  AS currency,
                     COALESCE(rs.handlowcy,  '')   AS handlowcy,
-                    COALESCE(d.comment,     '')   AS comment,
+                    COALESCE(ac.comment,    '')   AS comment,
                     COALESCE(fc.firm_type,        'ids') AS firm_type,
                     COALESCE(fc.cycle,            '')    AS firm_cycle,
                     COALESCE(fc.expected_amount,  0)     AS firm_expected_amount,
@@ -360,6 +377,7 @@ def get_analysis() -> list:
                 LEFT JOIN excluded_firms ef  ON COALESCE(d.firma,'') = ef.firma
                 LEFT JOIN rep_summary rs     ON COALESCE(d.firma,'') = rs.firma
                 LEFT JOIN firm_config fc     ON COALESCE(d.firma,'') = fc.firma
+                LEFT JOIN all_comments ac    ON COALESCE(d.sn, ps.sn) = ac.sn
                 ORDER BY COALESCE(d.sn, ps.sn)
             """)
             return [dict(r) for r in cur.fetchall()]
@@ -523,13 +541,18 @@ def get_payments_for_sn(sn: str) -> list:
 # ── comment ───────────────────────────────────────────────────────────────────
 
 def set_device_comment(sn: str, comment: str) -> None:
-    """Set / clear a free-text comment on a device."""
+    """Set / clear a free-text comment on a device (works for all SNs incl. payments-only)."""
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                "UPDATE devices SET comment = %s WHERE sn = %s",
-                (comment, sn),
-            )
+            if comment:
+                cur.execute(
+                    """INSERT INTO device_comments (sn, comment)
+                       VALUES (%s, %s)
+                       ON CONFLICT (sn) DO UPDATE SET comment = EXCLUDED.comment""",
+                    (sn, comment),
+                )
+            else:
+                cur.execute("DELETE FROM device_comments WHERE sn = %s", (sn,))
 
 
 # ── bulk type override ────────────────────────────────────────────────────────

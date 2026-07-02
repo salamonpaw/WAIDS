@@ -58,6 +58,12 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.1.0', date: '2026-07-02',
+    fixed: [
+      '<b>Komentarze — trwały zapis</b> — root cause: urządzenia istniejące tylko w płatnościach (status „Brak w prod.") nie mają wiersza w tabeli <code>devices</code>, więc UPDATE trafiał w 0 wierszy. Naprawiono przez dedykowaną tabelę <code>device_comments</code> z UPSERT — komentarz zapisywany niezależnie od tego czy urządzenie jest w bazie produkcyjnej; migracja istniejących komentarzy wykonana automatycznie'
+    ]
+  },
+  {
     version: '2.0.9', date: '2026-07-02',
     added: [
       '<b>Usuwanie komentarza</b> — przycisk 🗑 Usuń pojawia się w modalu gdy komentarz istnieje; komentarz trwale zapisany w bazie aż do usunięcia; edycja przez nadpisanie'
