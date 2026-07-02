@@ -693,12 +693,10 @@ async function saveComment() {
       body: JSON.stringify({comment}),
     });
     if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
-    // Natychmiastowy update lokalny — nie czeka na odświeżenie cache
     const rec = results.find(x => x.sn === sn);
     if (rec) rec.comment = comment;
     document.getElementById('overrideModal').close();
-    onFilterChange();           // przerenderuj tabelę z nowym komentarzem
-    _refreshReportData();       // ciche odświeżenie w tle
+    onFilterChange();
   } catch(e) { alert('Błąd zapisu komentarza: ' + e.message); }
 }
 

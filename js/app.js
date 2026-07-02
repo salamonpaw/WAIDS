@@ -58,6 +58,12 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.0.8', date: '2026-07-02',
+    fixed: [
+      '<b>Komentarze</b> — usunięto background refresh który nadpisywał lokalną zmianę starymi danymi z cache; komentarz pozostaje widoczny po zapisie'
+    ]
+  },
+  {
     version: '2.0.7', date: '2026-07-02',
     fixed: [
       '<b>Komentarze</b> — natychmiastowy update lokalnego <code>results[]</code> po zapisie; komentarz widoczny w tabeli bez czekania na odświeżenie backendu'
