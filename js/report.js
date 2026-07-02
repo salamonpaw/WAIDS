@@ -683,7 +683,7 @@ async function bulkApplySuspend() {
 
 // ── Comment save ────────────────────────────────────────────────────────────
 async function saveComment() {
-  const sn      = document.getElementById('ovSN').textContent;
+  const sn      = document.getElementById('ovSN').textContent.trim();
   const comment = document.getElementById('ovComment').value.trim();
   if (!sn || sn === '—') return;
   try {
@@ -693,8 +693,12 @@ async function saveComment() {
       body: JSON.stringify({comment}),
     });
     if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    // Natychmiastowy update lokalny — nie czeka na odświeżenie cache
+    const rec = results.find(x => x.sn === sn);
+    if (rec) rec.comment = comment;
     document.getElementById('overrideModal').close();
-    await _refreshReportData();
+    onFilterChange();           // przerenderuj tabelę z nowym komentarzem
+    _refreshReportData();       // ciche odświeżenie w tle
   } catch(e) { alert('Błąd zapisu komentarza: ' + e.message); }
 }
 

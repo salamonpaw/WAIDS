@@ -58,6 +58,12 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.0.7', date: '2026-07-02',
+    fixed: [
+      '<b>Komentarze</b> — natychmiastowy update lokalnego <code>results[]</code> po zapisie; komentarz widoczny w tabeli bez czekania na odświeżenie backendu'
+    ]
+  },
+  {
     version: '2.0.6', date: '2026-07-02',
     fixed: [
       '<b>Komentarze</b> — po zapisaniu komentarz był niewidoczny bo <code>loadReport()</code> resetował filtry; zamieniono na <code>_refreshReportData()</code> który odświeża dane zachowując aktualny widok'
