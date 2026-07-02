@@ -694,7 +694,7 @@ async function saveComment() {
     });
     if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
     document.getElementById('overrideModal').close();
-    await loadReport();
+    await _refreshReportData();
   } catch(e) { alert('Błąd zapisu komentarza: ' + e.message); }
 }
 
