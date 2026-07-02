@@ -58,6 +58,12 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.0.9', date: '2026-07-02',
+    added: [
+      '<b>Usuwanie komentarza</b> — przycisk 🗑 Usuń pojawia się w modalu gdy komentarz istnieje; komentarz trwale zapisany w bazie aż do usunięcia; edycja przez nadpisanie'
+    ]
+  },
+  {
     version: '2.0.8', date: '2026-07-02',
     fixed: [
       '<b>Komentarze</b> — usunięto background refresh który nadpisywał lokalną zmianę starymi danymi z cache; komentarz pozostaje widoczny po zapisie'

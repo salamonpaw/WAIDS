@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-  <link rel="stylesheet" href="css/main.css?v=2.0.8">
+  <link rel="stylesheet" href="css/main.css?v=2.0.9">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -976,6 +976,8 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
   </div>
   <div class="dialog-footer" style="gap:8px">
     <button class="ghost" onclick="document.getElementById('overrideModal').close()">Anuluj</button>
+    <button class="ghost sm" id="ovBtnDeleteComment" style="color:var(--red);display:none"
+            onclick="deleteComment()">🗑 Usuń</button>
     <button class="primary" style="font-size:12px;padding:0 16px;height:32px"
             onclick="saveComment()">💾 Zapisz komentarz</button>
   </div>
@@ -1667,18 +1669,18 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.0.8"></script>
-<script src="js/auth.js?v=2.0.8"></script>
-<script src="js/app.js?v=2.0.8"></script>
-<script src="js/import.js?v=2.0.8"></script>
-<script src="js/report.js?v=2.0.8"></script>
-<script src="js/monitoring.js?v=2.0.8"></script>
-<script src="js/config.js?v=2.0.8"></script>
-<script src="js/firstpay.js?v=2.0.8"></script>
-<script src="js/device.js?v=2.0.8"></script>
-<script src="js/revenue.js?v=2.0.8"></script>
-<script src="js/bonus.js?v=2.0.8"></script>
-<script src="js/tooltip.js?v=2.0.8"></script>
+<script src="js/utils.js?v=2.0.9"></script>
+<script src="js/auth.js?v=2.0.9"></script>
+<script src="js/app.js?v=2.0.9"></script>
+<script src="js/import.js?v=2.0.9"></script>
+<script src="js/report.js?v=2.0.9"></script>
+<script src="js/monitoring.js?v=2.0.9"></script>
+<script src="js/config.js?v=2.0.9"></script>
+<script src="js/firstpay.js?v=2.0.9"></script>
+<script src="js/device.js?v=2.0.9"></script>
+<script src="js/revenue.js?v=2.0.9"></script>
+<script src="js/bonus.js?v=2.0.9"></script>
+<script src="js/tooltip.js?v=2.0.9"></script>
 
 </body>
 </html>

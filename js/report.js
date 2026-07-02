@@ -695,9 +695,30 @@ async function saveComment() {
     if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
     const rec = results.find(x => x.sn === sn);
     if (rec) rec.comment = comment;
+    document.getElementById('ovBtnDeleteComment').style.display = comment ? 'inline-flex' : 'none';
     document.getElementById('overrideModal').close();
     onFilterChange();
   } catch(e) { alert('Błąd zapisu komentarza: ' + e.message); }
+}
+
+async function deleteComment() {
+  const sn = document.getElementById('ovSN').textContent.trim();
+  if (!sn || sn === '—') return;
+  if (!confirm('Usunąć komentarz?')) return;
+  try {
+    const r = await fetch(`${API}/devices/${encodeURIComponent(sn)}/comment`, {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({comment: ''}),
+    });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const rec = results.find(x => x.sn === sn);
+    if (rec) rec.comment = '';
+    document.getElementById('ovComment').value = '';
+    document.getElementById('ovBtnDeleteComment').style.display = 'none';
+    document.getElementById('overrideModal').close();
+    onFilterChange();
+  } catch(e) { alert('Błąd usuwania komentarza: ' + e.message); }
 }
 
 function goPage(delta) {
@@ -797,7 +818,9 @@ function openOverrideModal(sn) {
   const pickerRow = document.getElementById('ovShowroomRow');
   pickerRow.style.display = cur === 'showroom' ? 'block' : 'none';
   document.getElementById('ovShowroomUntil').value = curUntil || '';
-  document.getElementById('ovComment').value = r?.comment || '';
+  const existingComment = r?.comment || '';
+  document.getElementById('ovComment').value = existingComment;
+  document.getElementById('ovBtnDeleteComment').style.display = existingComment ? 'inline-flex' : 'none';
   loadSuspensionsInModal(sn);
   document.getElementById('overrideModal').showModal();
 }
