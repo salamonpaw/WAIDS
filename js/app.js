@@ -58,6 +58,13 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.0.5', date: '2026-07-02',
+    fixed: [
+      '<b>Komentarze</b> — brak invalidacji cache po zapisie powodował że komentarz nie był widoczny po odświeżeniu; naprawiono',
+      '<b>Szerokość strony</b> — zwiększono max-width z 1300px do 1600px; tabela nie jest ucinana na szerokich ekranach'
+    ]
+  },
+  {
     version: '2.0.4', date: '2026-06-29',
     added: [
       '<b>Filtr „Porzucone"</b> — wyłania urządzenia które kiedyś płaciły abonament (min. 1 wpłata) i przestały: opcje &gt;3, &gt;6, &gt;12, &gt;24 mies. od ostatniej wpłaty; działa niezależnie od filtra zaległości'

@@ -1082,6 +1082,7 @@ def update_device_comment(sn: str, body: CommentIn):
     """Set or clear the free-text comment on a device."""
     try:
         set_device_comment(sn, body.comment)
+        _invalidate_cache()
         return {"ok": True, "sn": sn}
     except Exception as e:
         raise HTTPException(500, str(e))

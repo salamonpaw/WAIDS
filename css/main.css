@@ -49,7 +49,7 @@
     .tab-panel { display: none; }
     .tab-panel.active { display: block; }
 
-    .container { max-width: 1300px; margin: 0 auto; padding: 1.5rem 2rem; }
+    .container { max-width: 1600px; margin: 0 auto; padding: 1.5rem 2rem; }
 
     .section-card { background: var(--bg); border: 0.5px solid var(--border);
                     border-radius: var(--radius-lg); padding: 1.25rem 1.5rem; margin-bottom: 1rem; }
