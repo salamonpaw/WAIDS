@@ -244,6 +244,22 @@ def init_db() -> None:
                 ON CONFLICT (sn) DO NOTHING;
             """)
 
+            # Nadpisania typu urządzenia — osobna tabela, działa też dla SNów bez wiersza w devices
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS device_type_overrides (
+                    sn             VARCHAR PRIMARY KEY,
+                    type_override  VARCHAR NOT NULL DEFAULT '',
+                    showroom_until VARCHAR NOT NULL DEFAULT ''
+                );
+            """)
+            # Jednorazowa migracja: przenieś overrides z devices.device_type_override
+            cur.execute("""
+                INSERT INTO device_type_overrides (sn, type_override, showroom_until)
+                SELECT sn, device_type_override, COALESCE(showroom_until,'')
+                FROM devices WHERE device_type_override <> ''
+                ON CONFLICT (sn) DO NOTHING;
+            """)
+
             # Historia sesji importu (urządzenia + płatności)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS import_sessions (
@@ -330,17 +346,20 @@ def get_analysis() -> list:
                 ),
                 all_comments AS (
                     SELECT sn, comment FROM device_comments
+                ),
+                type_ovr AS (
+                    SELECT sn, type_override, showroom_until FROM device_type_overrides
                 )
                 SELECT
                     COALESCE(d.sn, ps.sn) AS sn,
                     -- Status: urządzenie OEM → showroom → typ firmy (inne/licencja) → wykluczone → paid → unpaid → only
                     CASE
-                        WHEN COALESCE(NULLIF(d.device_type_override,''),
+                        WHEN COALESCE(NULLIF(COALESCE(dto.type_override,''),''),
                                       CASE WHEN COALESCE(d.maszyna,'') ILIKE '%OEM%'
                                            THEN 'oem' ELSE 'master' END
                              ) = 'oem'                              THEN 'oem'
-                        WHEN COALESCE(d.device_type_override,'') = 'showroom' THEN 'showroom'
-                        WHEN COALESCE(d.device_type_override,'') = 'stare'    THEN 'stare'
+                        WHEN COALESCE(dto.type_override,'') = 'showroom' THEN 'showroom'
+                        WHEN COALESCE(dto.type_override,'') = 'stare'    THEN 'stare'
                         WHEN COALESCE(fc.firm_type,'ids') = 'inne'     THEN 'inne'
                         WHEN COALESCE(fc.firm_type,'ids') = 'licencja' THEN 'licencja'
                         WHEN COALESCE(fc.firm_type,'ids') = 'oem'      THEN 'oem'
@@ -351,11 +370,11 @@ def get_analysis() -> list:
                     END                          AS status,
                     -- device_type: manual override → auto (OEM or master)
                     COALESCE(
-                        NULLIF(COALESCE(d.device_type_override,''), ''),
+                        NULLIF(COALESCE(dto.type_override,''), ''),
                         CASE WHEN COALESCE(d.maszyna,'') ILIKE '%OEM%' THEN 'oem' ELSE 'master' END
                     )                            AS device_type,
-                    COALESCE(d.device_type_override, '') AS type_override,
-                    COALESCE(d.showroom_until,   '') AS showroom_until,
+                    COALESCE(dto.type_override,  '') AS type_override,
+                    COALESCE(dto.showroom_until, '') AS showroom_until,
                     COALESCE(ps.customer,  '')   AS customer,
                     COALESCE(d.firma,      '')   AS firma,
                     COALESCE(d.maszyna,    '')   AS maszyna,
@@ -378,6 +397,7 @@ def get_analysis() -> list:
                 LEFT JOIN rep_summary rs     ON COALESCE(d.firma,'') = rs.firma
                 LEFT JOIN firm_config fc     ON COALESCE(d.firma,'') = fc.firma
                 LEFT JOIN all_comments ac    ON COALESCE(d.sn, ps.sn) = ac.sn
+                LEFT JOIN type_ovr dto       ON COALESCE(d.sn, ps.sn) = dto.sn
                 ORDER BY COALESCE(d.sn, ps.sn)
             """)
             return [dict(r) for r in cur.fetchall()]
@@ -502,13 +522,20 @@ def get_monthly_revenue() -> list:
 # ── device type override ───────────────────────────────────────────────────────
 
 def set_device_type_override(sn: str, dtype: str, showroom_until: str = "") -> None:
-    """Set manual device_type override. dtype='' resets to auto-detection."""
+    """Set manual device_type override (works for all SNs incl. payments-only). dtype='' resets."""
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                "UPDATE devices SET device_type_override = %s, showroom_until = %s WHERE sn = %s",
-                (dtype, showroom_until if dtype == "showroom" else "", sn),
-            )
+            if dtype:
+                cur.execute(
+                    """INSERT INTO device_type_overrides (sn, type_override, showroom_until)
+                       VALUES (%s, %s, %s)
+                       ON CONFLICT (sn) DO UPDATE
+                           SET type_override  = EXCLUDED.type_override,
+                               showroom_until = EXCLUDED.showroom_until""",
+                    (sn, dtype, showroom_until if dtype == "showroom" else ""),
+                )
+            else:
+                cur.execute("DELETE FROM device_type_overrides WHERE sn = %s", (sn,))
 
 
 def get_type_overrides() -> list:
@@ -516,10 +543,13 @@ def get_type_overrides() -> list:
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("""
-                SELECT sn, firma, maszyna, device_type_override
-                FROM devices
-                WHERE device_type_override <> ''
-                ORDER BY sn
+                SELECT dto.sn,
+                       COALESCE(d.firma,   '') AS firma,
+                       COALESCE(d.maszyna, '') AS maszyna,
+                       dto.type_override AS device_type_override
+                FROM device_type_overrides dto
+                LEFT JOIN devices d ON dto.sn = d.sn
+                ORDER BY dto.sn
             """)
             return [dict(r) for r in cur.fetchall()]
 
@@ -558,21 +588,27 @@ def set_device_comment(sn: str, comment: str) -> None:
 # ── bulk type override ────────────────────────────────────────────────────────
 
 def bulk_set_device_type(sns: list, dtype: str, showroom_until: str = "") -> int:
-    """Set device_type_override for multiple SNs at once. Returns affected row count."""
+    """Set device_type_override for multiple SNs at once (incl. payments-only). Returns count."""
     if not sns:
         return 0
+    until = showroom_until if dtype == "showroom" else ""
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                """UPDATE devices
-                   SET device_type_override = %s,
-                       showroom_until = %s
-                   WHERE sn = ANY(%s)""",
-                (dtype,
-                 showroom_until if dtype == "showroom" else "",
-                 sns),
-            )
-            return cur.rowcount
+            if dtype:
+                for sn in sns:
+                    cur.execute(
+                        """INSERT INTO device_type_overrides (sn, type_override, showroom_until)
+                           VALUES (%s, %s, %s)
+                           ON CONFLICT (sn) DO UPDATE
+                               SET type_override  = EXCLUDED.type_override,
+                                   showroom_until = EXCLUDED.showroom_until""",
+                        (sn, dtype, until),
+                    )
+            else:
+                cur.execute(
+                    "DELETE FROM device_type_overrides WHERE sn = ANY(%s)", (sns,)
+                )
+            return len(sns)
 
 
 # ── firm config ───────────────────────────────────────────────────────────────
@@ -1527,15 +1563,33 @@ def bulk_update_devices(
         sets.append("firma = %s"); params.append(firma)
     if operator is not None:
         sets.append("operator = %s"); params.append(operator)
-    if device_type is not None:
-        sets.append("device_type_override = %s"); params.append(device_type)
-    if not sets:
+    if not sets and device_type is None:
         return 0
-    params.append(sns)
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute(
-                f"UPDATE devices SET {', '.join(sets)} WHERE sn = ANY(%s)",
-                params,
-            )
-            return cur.rowcount
+            count = 0
+            if sets:
+                params.append(sns)
+                cur.execute(
+                    f"UPDATE devices SET {', '.join(sets)} WHERE sn = ANY(%s)",
+                    params,
+                )
+                count = cur.rowcount
+            if device_type is not None:
+                if device_type:
+                    for sn in sns:
+                        cur.execute(
+                            """INSERT INTO device_type_overrides (sn, type_override, showroom_until)
+                               VALUES (%s, %s, '')
+                               ON CONFLICT (sn) DO UPDATE
+                                   SET type_override = EXCLUDED.type_override,
+                                       showroom_until = ''""",
+                            (sn, device_type),
+                        )
+                else:
+                    cur.execute(
+                        "DELETE FROM device_type_overrides WHERE sn = ANY(%s)", (sns,)
+                    )
+                if not sets:
+                    count = len(sns)
+            return count

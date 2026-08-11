@@ -58,6 +58,12 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.1.1', date: '2026-07-02',
+    fixed: [
+      '<b>Zmiana typu urządzenia (Master/OEM/Stare) dla wszystkich użytkowników z uprawnieniem edycji</b> — root cause: te same co przy komentarzach — urządzenia bez wiersza w tabeli produkcji (status „Brak w prod.") miały UPDATE z 0 wierszami. Naprawiono przez tabelę <code>device_type_overrides</code> z UPSERT; zmiana działa teraz niezależnie od statusu urządzenia i uprawnień (admin / edytor)'
+    ]
+  },
+  {
     version: '2.1.0', date: '2026-07-02',
     fixed: [
       '<b>Komentarze — trwały zapis</b> — root cause: urządzenia istniejące tylko w płatnościach (status „Brak w prod.") nie mają wiersza w tabeli <code>devices</code>, więc UPDATE trafiał w 0 wierszy. Naprawiono przez dedykowaną tabelę <code>device_comments</code> z UPSERT — komentarz zapisywany niezależnie od tego czy urządzenie jest w bazie produkcyjnej; migracja istniejących komentarzy wykonana automatycznie'
