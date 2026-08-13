@@ -345,6 +345,26 @@
 .dt-badge.stare { background: #e5e7eb; color: #374151; border: 1.5px solid #9ca3af;
                   padding: 2px 7px; border-radius: 99px; font-size: 11px; font-weight:600; }
 
+/* ── Typ PROBLEMATYCZNE ─────────────────────────────────────────── */
+.badge.problematyczne    { background: #fff0e6; color: #c2410c; border: 1.5px solid #f97316; }
+.dt-badge.problematyczne { background: #fff0e6; color: #c2410c; border: 1.5px solid #f97316;
+                           padding: 2px 7px; border-radius: 99px; font-size: 11px; font-weight:600; }
+@media (prefers-color-scheme: dark) {
+  .badge.problematyczne, .dt-badge.problematyczne {
+    background: #431407; color: #fb923c; border-color: #f97316;
+  }
+}
+
+/* ── Typ WYCOFANY ───────────────────────────────────────────────── */
+.badge.wycofany    { background: #f1f5f9; color: #475569; border: 1.5px dashed #94a3b8; }
+.dt-badge.wycofany { background: #f1f5f9; color: #475569; border: 1.5px dashed #94a3b8;
+                     padding: 2px 7px; border-radius: 99px; font-size: 11px; font-weight:600; }
+@media (prefers-color-scheme: dark) {
+  .badge.wycofany, .dt-badge.wycofany {
+    background: #1e293b; color: #94a3b8; border-color: #475569;
+  }
+}
+
 /* ── Bulk-select toolbar ────────────────────────────────────────── */
 #bulkToolbar {
   display: none;

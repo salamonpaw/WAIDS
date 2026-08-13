@@ -1060,8 +1060,8 @@ class DeviceTypeIn(BaseModel):
 
 @app.patch("/devices/{sn}/type")
 def override_device_type(sn: str, body: DeviceTypeIn, _: dict = Depends(require_edit)):
-    if body.device_type not in ("", "master", "oem", "showroom", "stare"):
-        raise HTTPException(400, "device_type must be 'master', 'oem', 'showroom', or '' (reset)")
+    if body.device_type not in ("", "master", "oem", "showroom", "stare", "problematyczne", "wycofany"):
+        raise HTTPException(400, "Nieznany typ urządzenia")
     if body.device_type == "showroom" and not body.showroom_until:
         raise HTTPException(400, "showroom_until (YYYY-MM) is required for showroom type")
     try:
@@ -1664,6 +1664,7 @@ def add_device_susp(sn: str, body: SuspensionIn):
         raise HTTPException(400, "date_from nie może być późniejsza niż date_to")
     try:
         new_id = add_device_suspension(sn, body.date_from, body.date_to, body.note)
+        _invalidate_cache()
         return {"ok": True, "id": new_id}
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -1675,6 +1676,7 @@ def del_device_susp(susp_id: int):
         ok = delete_device_suspension(susp_id)
         if not ok:
             raise HTTPException(404, "Nie znaleziono zawieszenia")
+        _invalidate_cache()
         return {"ok": True}
     except HTTPException:
         raise
@@ -1708,6 +1710,7 @@ def del_firm_susp(susp_id: int):
         ok = delete_firm_suspension(susp_id)
         if not ok:
             raise HTTPException(404, "Nie znaleziono zawieszenia")
+        _invalidate_cache()
         return {"ok": True}
     except HTTPException:
         raise
@@ -1857,7 +1860,7 @@ def bulk_update_devices_endpoint(body: BulkUpdateIn, _=Depends(require_edit)):
     """Grupowa edycja wielu urządzeń naraz (firma / operator / device_type_override)."""
     if not body.sns:
         raise HTTPException(400, "Brak listy SN")
-    valid_types = {"", "master", "slave", "oem", "showroom", "stare"}
+    valid_types = {"", "master", "slave", "oem", "showroom", "stare", "problematyczne", "wycofany"}
     if body.device_type is not None and body.device_type not in valid_types:
         raise HTTPException(400, f"Nieznany typ: {body.device_type}")
     try:

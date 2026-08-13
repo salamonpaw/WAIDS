@@ -358,8 +358,10 @@ def get_analysis() -> list:
                                       CASE WHEN COALESCE(d.maszyna,'') ILIKE '%OEM%'
                                            THEN 'oem' ELSE 'master' END
                              ) = 'oem'                              THEN 'oem'
-                        WHEN COALESCE(dto.type_override,'') = 'showroom' THEN 'showroom'
-                        WHEN COALESCE(dto.type_override,'') = 'stare'    THEN 'stare'
+                        WHEN COALESCE(dto.type_override,'') = 'showroom'        THEN 'showroom'
+                        WHEN COALESCE(dto.type_override,'') = 'stare'           THEN 'stare'
+                        WHEN COALESCE(dto.type_override,'') = 'problematyczne'  THEN 'problematyczne'
+                        WHEN COALESCE(dto.type_override,'') = 'wycofany'        THEN 'wycofany'
                         WHEN COALESCE(fc.firm_type,'ids') = 'inne'     THEN 'inne'
                         WHEN COALESCE(fc.firm_type,'ids') = 'licencja' THEN 'licencja'
                         WHEN COALESCE(fc.firm_type,'ids') = 'oem'      THEN 'oem'

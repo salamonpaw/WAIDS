@@ -46,7 +46,7 @@ const STATUS_LABELS = {
   licencja:'Licencja', inne:'Inne',
   suspended:'Zawieszone', stare:'Stare'
 };
-const DT_LABELS = { master:'Master', oem:'OEM', showroom:'Showroom', stare:'Stare' };
+const DT_LABELS = { master:'Master', oem:'OEM', showroom:'Showroom', stare:'Stare', problematyczne:'Problematyczne', wycofany:'Wycofany' };
 
 function statusBadge(s, isSuspended) {
   if (isSuspended) return `<span class="badge suspended">⏸ Zawieszone</span>`;
@@ -131,10 +131,12 @@ function dtBadge(dt, sn, override, showroomUntil='', isSuspended=false) {
 
 // ── Summary computation ───────────────────────────────────────────────────
 function computeSummary(data) {
-  let paid=0, unpaid=0, only=0, excluded=0, oem=0, showroom=0, masterPaid=0, suspended=0, stare=0;
+  let paid=0, unpaid=0, only=0, excluded=0, oem=0, showroom=0, masterPaid=0, suspended=0, stare=0, problematyczne=0, wycofany=0;
   for (const r of data) {
-    if (r.is_suspended)         { suspended++; continue; }
-    if (r.status === 'stare')   { stare++;     continue; }
+    if (r.is_suspended)                    { suspended++;      continue; }
+    if (r.status === 'stare')              { stare++;          continue; }
+    if (r.status === 'problematyczne')     { problematyczne++; continue; }
+    if (r.status === 'wycofany')           { wycofany++;       continue; }
     if      (r.status==='paid')     { paid++;     if (r.device_type==='master') masterPaid++; }
     else if (r.status==='unpaid')   unpaid++;
     else if (r.status==='only')     only++;
@@ -144,7 +146,7 @@ function computeSummary(data) {
   }
   const noBill = oem + excluded + showroom;
   const pct = (masterPaid+unpaid) > 0 ? Math.round(masterPaid/(masterPaid+unpaid)*100) : 0;
-  return { total:data.length, paid, unpaid, only, excluded, oem, showroom, suspended, stare, noBill, masterPaid, pct };
+  return { total:data.length, paid, unpaid, only, excluded, oem, showroom, suspended, stare, problematyczne, wycofany, noBill, masterPaid, pct };
 }
 
 function updateKpis(s) {

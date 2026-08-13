@@ -845,13 +845,10 @@ async function applyOverride(deviceType) {
       rec.type_override  = deviceType;
       rec.showroom_until = showroomUntil;
       rec.device_type    = deviceType || ((rec.maszyna||'').toUpperCase().includes('OEM') ? 'oem' : 'master');
-      if (rec.device_type === 'oem') {
-        rec.status = 'oem';
-      } else if (rec.device_type === 'showroom') {
-        rec.status = 'showroom';
-      } else if (rec.device_type === 'stare') {
-        rec.status = 'stare';
-      } else if (rec.status === 'oem' || rec.status === 'showroom' || rec.status === 'stare') {
+      const specialTypes = ['oem','showroom','stare','problematyczne','wycofany'];
+      if (specialTypes.includes(rec.device_type)) {
+        rec.status = rec.device_type;
+      } else if (specialTypes.includes(rec.status)) {
         rec.status = rec.total_months > 0 ? 'paid' : 'unpaid';
       }
     }

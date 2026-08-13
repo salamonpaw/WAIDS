@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-  <link rel="stylesheet" href="css/main.css?v=2.1.1">
+  <link rel="stylesheet" href="css/main.css?v=2.1.2">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -353,6 +353,8 @@
         <option value="inne">Inne</option>
         <option value="suspended">⏸ Zawieszone</option>
         <option value="stare">Stare</option>
+        <option value="problematyczne">⚠ Problematyczne</option>
+        <option value="wycofany">🚫 Wycofany</option>
       </select>
       <select id="fFirmType" onchange="onFilterChange()" title="Filtruj po typie firmy (konfigurowanym w zakładce Konfiguracja)">
         <option value="">Wszystkie typy firm</option>
@@ -367,6 +369,8 @@
         <option value="showroom">Showroom</option>
         <option value="oem">OEM</option>
         <option value="stare">Stare</option>
+        <option value="problematyczne">⚠ Problematyczne</option>
+        <option value="wycofany">🚫 Wycofany</option>
       </select>
       <select id="fRep"      onchange="onFilterChange()"><option value="">Wszyscy handlowcy</option></select>
       <select id="fCustomer" onchange="onFilterChange()"><option value="">Wszyscy klienci</option></select>
@@ -929,6 +933,14 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
     <button id="ovBtnStare" onclick="applyOverride('stare')" style="text-align:left;padding:10px 14px">
       <strong style="color:#6b7280">📦 Stare (archiwalne)</strong>
       <span style="display:block;font-size:11px;color:var(--text-muted);margin-top:2px">Urządzenie archiwalne — wykluczone ze statystyk</span>
+    </button>
+    <button id="ovBtnProblematyczne" onclick="applyOverride('problematyczne')" style="text-align:left;padding:10px 14px">
+      <strong style="color:#c2410c">⚠ Problematyczne</strong>
+      <span style="display:block;font-size:11px;color:var(--text-muted);margin-top:2px">Trudne do identyfikacji właściciela / płatnika — wymaga osobnych działań</span>
+    </button>
+    <button id="ovBtnWycofany" onclick="applyOverride('wycofany')" style="text-align:left;padding:10px 14px;border-style:dashed">
+      <strong style="color:#475569">🚫 Wycofany</strong>
+      <span style="display:block;font-size:11px;color:var(--text-muted);margin-top:2px">Urządzenie wycofane z użytku (uszkodzone, zamienione, nieużywane)</span>
     </button>
     <button id="ovBtnAuto" onclick="applyOverride('')" style="text-align:left;padding:10px 14px;border-style:dashed">
       <strong>🔄 Auto (reset)</strong>
@@ -1669,18 +1681,18 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.1.1"></script>
-<script src="js/auth.js?v=2.1.1"></script>
-<script src="js/app.js?v=2.1.1"></script>
-<script src="js/import.js?v=2.1.1"></script>
-<script src="js/report.js?v=2.1.1"></script>
-<script src="js/monitoring.js?v=2.1.1"></script>
-<script src="js/config.js?v=2.1.1"></script>
-<script src="js/firstpay.js?v=2.1.1"></script>
-<script src="js/device.js?v=2.1.1"></script>
-<script src="js/revenue.js?v=2.1.1"></script>
-<script src="js/bonus.js?v=2.1.1"></script>
-<script src="js/tooltip.js?v=2.1.1"></script>
+<script src="js/utils.js?v=2.1.2"></script>
+<script src="js/auth.js?v=2.1.2"></script>
+<script src="js/app.js?v=2.1.2"></script>
+<script src="js/import.js?v=2.1.2"></script>
+<script src="js/report.js?v=2.1.2"></script>
+<script src="js/monitoring.js?v=2.1.2"></script>
+<script src="js/config.js?v=2.1.2"></script>
+<script src="js/firstpay.js?v=2.1.2"></script>
+<script src="js/device.js?v=2.1.2"></script>
+<script src="js/revenue.js?v=2.1.2"></script>
+<script src="js/bonus.js?v=2.1.2"></script>
+<script src="js/tooltip.js?v=2.1.2"></script>
 
 </body>
 </html>

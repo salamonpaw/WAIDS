@@ -58,6 +58,16 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.1.2', date: '2026-08-13',
+    added: [
+      '<b>Nowy typ: ⚠ Problematyczne</b> — maszyna z trudnym do ustalenia właścicielem / płatnikiem; wymaga osobnych działań; filtr w raporcie',
+      '<b>Nowy typ: 🚫 Wycofany</b> — urządzenie nieaktywne (uszkodzone, zamienione, wycofane z użytku); widoczne w bazie ale wykluczone z naliczania; filtr w raporcie'
+    ],
+    fixed: [
+      '<b>Usuwanie zawieszenia (przycisk ✕)</b> — dodano invalidację cache po dodaniu/usunięciu zawieszenia; badge ⏸ aktualizuje się natychmiast po zmianie'
+    ]
+  },
+  {
     version: '2.1.1', date: '2026-07-02',
     fixed: [
       '<b>Zmiana typu urządzenia (Master/OEM/Stare) dla wszystkich użytkowników z uprawnieniem edycji</b> — root cause: te same co przy komentarzach — urządzenia bez wiersza w tabeli produkcji (status „Brak w prod.") miały UPDATE z 0 wierszami. Naprawiono przez tabelę <code>device_type_overrides</code> z UPSERT; zmiana działa teraz niezależnie od statusu urządzenia i uprawnień (admin / edytor)'
