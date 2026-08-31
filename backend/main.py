@@ -42,7 +42,7 @@ from database import (
     get_or_create_secret_key, create_admin_if_needed,
     verify_user, get_user_by_id,
     list_users, create_user_db, set_user_status, reset_user_password, set_user_can_edit,
-    set_user_can_commission,
+    set_user_can_commission, set_user_can_pricing,
     # commission
     get_commission_rates, upsert_commission_rate, delete_commission_rate,
     list_commission_periods, create_commission_period, delete_commission_period,
@@ -50,6 +50,9 @@ from database import (
     get_commission_items, get_commission_summary,
     update_commission_status, bulk_update_commission_status,
     COMMISSION_STATUSES,
+    # pricing analysis
+    get_pricing_analysis, get_pricing_raises, add_pricing_raises,
+    update_pricing_raise, delete_pricing_raise, PRICING_RAISE_STATUSES,
     # import sessions
     create_import_session, get_import_sessions, undo_import_session,
     # bulk device update
@@ -108,6 +111,13 @@ def require_commission(user: dict = Depends(get_auth_user)) -> dict:
     """Admin lub użytkownik z uprawnieniem can_view_commissions."""
     if not (user.get("is_admin") or user.get("can_view_commissions")):
         raise HTTPException(403, "Brak uprawnienia do prowizji")
+    return user
+
+
+def require_pricing(user: dict = Depends(get_auth_user)) -> dict:
+    """Admin lub użytkownik z uprawnieniem can_view_pricing."""
+    if not (user.get("is_admin") or user.get("can_view_pricing")):
+        raise HTTPException(403, "Brak uprawnienia do analizy pricingu")
     return user
 
 
@@ -242,12 +252,14 @@ def admin_set_active(uid: int, body: SetActiveIn, _: dict = Depends(require_admi
 class SetPermissionsIn(BaseModel):
     can_edit_devices:    bool = False
     can_view_commissions: bool = False
+    can_view_pricing:    bool = False
 
 
 @app.patch("/admin/users/{uid}/permissions")
 def admin_set_permissions(uid: int, body: SetPermissionsIn, _: dict = Depends(require_admin)):
     set_user_can_edit(uid, body.can_edit_devices)
     set_user_can_commission(uid, body.can_view_commissions)
+    set_user_can_pricing(uid, body.can_view_pricing)
     return {"ok": True}
 
 
@@ -2210,3 +2222,82 @@ def api_export_commission(period_id: int, _: dict = Depends(require_commission))
         )
     except Exception as e:
         raise HTTPException(500, str(e))
+
+
+# ── Analiza pricingu ──────────────────────────────────────────────────────────
+
+from typing import Optional
+
+
+class PricingAnalyzeIn(BaseModel):
+    ym_from:          str
+    ym_to:            str
+    target_legacy:    float = 90.0
+    target_discount:  float = 100.0
+    thresholds:       list  = [50, 90, 140, 200]
+    classifier_n:     int   = 1
+    staleness_months: int   = 3
+    rep_filter:       list  = []
+    status_filter:    str   = "all"
+
+
+@app.post("/pricing/analyze")
+def api_pricing_analyze(body: PricingAnalyzeIn, _: dict = Depends(require_pricing)):
+    try:
+        targets = {
+            'LEGACY':     body.target_legacy,
+            'DISCOUNT':   body.target_discount,
+            'STANDARD':   0.0,
+            'PREMIUM':    0.0,
+            'ENTERPRISE': 0.0,
+        }
+        result = get_pricing_analysis(
+            ym_from=body.ym_from,
+            ym_to=body.ym_to,
+            targets=targets,
+            thresholds=body.thresholds,
+            classifier_n=body.classifier_n,
+            staleness_months=body.staleness_months,
+            rep_filter=body.rep_filter if body.rep_filter else None,
+            status_filter=body.status_filter,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.get("/pricing/raises")
+def api_get_raises(_: dict = Depends(require_pricing)):
+    return {"raises": get_pricing_raises()}
+
+
+class AddRaisesIn(BaseModel):
+    items: list
+
+
+@app.post("/pricing/raises")
+def api_add_raises(body: AddRaisesIn, _: dict = Depends(require_pricing)):
+    n = add_pricing_raises(body.items)
+    return {"added": n}
+
+
+class UpdateRaiseIn(BaseModel):
+    status:    Optional[str]   = None
+    note:      Optional[str]   = None
+    new_price: Optional[float] = None
+
+
+@app.patch("/pricing/raises/{raise_id}")
+def api_update_raise(raise_id: int, body: UpdateRaiseIn, _: dict = Depends(require_pricing)):
+    ok = update_pricing_raise(raise_id, body.status, body.note, body.new_price)
+    if not ok:
+        raise HTTPException(404, "Nie znaleziono wpisu")
+    return {"ok": True}
+
+
+@app.delete("/pricing/raises/{raise_id}")
+def api_delete_raise(raise_id: int, _: dict = Depends(require_pricing)):
+    ok = delete_pricing_raise(raise_id)
+    if not ok:
+        raise HTTPException(400, "Nie można usunąć (status inny niż DO_KONTAKTU)")
+    return {"ok": True}

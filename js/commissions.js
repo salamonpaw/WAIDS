@@ -41,7 +41,7 @@ async function loadRepsForCommForm() {
     const sel = document.getElementById('crRepName');
     if (!sel) return;
     const cur = sel.value;
-    const uniqueReps = [...new Set(reps.map(r => r.rep_id))].sort();
+    const uniqueReps = [...new Set(reps.map(r => r.name))].sort();
     sel.innerHTML = '<option value="">(globalna – domyślna)</option>' +
       uniqueReps.map(name => `<option value="${esc(name)}" ${name === cur ? 'selected' : ''}>${esc(name)}</option>`).join('');
   } catch {}

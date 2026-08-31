@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-  <link rel="stylesheet" href="css/main.css?v=2.2.5">
+  <link rel="stylesheet" href="css/main.css?v=2.3.0">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -69,6 +69,7 @@
   <button class="tab-btn" id="tabBtnRevenue" onclick="switchTab('revenue')" style="display:none">💰 Wyliczenia</button>
   <button class="tab-btn"        onclick="switchTab('bonus')">🆕 Pierwsze IDS</button>
   <button class="tab-btn" id="tabBtnCommissions" onclick="switchTab('commissions')" style="display:none">💸 Prowizje</button>
+  <button class="tab-btn" id="tabBtnPricing"     onclick="switchTab('pricing')"     style="display:none">📈 Pricing</button>
   <button class="tab-btn" id="tabBtnConfig"  onclick="switchTab('config')"  style="display:none">⚙ Konfiguracja</button>
 </div>
 
@@ -1395,6 +1396,111 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
 </div><!-- /container -->
 </div><!-- /tab-commissions -->
 
+<!-- ══════════════════ PRICING TAB ══════════════════ -->
+<div class="tab-panel" id="tab-pricing">
+<div class="container">
+
+  <div class="section-title">📈 Analiza pricingu IDS</div>
+  <div id="pricingMsg" class="msg" style="margin-bottom:10px"></div>
+
+  <!-- Filtry globalne -->
+  <div style="background:var(--bg-secondary);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:16px">
+    <div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--text-muted)">PARAMETRY ANALIZY</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <!-- Przedział czasu -->
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Od (RRRR-MM)</label>
+        <input id="pYmFrom" type="month" style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Do (RRRR-MM)</label>
+        <input id="pYmTo" type="month" style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+      </div>
+      <!-- Presety -->
+      <div style="display:flex;gap:4px;padding-bottom:1px">
+        <button class="ghost sm" onclick="setPricingPreset('curr_year')">Bieżący rok</button>
+        <button class="ghost sm" onclick="setPricingPreset('prev_year')">Poprzedni rok</button>
+        <button class="ghost sm" onclick="setPricingPreset('last12')">Ostatnie 12 mies.</button>
+      </div>
+      <!-- Targety -->
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Target LEGACY (PLN)</label>
+        <input id="pTargetLegacy" type="number" value="90" min="0" step="1" style="width:80px;height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Target DISCOUNT (PLN)</label>
+        <input id="pTargetDiscount" type="number" value="100" min="0" step="1" style="width:80px;height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+      </div>
+      <!-- Progi segmentów -->
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Progi segmentów (PLN): ≥DISC / ≥STD / ≥PREM / ≥ENT</label>
+        <div style="display:flex;gap:4px">
+          <input id="pT1" type="number" value="50"  min="0" step="1" style="width:50px;height:32px;font-size:12px;text-align:center;padding:0 4px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+          <input id="pT2" type="number" value="90"  min="0" step="1" style="width:50px;height:32px;font-size:12px;text-align:center;padding:0 4px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+          <input id="pT3" type="number" value="140" min="0" step="1" style="width:50px;height:32px;font-size:12px;text-align:center;padding:0 4px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+          <input id="pT4" type="number" value="200" min="0" step="1" style="width:50px;height:32px;font-size:12px;text-align:center;padding:0 4px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+        </div>
+      </div>
+      <!-- Dodatkowe filtry -->
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Opiekun</label>
+        <select id="pRepFilter" style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+          <option value="">Wszyscy opiekunowie</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Status IDS</label>
+        <select id="pStatusFilter" style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+          <option value="all">Wszystkie</option>
+          <option value="active">Aktywne</option>
+          <option value="overdue">Zaległe</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Klasyfikator ceny</label>
+        <select id="pClassifier" style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+          <option value="1">Ostatnia rata</option>
+          <option value="3">Średnia z 3 rat</option>
+          <option value="6">Średnia z 6 rat</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Próg zaległości (mies.)</label>
+        <input id="pStaleness" type="number" value="3" min="1" max="24" step="1" style="width:60px;height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+      </div>
+      <button class="primary" onclick="runPricingAnalysis()">▶ Analizuj</button>
+    </div>
+  </div>
+
+  <!-- Nawigacja widoków -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+    <button id="pBtn_overview"  class="primary sm" onclick="switchPricingView('overview')">📊 Przegląd</button>
+    <button id="pBtn_segments"  class="ghost sm"   onclick="switchPricingView('segments')">🎯 Segmenty</button>
+    <button id="pBtn_reps"      class="ghost sm"   onclick="switchPricingView('reps')">👤 Opiekunowie</button>
+    <button id="pBtn_revision"  class="ghost sm"   onclick="switchPricingView('revision')">📋 Lista rewizji</button>
+    <button id="pBtn_raises"    class="ghost sm"   onclick="switchPricingView('raises')">⬆ Lista podwyżek</button>
+  </div>
+
+  <!-- Panele widoków -->
+  <div id="pPanel_overview">
+    <div id="pPanelOverviewContent"></div>
+  </div>
+  <div id="pPanel_segments" style="display:none">
+    <div id="pPanelSegments"></div>
+  </div>
+  <div id="pPanel_reps" style="display:none">
+    <div id="pPanelReps"></div>
+  </div>
+  <div id="pPanel_revision" style="display:none">
+    <div id="pPanelRevision"></div>
+  </div>
+  <div id="pPanel_raises" style="display:none">
+    <div id="pPanelRaises"></div>
+  </div>
+
+</div>
+</div>
+
 <!-- ══════════════════ CONFIG TAB ══════════════════ -->
 <div class="tab-panel" id="tab-config">
 <div class="container">
@@ -1437,6 +1543,7 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
           <th>Rola</th>
           <th style="text-align:center" title="Uprawnienie do zmiany firmy, operatora i typu urządzenia">✏ Edycja urządzeń</th>
           <th style="text-align:center" title="Dostęp do zakładki Prowizje">💸 Prowizje</th>
+          <th style="text-align:center" title="Dostęp do Analizy Pricingu">📈 Pricing</th>
           <th>Status</th>
           <th>Akcje</th>
         </tr></thead>
@@ -1843,19 +1950,20 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.2.5"></script>
-<script src="js/auth.js?v=2.2.5"></script>
-<script src="js/app.js?v=2.2.5"></script>
-<script src="js/import.js?v=2.2.5"></script>
-<script src="js/report.js?v=2.2.5"></script>
-<script src="js/monitoring.js?v=2.2.5"></script>
-<script src="js/config.js?v=2.2.5"></script>
-<script src="js/firstpay.js?v=2.2.5"></script>
-<script src="js/device.js?v=2.2.5"></script>
-<script src="js/revenue.js?v=2.2.5"></script>
-<script src="js/bonus.js?v=2.2.5"></script>
-<script src="js/commissions.js?v=2.2.5"></script>
-<script src="js/tooltip.js?v=2.2.5"></script>
+<script src="js/utils.js?v=2.3.0"></script>
+<script src="js/auth.js?v=2.3.0"></script>
+<script src="js/app.js?v=2.3.0"></script>
+<script src="js/import.js?v=2.3.0"></script>
+<script src="js/report.js?v=2.3.0"></script>
+<script src="js/monitoring.js?v=2.3.0"></script>
+<script src="js/config.js?v=2.3.0"></script>
+<script src="js/firstpay.js?v=2.3.0"></script>
+<script src="js/device.js?v=2.3.0"></script>
+<script src="js/revenue.js?v=2.3.0"></script>
+<script src="js/bonus.js?v=2.3.0"></script>
+<script src="js/commissions.js?v=2.3.0"></script>
+<script src="js/pricing.js?v=2.3.0"></script>
+<script src="js/tooltip.js?v=2.3.0"></script>
 
 </body>
 </html>

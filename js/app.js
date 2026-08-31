@@ -7,6 +7,8 @@ function switchTab(name) {
   if (ADMIN_TABS.includes(name) && !currentUser?.is_admin) return;
   if (name === 'commissions' &&
       !currentUser?.is_admin && !currentUser?.can_view_commissions) return;
+  if (name === 'pricing' &&
+      !currentUser?.is_admin && !currentUser?.can_view_pricing) return;
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
@@ -19,14 +21,17 @@ function switchTab(name) {
   if (name === 'bonus')        { loadBonusTab(); }
   if (name === 'config')       { loadConfig(); loadLicenseFees(); }
   if (name === 'commissions')  { onTabCommissions(); }
+  if (name === 'pricing')      { onTabPricing(); }
 }
 
 function applyAdminTabs() {
   const isAdmin = currentUser?.is_admin || false;
-  const canComm = isAdmin || currentUser?.can_view_commissions || false;
-  document.getElementById('tabBtnRevenue').style.display     = isAdmin ? '' : 'none';
-  document.getElementById('tabBtnCommissions').style.display = canComm  ? '' : 'none';
-  document.getElementById('tabBtnConfig').style.display      = isAdmin ? '' : 'none';
+  const canComm    = isAdmin || currentUser?.can_view_commissions || false;
+  const canPricing = isAdmin || currentUser?.can_view_pricing    || false;
+  document.getElementById('tabBtnRevenue').style.display     = isAdmin    ? '' : 'none';
+  document.getElementById('tabBtnCommissions').style.display = canComm    ? '' : 'none';
+  document.getElementById('tabBtnPricing').style.display     = canPricing ? '' : 'none';
+  document.getElementById('tabBtnConfig').style.display      = isAdmin    ? '' : 'none';
   // Show admin-only rate form
   const rateForm = document.getElementById('commAdminRateForm');
   if (rateForm) rateForm.style.display = isAdmin ? '' : 'none';
@@ -67,6 +72,21 @@ async function refreshStatus() {
 // ── Changelog modal ────────────────────────────────────────────────────────
 
 const CHANGELOG_ENTRIES = [
+  {
+    version: '2.3.0', date: '2026-08-31',
+    added: [
+      '<b>📈 Analiza pricingu IDS</b> — nowa zakładka (uprawnienie <code>can_view_pricing</code>) z globalnym wyborem przedziału czasu i parametrami (target migracji, progi segmentów, klasyfikator ceny, próg zaległości)',
+      '<b>Przegląd (6.1)</b> — KPI (Liczba IDS, Średnia, Mediana, MRR, LEGACY, do migracji, potencjał /mies. i /rok), histogram cen, wykres udziałów segmentów, potencjał wg segmentu',
+      '<b>Segmenty cenowe (6.2)</b> — tabela LEGACY/DISCOUNT/STANDARD/PREMIUM/ENTERPRISE z kliknięciem drilldown do listy rewizji',
+      '<b>Opiekunowie (6.3)</b> — tabela i wykres potencjału per handlowiec; kliknięcie filtruje listę rewizji',
+      '<b>Lista rewizji (6.4)</b> — interaktywna tabela do migracji: edytowalny target per wiersz, zaznaczanie + licznik potencjału zaznaczonych, akcja „+ Dodaj do listy podwyżek"',
+      '<b>Lista podwyżek</b> — CRUD ze statusami DO_KONTAKTU / W_TOKU / PODNIESIONO / ODRZUCONO; pole notatki i nowej stawki inline',
+      '<b>Presety czasu</b>: bieżący rok, poprzedni rok, ostatnie 12 miesięcy',
+    ],
+    fixed: [
+      '<b>Select handlowca w stawkach prowizji</b> — pole używało <code>r.rep_id</code> (integer) zamiast <code>r.name</code>; lista była pusta — naprawiono'
+    ]
+  },
   {
     version: '2.2.5', date: '2026-08-31',
     changed: [

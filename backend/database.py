@@ -273,6 +273,31 @@ def init_db() -> None:
                 ADD COLUMN IF NOT EXISTS can_view_commissions BOOLEAN NOT NULL DEFAULT FALSE;
             """)
 
+            # ── Migracja: can_view_pricing ────────────────────────────────────
+            cur.execute("""
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS can_view_pricing BOOLEAN NOT NULL DEFAULT FALSE;
+            """)
+
+            # ── Tabela listy podwyżek ─────────────────────────────────────────
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS pricing_raises (
+                    id              SERIAL PRIMARY KEY,
+                    sn              VARCHAR NOT NULL,
+                    firma           VARCHAR NOT NULL DEFAULT '',
+                    rep_name        VARCHAR NOT NULL DEFAULT '',
+                    current_price   NUMERIC(12,2) NOT NULL DEFAULT 0,
+                    target_price    NUMERIC(12,2) NOT NULL DEFAULT 0,
+                    potential_msc   NUMERIC(12,2) NOT NULL DEFAULT 0,
+                    segment         VARCHAR NOT NULL DEFAULT '',
+                    status          VARCHAR NOT NULL DEFAULT 'DO_KONTAKTU',
+                    note            VARCHAR NOT NULL DEFAULT '',
+                    new_price       NUMERIC(12,2),
+                    created_at      TIMESTAMP DEFAULT NOW(),
+                    updated_at      TIMESTAMP DEFAULT NOW()
+                );
+            """)
+
             # ── Tabele systemu prowizji ───────────────────────────────────────
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS commission_rates (
@@ -920,7 +945,7 @@ def list_users() -> list:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
                 "SELECT id, email, name, is_active, is_admin, can_edit_devices,"
-                " can_view_commissions, created_at, last_login"
+                " can_view_commissions, can_view_pricing, created_at, last_login"
                 " FROM users ORDER BY id"
             )
             return [dict(r) for r in cur.fetchall()]
@@ -944,6 +969,15 @@ def set_user_can_edit(user_id: int, can_edit: bool) -> None:
             cur.execute(
                 "UPDATE users SET can_edit_devices = %s WHERE id = %s",
                 (can_edit, user_id),
+            )
+
+
+def set_user_can_pricing(user_id: int, can_view: bool) -> None:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET can_view_pricing = %s WHERE id = %s",
+                (can_view, user_id),
             )
 
 
@@ -2047,3 +2081,316 @@ def bulk_update_commission_status(period_id: int, item_ids: list,
                 VALUES %s
             """, log_rows)
             return len(ids)
+
+
+# ── Analiza pricingu IDS ───────────────────────────────────────────────────
+
+PRICING_RAISE_STATUSES = ('DO_KONTAKTU', 'W_TOKU', 'PODNIESIONO', 'ODRZUCONO')
+
+SEGMENT_DEFS = [
+    ('LEGACY',     0,    50,   '< 50 PLN'),
+    ('DISCOUNT',   50,   90,   '50–89 PLN'),
+    ('STANDARD',   90,  140,   '90–139 PLN'),
+    ('PREMIUM',   140,  200,   '140–199 PLN'),
+    ('ENTERPRISE',200, None,   '≥ 200 PLN'),
+]
+
+DEFAULT_TARGETS = {
+    'LEGACY':   90.0,
+    'DISCOUNT': 100.0,
+    'STANDARD': 0.0,
+    'PREMIUM':  0.0,
+    'ENTERPRISE': 0.0,
+}
+
+
+def _ym_minus_months(ym: str, n: int) -> str:
+    y, m = int(ym[:4]), int(ym[5:7])
+    m -= n
+    while m <= 0:
+        m += 12
+        y -= 1
+    return f"{y:04d}-{m:02d}"
+
+
+def _segment_for(price: float, thresholds: list) -> str:
+    t50, t90, t140, t200 = thresholds
+    if price < t50:   return 'LEGACY'
+    if price < t90:   return 'DISCOUNT'
+    if price < t140:  return 'STANDARD'
+    if price < t200:  return 'PREMIUM'
+    return 'ENTERPRISE'
+
+
+def get_pricing_analysis(
+    ym_from: str,
+    ym_to: str,
+    targets: dict | None = None,
+    thresholds: list | None = None,
+    classifier_n: int = 1,
+    staleness_months: int = 3,
+    rep_filter: list | None = None,
+    status_filter: str = 'all',
+) -> dict:
+    """
+    Compute pricing analysis for devices with payments in [ym_from, ym_to].
+    thresholds: [t50, t90, t140, t200] — upper bounds of LEGACY, DISCOUNT, STANDARD, PREMIUM.
+    targets: dict segment→target_price (default LEGACY=90, DISCOUNT=100, others=0).
+    classifier_n: use last N payments in window to compute average price (default 1 = last only).
+    staleness_months: device is 'overdue' if last paid year_month < ym_to minus this many months.
+    """
+    if targets is None:
+        targets = dict(DEFAULT_TARGETS)
+    if thresholds is None:
+        thresholds = [50, 90, 140, 200]
+
+    ym_threshold = _ym_minus_months(ym_to, staleness_months)
+
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                WITH ranked AS (
+                    SELECT sn, amount_netto, year_month,
+                           ROW_NUMBER() OVER (PARTITION BY sn ORDER BY year_month DESC) AS rn
+                    FROM payments
+                    WHERE year_month >= %s AND year_month <= %s
+                      AND amount_netto > 0
+                ),
+                price_per_sn AS (
+                    SELECT sn, ROUND(AVG(amount_netto)::numeric, 2) AS price
+                    FROM ranked WHERE rn <= %s
+                    GROUP BY sn
+                ),
+                last_paid AS (
+                    SELECT sn, MAX(year_month) AS last_paid_ym
+                    FROM payments WHERE amount_netto > 0
+                    GROUP BY sn
+                ),
+                rep_per_firma AS (
+                    SELECT fr.firma, MIN(sr.name) AS rep_name
+                    FROM firm_reps fr JOIN sales_reps sr ON sr.id = fr.rep_id
+                    GROUP BY fr.firma
+                )
+                SELECT p.sn, p.price::float, d.firma,
+                       COALESCE(r.rep_name, '(brak opiekuna)') AS rep_name,
+                       COALESCE(lp.last_paid_ym, '') AS last_paid_ym
+                FROM price_per_sn p
+                JOIN devices d ON d.sn = p.sn
+                LEFT JOIN rep_per_firma r ON r.firma = d.firma
+                LEFT JOIN last_paid lp ON lp.sn = p.sn
+                LEFT JOIN firm_config fc ON fc.firma = d.firma
+                WHERE d.firma NOT IN (SELECT firma FROM excluded_firms)
+                  AND COALESCE(fc.firm_type, 'ids') NOT IN ('oem', 'licencja')
+                ORDER BY p.price
+            """, (ym_from, ym_to, classifier_n))
+            rows = cur.fetchall()
+
+    import statistics
+
+    # Apply status_filter and rep_filter in Python
+    def is_active(last_ym):
+        return last_ym >= ym_threshold if last_ym else False
+
+    items = []
+    for sn, price, firma, rep_name, last_paid_ym in rows:
+        active = is_active(last_paid_ym)
+        if status_filter == 'active' and not active:
+            continue
+        if status_filter == 'overdue' and active:
+            continue
+        if rep_filter and rep_name not in rep_filter:
+            continue
+        seg = _segment_for(price, thresholds)
+        target = targets.get(seg, 0.0)
+        potential = round(max(0.0, target - price), 2) if target > 0 else 0.0
+        items.append({
+            'sn': sn, 'price': price, 'firma': firma,
+            'rep_name': rep_name, 'segment': seg,
+            'target': target, 'potential_monthly': potential,
+            'active': active, 'last_paid_ym': last_paid_ym,
+        })
+
+    if not items:
+        prices = []
+    else:
+        prices = [i['price'] for i in items]
+
+    # KPI
+    count = len(items)
+    mean_price = round(sum(prices) / count, 2) if count else 0.0
+    median_price = round(statistics.median(prices), 2) if count else 0.0
+    mrr = round(sum(prices), 2)
+    legacy_count = sum(1 for i in items if i['segment'] == 'LEGACY')
+    migration_items = [i for i in items if i['potential_monthly'] > 0]
+    potential_monthly = round(sum(i['potential_monthly'] for i in migration_items), 2)
+    active_count = sum(1 for i in items if i['active'])
+
+    # Segments
+    seg_stats = {}
+    for seg_name, _, _, _ in [s[:4] for s in [
+        ('LEGACY', 0, 50, '< 50 PLN'), ('DISCOUNT', 50, 90, '50–89 PLN'),
+        ('STANDARD', 90, 140, '90–139 PLN'), ('PREMIUM', 140, 200, '140–199 PLN'),
+        ('ENTERPRISE', 200, None, '≥ 200 PLN'),
+    ]]:
+        seg_items = [i for i in items if i['segment'] == seg_name]
+        if not seg_items:
+            continue
+        sp = [i['price'] for i in seg_items]
+        seg_stats[seg_name] = {
+            'name': seg_name,
+            'count': len(seg_items),
+            'pct': round(100 * len(seg_items) / count, 1) if count else 0,
+            'mean': round(sum(sp) / len(sp), 2),
+            'median': round(statistics.median(sp), 2),
+            'target': targets.get(seg_name, 0.0),
+            'potential_monthly': round(sum(i['potential_monthly'] for i in seg_items), 2),
+            'mrr': round(sum(sp), 2),
+        }
+
+    seg_labels = ['LEGACY', 'DISCOUNT', 'STANDARD', 'PREMIUM', 'ENTERPRISE']
+    seg_ranges = {'LEGACY': '< 50 PLN', 'DISCOUNT': '50–89 PLN', 'STANDARD': '90–139 PLN',
+                  'PREMIUM': '140–199 PLN', 'ENTERPRISE': '≥ 200 PLN'}
+    segments_out = []
+    for seg_name in seg_labels:
+        s = seg_stats.get(seg_name)
+        if s:
+            s['range'] = seg_ranges[seg_name]
+            segments_out.append(s)
+
+    # Reps
+    rep_map = {}
+    for i in items:
+        r = i['rep_name']
+        if r not in rep_map:
+            rep_map[r] = {'rep_name': r, 'count': 0, 'migration_count': 0,
+                          'prices': [], 'potential_monthly': 0.0}
+        rep_map[r]['count'] += 1
+        rep_map[r]['prices'].append(i['price'])
+        if i['potential_monthly'] > 0:
+            rep_map[r]['migration_count'] += 1
+            rep_map[r]['potential_monthly'] += i['potential_monthly']
+    reps_out = []
+    for r in sorted(rep_map.values(), key=lambda x: -x['potential_monthly']):
+        sp = r['prices']
+        reps_out.append({
+            'rep_name': r['rep_name'],
+            'count': r['count'],
+            'migration_count': r['migration_count'],
+            'mean': round(sum(sp) / len(sp), 2) if sp else 0.0,
+            'median': round(statistics.median(sp), 2) if sp else 0.0,
+            'potential_monthly': round(r['potential_monthly'], 2),
+        })
+
+    # Revision list (only devices with potential > 0), sorted by price asc
+    revision = [
+        {'sn': i['sn'], 'firma': i['firma'], 'rep_name': i['rep_name'],
+         'price': i['price'], 'segment': i['segment'],
+         'target': i['target'], 'potential_monthly': i['potential_monthly'],
+         'active': i['active'], 'last_paid_ym': i['last_paid_ym']}
+        for i in items if i['potential_monthly'] > 0
+    ]
+
+    # Histogram bins (PLN/mies.)
+    bins = [(0, 40), (40, 60), (60, 80), (80, 100), (100, 120),
+            (120, 150), (150, 180), (180, 220), (220, None)]
+    histogram = []
+    for lo, hi in bins:
+        label = f"{lo}–{hi}" if hi else f"{lo}+"
+        cnt = sum(1 for p in prices if p >= lo and (hi is None or p < hi))
+        histogram.append({'label': label, 'count': cnt})
+
+    return {
+        'kpi': {
+            'count': count,
+            'mean': mean_price,
+            'median': median_price,
+            'mrr': mrr,
+            'arpu': mean_price,
+            'legacy_count': legacy_count,
+            'legacy_pct': round(100 * legacy_count / count, 1) if count else 0.0,
+            'migration_count': len(migration_items),
+            'potential_monthly': potential_monthly,
+            'potential_yearly': round(potential_monthly * 12, 2),
+            'active_count': active_count,
+            'overdue_count': count - active_count,
+        },
+        'segments': segments_out,
+        'reps': reps_out,
+        'revision_list': revision,
+        'histogram': histogram,
+        'params': {
+            'ym_from': ym_from, 'ym_to': ym_to,
+            'thresholds': thresholds, 'targets': targets,
+            'classifier_n': classifier_n, 'staleness_months': staleness_months,
+        },
+    }
+
+
+# ── Lista podwyżek (pricing_raises) ───────────────────────────────────────
+
+def get_pricing_raises(rep_filter: list | None = None) -> list:
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            if rep_filter:
+                cur.execute("""
+                    SELECT * FROM pricing_raises
+                    WHERE rep_name = ANY(%s) OR rep_name = '(brak opiekuna)'
+                    ORDER BY status, created_at DESC
+                """, (rep_filter,))
+            else:
+                cur.execute("SELECT * FROM pricing_raises ORDER BY status, created_at DESC")
+            return [dict(r) for r in cur.fetchall()]
+
+
+def add_pricing_raises(items: list) -> int:
+    """Bulk insert raises; skip duplicates (same SN already in non-final status)."""
+    if not items:
+        return 0
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            # Fetch existing active SNs to avoid duplicates
+            cur.execute("""
+                SELECT sn FROM pricing_raises
+                WHERE status NOT IN ('PODNIESIONO', 'ODRZUCONO')
+            """)
+            existing_sns = {r[0] for r in cur.fetchall()}
+            new_items = [i for i in items if i['sn'] not in existing_sns]
+            if not new_items:
+                return 0
+            execute_values(cur, """
+                INSERT INTO pricing_raises
+                  (sn, firma, rep_name, current_price, target_price, potential_msc, segment, status)
+                VALUES %s
+            """, [(i['sn'], i.get('firma',''), i.get('rep_name',''),
+                   i.get('current_price', 0), i.get('target_price', 0),
+                   i.get('potential_msc', 0), i.get('segment',''), 'DO_KONTAKTU')
+                  for i in new_items])
+            return len(new_items)
+
+
+def update_pricing_raise(raise_id: int, status: str | None, note: str | None,
+                          new_price: float | None) -> bool:
+    if status and status not in PRICING_RAISE_STATUSES:
+        raise ValueError(f"Nieprawidłowy status: {status}")
+    fields, vals = [], []
+    if status is not None:
+        fields.append("status = %s"); vals.append(status)
+    if note is not None:
+        fields.append("note = %s"); vals.append(note)
+    if new_price is not None:
+        fields.append("new_price = %s"); vals.append(new_price)
+    if not fields:
+        return False
+    fields.append("updated_at = NOW()")
+    vals.append(raise_id)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(f"UPDATE pricing_raises SET {', '.join(fields)} WHERE id = %s", vals)
+            return cur.rowcount > 0
+
+
+def delete_pricing_raise(raise_id: int) -> bool:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM pricing_raises WHERE id = %s AND status = 'DO_KONTAKTU'", (raise_id,))
+            return cur.rowcount > 0
