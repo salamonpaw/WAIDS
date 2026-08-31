@@ -79,8 +79,11 @@ async function importPayments() {
     const skipUnpaid = d.skipped_unpaid > 0
       ? ` · pominięto ${d.skipped_unpaid} nieopłaconych`
       : (d.pay_date_col ? '' : ' · ⚠ brak kolumny daty spłaty');
+    const nettoInfo = d.netto_col
+      ? ` · netto: "${d.netto_col}" (${d.netto_col_type === 'total' ? 'łączna ÷ mies.' : 'cena jedn./mies.'})`
+      : ' · ⚠ brak kolumny netto';
     setMsg('msgPay',
-      `✓ Dodano ${d.inserted} rekordów (${d.format}). Miesiące: ${d.months.join(', ')}${skipExist}${skipUnpaid}`,
+      `✓ Dodano ${d.inserted} rekordów (${d.format}). Miesiące: ${d.months.join(', ')}${skipExist}${skipUnpaid}${nettoInfo}`,
       'ok');
     refreshStatus();
     loadImportHistory();

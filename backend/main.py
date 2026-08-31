@@ -664,13 +664,24 @@ async def import_payments(
         pay_date_col = find_col(df, ["nzf_dataostatniejsplaty", "dataostatniejsplaty",
                                      "datazaplaty", "fs_datazaplaty", "data_zaplaty",
                                      "ostatniasplata", "ostatniazaplata"])
-        # Kwota w walucie oryginalnej → fallback netto PLN (bez nzf_WartoscPierwotnaWaluta — złe dane)
-        amount_col      = find_col(df, ["ob_cenawaluta", "ob_cenanetto",
-                                        "ob_wartosc", "wartosc", "fs_wartosc", "amount", "kwota"])
+        # Kwota w walucie oryginalnej — ob_cenawaluta = cena jednostkowa/miesięczna
+        amount_col      = find_col(df, ["ob_cenawaluta", "ob_wartosc", "wartosc",
+                                        "fs_wartosc", "amount", "kwota"])
         currency_col    = find_col(df, ["nzf_idwaluty", "idwaluty", "waluta", "currency"])
-        # Kwota netto PLN i brutto PLN (dodatkowe kolumny)
-        netto_col       = find_col(df, ["ob_cenanetto", "cenanetto", "netto", "net"])
-        brutto_col      = find_col(df, ["ob_cenabrutto", "cenabrutto", "brutto", "gross"])
+        # Kwota netto PLN:
+        #   ob_wartnetto / ob_wartoscnetto = ŁĄCZNA wartość za cały okres → dzielimy przez miesiące
+        #   ob_cenanetto / cenanetto        = CENA JEDNOSTKOWA (1 mies.)   → NIE dzielimy
+        netto_col_total = find_col(df, ["ob_wartnetto", "ob_wartoscnetto", "wartnetto",
+                                        "wartoscnetto", "ob_wartnetto", "wartosc_netto"])
+        netto_col_unit  = find_col(df, ["ob_cenanetto", "cenanetto", "netto", "net"])
+        netto_col       = netto_col_total or netto_col_unit
+        _netto_is_total = netto_col_total is not None
+
+        brutto_col_total = find_col(df, ["ob_wartbrutto", "ob_wartoscbrutto", "wartbrutto",
+                                         "wartoscbrutto", "wartosc_brutto"])
+        brutto_col_unit  = find_col(df, ["ob_cenabrutto", "cenabrutto", "brutto", "gross"])
+        brutto_col       = brutto_col_total or brutto_col_unit
+        _brutto_is_total = brutto_col_total is not None
 
         skipped = 0
         skipped_unpaid = 0
@@ -719,14 +730,26 @@ async def import_payments(
                 except (ValueError, TypeError):
                     return 0.0
 
-            # Kwota w walucie oryginalnej — dzielimy proporcjonalnie na miesiące
+            # Kwota w walucie oryginalnej.
+            # ob_cenawaluta = cena jednostkowa/miesięczna → nie dzielimy przez miesiące
             total_amount  = _parse_amt(amount_col)
             total_netto   = _parse_amt(netto_col)
             total_brutto  = _parse_amt(brutto_col)
 
-            amount_per_month = round(total_amount / months_count, 2) if months_count > 1 else total_amount
-            netto_per_month  = round(total_netto  / months_count, 2) if months_count > 1 else total_netto
-            brutto_per_month = round(total_brutto / months_count, 2) if months_count > 1 else total_brutto
+            # amount_col (ob_cenawaluta) to cena miesięczna — nie dzielić
+            amount_per_month = total_amount
+
+            # netto: ob_wartnetto = łączna (dziel przez miesiące), ob_cenanetto = już per-mies.
+            if _netto_is_total and months_count > 1:
+                netto_per_month = round(total_netto / months_count, 2)
+            else:
+                netto_per_month = total_netto
+
+            # brutto analogicznie
+            if _brutto_is_total and months_count > 1:
+                brutto_per_month = round(total_brutto / months_count, 2)
+            else:
+                brutto_per_month = total_brutto
 
             currency = ""
             if currency_col:
@@ -889,6 +912,7 @@ async def import_payments(
         "amount_col":        amount_col   if invoice_date_col else None,
         "currency_col":      currency_col if invoice_date_col else None,
         "netto_col":         netto_col    if invoice_date_col else None,
+        "netto_col_type":    ("total" if _netto_is_total else "unit") if invoice_date_col else None,
         "brutto_col":        brutto_col   if invoice_date_col else None,
     }
 

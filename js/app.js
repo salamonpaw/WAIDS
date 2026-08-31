@@ -73,6 +73,12 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.3.1', date: '2026-08-31',
+    fixed: [
+      '<b>Import płatności — błędne kwoty netto dla płatności z góry (advance payment)</b> — kod dzielił <code>ob_cenanetto</code> (cena miesięczna) przez liczbę miesięcy, dając 1/12 rzeczywistej stawki. Teraz: jeśli plik ma <code>ob_wartnetto</code> (wartość łączna) → dzieli przez miesiące; jeśli tylko <code>ob_cenanetto</code> (cena jednostkowa/mies.) → bez dzielenia. Wynik importu pokazuje teraz typ kolumny (łączna vs cena jedn.).'
+    ]
+  },
+  {
     version: '2.3.0', date: '2026-08-31',
     added: [
       '<b>📈 Analiza pricingu IDS</b> — nowa zakładka (uprawnienie <code>can_view_pricing</code>) z globalnym wyborem przedziału czasu i parametrami (target migracji, progi segmentów, klasyfikator ceny, próg zaległości)',
