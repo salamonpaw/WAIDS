@@ -413,6 +413,19 @@ async function adminToggleEditPerm(uid, canEdit, canComm) {
   } catch(e) { alert('Błąd: '+e.message); }
 }
 
+async function cleanupOrphanedFirmReps() {
+  try {
+    const r = await fetch(`${API}/reps/cleanup-orphans`, { method: 'POST' });
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) {
+      setMsg('msgReps', `Usunięto ${d.deleted} osieroconych przypisań`, 'ok');
+      await loadReps();
+    } else {
+      setMsg('msgReps', d.detail || 'Błąd czyszczenia', 'err');
+    }
+  } catch(e) { setMsg('msgReps', '❌ ' + e.message, 'err'); }
+}
+
 async function adminToggleCommPerm(uid, canEdit, canComm) {
   try {
     const r = await fetch(`${API}/admin/users/${uid}/permissions`, {

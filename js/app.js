@@ -68,6 +68,16 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.2.3', date: '2026-08-31',
+    fixed: [
+      '<b>Przypisanie/usunięcie firmy handlowca</b> — brak invalidacji cache powodował że raport nadal pokazywał stare dane; dodano <code>_invalidate_cache()</code> po każdej zmianie',
+      '<b>Osierocone przypisania firm</b> — po scaleniu firm wpisy w <code>firm_reps</code> ze starą nazwą firmy były nadal widoczne; <code>get_reps()</code> teraz filtruje tylko aktywne firmy z tabeli devices; scalenie automatycznie czyści osierocone wpisy'
+    ],
+    added: [
+      '<b>🧹 Wyczyść osierocone</b> — przycisk w Konfiguracja → Handlowcy usuwa jednorazowo stare przypisania do firm które już nie istnieją (np. sprzed wdrożenia automatycznego czyszczenia)'
+    ]
+  },
+  {
     version: '2.2.2', date: '2026-08-31',
     fixed: [
       '<b>Pobieranie Excel</b> — link tworzony przez blob URL jest dołączany do DOM przed kliknięciem (fix dla przeglądarek wymagających elementu w drzewie), obsługa błędu z komunikatem',

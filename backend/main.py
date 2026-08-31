@@ -1059,6 +1059,7 @@ def list_all_firms_for_reps():
 def add_firm_to_rep(rep_id: int, body: FirmAssign):
     try:
         assign_firm_to_rep(rep_id, body.firma)
+        _invalidate_cache()
         return {"ok": True}
     except Exception as e:
         raise HTTPException(500, str(e))
@@ -1068,7 +1069,27 @@ def add_firm_to_rep(rep_id: int, body: FirmAssign):
 def remove_firm_from_rep_endpoint(rep_id: int, firma: str):
     try:
         remove_firm_from_rep(rep_id, firma)
+        _invalidate_cache()
         return {"ok": True}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.post("/reps/cleanup-orphans")
+def cleanup_orphaned_firm_reps(_: dict = Depends(require_admin)):
+    """Usuń przypisania firm które już nie istnieją w tabeli devices."""
+    try:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    DELETE FROM firm_reps
+                    WHERE firma NOT IN (
+                        SELECT DISTINCT firma FROM devices WHERE firma <> ''
+                    )
+                """)
+                deleted = cur.rowcount
+        _invalidate_cache()
+        return {"ok": True, "deleted": deleted}
     except Exception as e:
         raise HTTPException(500, str(e))
 

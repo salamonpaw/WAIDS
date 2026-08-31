@@ -516,6 +516,9 @@ def get_reps() -> list:
             cur.execute("""
                 SELECT fr.rep_id, fr.firma
                 FROM firm_reps fr
+                WHERE fr.firma IN (
+                    SELECT DISTINCT firma FROM devices WHERE firma <> ''
+                )
                 ORDER BY fr.firma
             """)
             assignments = cur.fetchall()
@@ -1053,6 +1056,12 @@ def merge_firms(source: str, target: str) -> dict:
                 reps_moved += 1
             cur.execute("DELETE FROM firm_reps WHERE firma = %s", (source,))
             counts["firm_reps"] = reps_moved
+
+            # cleanup: remove any orphaned firm_reps (firma not in devices)
+            cur.execute("""
+                DELETE FROM firm_reps
+                WHERE firma NOT IN (SELECT DISTINCT firma FROM devices WHERE firma <> '')
+            """)
 
             # 3. firm_config — keep target config if both exist; else rename source
             cur.execute("SELECT 1 FROM firm_config WHERE firma = %s", (target,))

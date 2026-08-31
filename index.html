@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-  <link rel="stylesheet" href="css/main.css?v=2.2.2">
+  <link rel="stylesheet" href="css/main.css?v=2.2.3">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -1500,9 +1500,15 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
 
     <!-- Reps -->
     <div class="section-card">
-      <div class="section-title">👥 Handlowcy — przypisanie firm</div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:.25rem">
+        <div class="section-title" style="margin:0">👥 Handlowcy — przypisanie firm</div>
+        <button class="ghost sm" onclick="cleanupOrphanedFirmReps()"
+                title="Usuń przypisania firm które już nie istnieją w bazie urządzeń (np. po scaleniu firm)"
+                style="font-size:11px">🧹 Wyczyść osierocone</button>
+      </div>
       <p style="font-size:12px;color:var(--text-muted);margin-bottom:.75rem">
         Przypisz firmy do handlowców. Firma może mieć wielu handlowców.
+        Lista firm pokazuje tylko aktywne nazwy (po scaleniu — wyłącznie nazwa docelowa).
       </p>
       <div class="input-row" style="margin-bottom:.75rem">
         <div class="input-group">
@@ -1830,19 +1836,19 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.2.2"></script>
-<script src="js/auth.js?v=2.2.2"></script>
-<script src="js/app.js?v=2.2.2"></script>
-<script src="js/import.js?v=2.2.2"></script>
-<script src="js/report.js?v=2.2.2"></script>
-<script src="js/monitoring.js?v=2.2.2"></script>
-<script src="js/config.js?v=2.2.2"></script>
-<script src="js/firstpay.js?v=2.2.2"></script>
-<script src="js/device.js?v=2.2.2"></script>
-<script src="js/revenue.js?v=2.2.2"></script>
-<script src="js/bonus.js?v=2.2.2"></script>
-<script src="js/commissions.js?v=2.2.2"></script>
-<script src="js/tooltip.js?v=2.2.2"></script>
+<script src="js/utils.js?v=2.2.3"></script>
+<script src="js/auth.js?v=2.2.3"></script>
+<script src="js/app.js?v=2.2.3"></script>
+<script src="js/import.js?v=2.2.3"></script>
+<script src="js/report.js?v=2.2.3"></script>
+<script src="js/monitoring.js?v=2.2.3"></script>
+<script src="js/config.js?v=2.2.3"></script>
+<script src="js/firstpay.js?v=2.2.3"></script>
+<script src="js/device.js?v=2.2.3"></script>
+<script src="js/revenue.js?v=2.2.3"></script>
+<script src="js/bonus.js?v=2.2.3"></script>
+<script src="js/commissions.js?v=2.2.3"></script>
+<script src="js/tooltip.js?v=2.2.3"></script>
 
 </body>
 </html>
