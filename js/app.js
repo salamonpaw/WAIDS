@@ -68,6 +68,16 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.2.2', date: '2026-08-31',
+    fixed: [
+      '<b>Pobieranie Excel</b> — link tworzony przez blob URL jest dołączany do DOM przed kliknięciem (fix dla przeglądarek wymagających elementu w drzewie), obsługa błędu z komunikatem',
+      '<b>Panel pozycji</b> — przewija stronę do tabeli po kliknięciu ⟳ Przelicz'
+    ],
+    changed: [
+      '<b>Przyciski akcji w tabeli prowizji</b> — zamiast dropdownu: wyraźne przyciski ✓ Zatwierdź / 💰 Wypłacono / ↺ Cofnij per wiersz; pozycja Wypłacona jest zablokowana 🔒'
+    ]
+  },
+  {
     version: '2.2.1', date: '2026-08-31',
     fixed: [
       '<b>Eksport Excel prowizji</b> — pobieranie pliku przez fetch+blob z tokenem autoryzacji (poprzednio otwierał URL bezpośrednio → Not authenticated)',

@@ -203,6 +203,7 @@ async function computeCommPeriod(id) {
     _activePeriodId = id;
     document.getElementById('commItemsPanel').style.display = '';
     await loadAndRenderItems();
+    document.getElementById('commItemsPanel').scrollIntoView({ behavior: 'smooth', block: 'start' });
   } else {
     setMsg('commPeriodsMsg', d.detail || 'Błąd przeliczania', 'error');
   }
@@ -218,21 +219,28 @@ async function toggleCommLock(id, locked) {
 }
 
 async function exportCommPeriod(id) {
-  const r = await fetch(`${API}/commission/periods/${id}/export`);
-  if (!r.ok) {
-    const d = await r.json().catch(() => ({}));
-    alert(d.detail || 'Błąd eksportu');
-    return;
+  try {
+    const r = await fetch(`${API}/commission/periods/${id}/export`);
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      alert(d.detail || `Błąd eksportu (${r.status})`);
+      return;
+    }
+    const blob = await r.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.style.display = 'none';
+    const cd   = r.headers.get('Content-Disposition') || '';
+    const m    = cd.match(/filename="([^"]+)"/);
+    a.download = m ? m[1] : `prowizje_${id}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  } catch (e) {
+    alert('Błąd pobierania pliku: ' + e.message);
   }
-  const blob = await r.blob();
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href     = url;
-  const cd   = r.headers.get('Content-Disposition') || '';
-  const m    = cd.match(/filename="([^"]+)"/);
-  a.download = m ? m[1] : `prowizje_${id}.xlsx`;
-  a.click();
-  URL.revokeObjectURL(url);
 }
 
 async function selectCommPeriod(id) {
@@ -303,31 +311,32 @@ function renderCommItemsTable() {
     return;
   }
 
-  el.innerHTML = items.map(it => `
+  el.innerHTML = items.map(it => {
+    const canAct = currentUser?.is_admin || currentUser?.can_view_commissions;
+    const locked = it.status === 'WYPLACONA';
+    // Quick-action buttons shown per status
+    const actions = canAct && !locked ? `
+      ${it.status !== 'WYPLATA_ZATWIERDZONA' ? `<button class="ghost sm" style="font-size:10px;padding:2px 7px" onclick="changeItemStatus(${it.id},'WYPLATA_ZATWIERDZONA')" title="Zatwierdź do wypłaty">✓ Zatwierdź</button>` : ''}
+      ${it.status !== 'WYPLACONA'            ? `<button class="ghost sm" style="font-size:10px;padding:2px 7px;color:#15803d" onclick="changeItemStatus(${it.id},'WYPLACONA')" title="Oznacz jako wypłaconą">💰 Wypłacono</button>` : ''}
+      ${it.status !== 'W_TOKU'              ? `<button class="ghost sm" style="font-size:10px;padding:2px 7px" onclick="changeItemStatus(${it.id},'W_TOKU')" title="Cofnij do W toku">↺</button>` : ''}
+    ` : (locked ? '<span style="font-size:10px;color:var(--text-muted)">🔒 Wypłacona</span>' : '');
+    return `
     <tr class="${_selItems.has(it.id) ? 'row-selected' : ''}">
       <td><input type="checkbox" ${_selItems.has(it.id) ? 'checked' : ''}
            onchange="toggleItemSel(${it.id},this.checked)"></td>
       <td style="font-family:monospace;font-size:11px">${esc(it.sn)}</td>
-      <td>${esc(it.firma)}</td>
-      <td>${esc(it.rep_name || '—')}</td>
+      <td style="font-size:11px">${esc(it.firma)}</td>
+      <td style="font-size:11px">${esc(it.rep_name || '—')}</td>
       <td>${fmtDate(it.prod_date)}</td>
       <td style="text-align:center">${it.months_paid}/12</td>
       <td>${it.month_12_ym ? fmtDate(it.month_12_ym) : '—'}</td>
       <td style="text-align:right">${fmtPLN(it.base_netto)}</td>
       <td style="text-align:right">${it.rate_pct}%</td>
       <td style="text-align:right;font-weight:600">${fmtPLN(it.commission_amt)}</td>
-      <td>${commStatusBadge(it.status)}
-          ${it.advance_flag ? ' <span title="Płatność z góry" style="font-size:10px">⬆</span>' : ''}
-      </td>
-      <td>
-        <select class="ghost sm" style="font-size:11px;padding:2px 4px;max-width:120px"
-                onchange="changeItemStatus(${it.id},this.value)"
-                ${!isAdmin && !currentUser?.is_admin ? 'disabled' : ''}>
-          ${Object.entries(STATUS_LABELS_COMM).map(([k,v]) =>
-            `<option value="${k}" ${k === it.status ? 'selected' : ''}>${v}</option>`).join('')}
-        </select>
-      </td>
-    </tr>`).join('');
+      <td>${commStatusBadge(it.status)}${it.advance_flag ? ' <span title="Płatność z góry">⬆</span>' : ''}</td>
+      <td style="white-space:nowrap">${actions}</td>
+    </tr>`;
+  }).join('');
 
   updateBulkBar(items);
 }
