@@ -28,9 +28,23 @@ let _selItems       = new Set();
 // ── init ───────────────────────────────────────────────────────────────────
 
 async function initCommissions() {
-  await Promise.all([loadCommRates(), loadCommPeriods()]);
+  await Promise.all([loadCommRates(), loadCommPeriods(), loadRepsForCommForm()]);
   renderCommRates();
   renderCommPeriods();
+}
+
+async function loadRepsForCommForm() {
+  try {
+    const r = await fetch(`${API}/reps`);
+    if (!r.ok) return;
+    const reps = await r.json();
+    const sel = document.getElementById('crRepName');
+    if (!sel) return;
+    const cur = sel.value;
+    const uniqueReps = [...new Set(reps.map(r => r.rep_id))].sort();
+    sel.innerHTML = '<option value="">(globalna – domyślna)</option>' +
+      uniqueReps.map(name => `<option value="${esc(name)}" ${name === cur ? 'selected' : ''}>${esc(name)}</option>`).join('');
+  } catch {}
 }
 
 // ── rates ──────────────────────────────────────────────────────────────────
@@ -91,7 +105,7 @@ async function saveCommRate() {
     body: JSON.stringify({ rep_name: repName, pct, valid_from: from, valid_to: to, note }),
   });
   if (r.ok) {
-    document.getElementById('crRepName').value = '';
+    document.getElementById('crRepName').selectedIndex = 0;
     document.getElementById('crPct').value     = '';
     document.getElementById('crFrom').value    = '';
     document.getElementById('crTo').value      = '';

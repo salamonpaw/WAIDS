@@ -68,6 +68,13 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.2.5', date: '2026-08-31',
+    changed: [
+      '<b>Stawki prowizji — handlowiec jako select</b> — zamiast ręcznego wpisywania nazwy handlowca, formularz stawek używa listy wyboru zaciągniętej z systemu (bez ryzyka literówki)',
+      '<b>Filtr "Rok podatkowy"</b> — etykieta i opcja domyślna ujednolicone z nomenklaturą księgową'
+    ]
+  },
+  {
     version: '2.2.4', date: '2026-08-31',
     added: [
       '<b>Rok rozliczeniowy w prowizjach</b> — kolumna "Rok rozl." w tabeli pozycji pokazuje rok 12. miesiąca płatności (rok księgowy prowizji); nowy filtr "Wszystkie lata / 2024 / 2025 / …" pozwala wyfiltrować pozycje według roku rozliczenia'

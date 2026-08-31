@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-  <link rel="stylesheet" href="css/main.css?v=2.2.4">
+  <link rel="stylesheet" href="css/main.css?v=2.2.5">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -1252,9 +1252,11 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
     <div id="commAdminRateForm" style="display:none">
       <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:8px">
         <div>
-          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Handlowiec (puste = globalna)</label>
-          <input id="crRepName" type="text" placeholder="Np. Jan Kowalski"
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Handlowiec</label>
+          <select id="crRepName"
                  style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text);width:180px">
+            <option value="">(globalna – domyślna)</option>
+          </select>
         </div>
         <div>
           <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Stawka %</label>
@@ -1337,8 +1339,9 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
           <option value="1">⬆ Płatność z góry</option>
           <option value="0">Bez zaliczki</option>
         </select>
+        <span style="font-size:12px;color:var(--text-muted);white-space:nowrap">Rok podatkowy:</span>
         <select id="fCommYear" onchange="renderCommItemsTable()" style="height:30px;font-size:12px;padding:0 6px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
-          <option value="">Wszystkie lata</option>
+          <option value="">Wszystkie</option>
         </select>
         <button class="ghost sm" onclick="selectAllCommItems()">☑ Zaznacz wszystkie</button>
         <button class="ghost sm" onclick="deselectAllCommItems()">☐ Odznacz</button>
@@ -1840,19 +1843,19 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.2.4"></script>
-<script src="js/auth.js?v=2.2.4"></script>
-<script src="js/app.js?v=2.2.4"></script>
-<script src="js/import.js?v=2.2.4"></script>
-<script src="js/report.js?v=2.2.4"></script>
-<script src="js/monitoring.js?v=2.2.4"></script>
-<script src="js/config.js?v=2.2.4"></script>
-<script src="js/firstpay.js?v=2.2.4"></script>
-<script src="js/device.js?v=2.2.4"></script>
-<script src="js/revenue.js?v=2.2.4"></script>
-<script src="js/bonus.js?v=2.2.4"></script>
-<script src="js/commissions.js?v=2.2.4"></script>
-<script src="js/tooltip.js?v=2.2.4"></script>
+<script src="js/utils.js?v=2.2.5"></script>
+<script src="js/auth.js?v=2.2.5"></script>
+<script src="js/app.js?v=2.2.5"></script>
+<script src="js/import.js?v=2.2.5"></script>
+<script src="js/report.js?v=2.2.5"></script>
+<script src="js/monitoring.js?v=2.2.5"></script>
+<script src="js/config.js?v=2.2.5"></script>
+<script src="js/firstpay.js?v=2.2.5"></script>
+<script src="js/device.js?v=2.2.5"></script>
+<script src="js/revenue.js?v=2.2.5"></script>
+<script src="js/bonus.js?v=2.2.5"></script>
+<script src="js/commissions.js?v=2.2.5"></script>
+<script src="js/tooltip.js?v=2.2.5"></script>
 
 </body>
 </html>
