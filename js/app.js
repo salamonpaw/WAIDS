@@ -68,6 +68,14 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.2.1', date: '2026-08-31',
+    fixed: [
+      '<b>Eksport Excel prowizji</b> — pobieranie pliku przez fetch+blob z tokenem autoryzacji (poprzednio otwierał URL bezpośrednio → Not authenticated)',
+      '<b>Panel pozycji</b> — otwiera się automatycznie po kliknięciu ⟳ Przelicz (poprzednio wymagał osobnego kliknięcia w kartę okresu)',
+      '<b>Stawka globalna</b> — wyświetlała surowy HTML zamiast tekstu kursywą'
+    ]
+  },
+  {
     version: '2.2.0', date: '2026-08-31',
     added: [
       '<b>System prowizji handlowców (tab 💸 Prowizje)</b> — pełny moduł rozliczeniowy: stawki % per handlowiec (data-based), okresy rozliczeniowe z kohortą dat produkcji, automatyczne wyliczanie prowizji na podstawie 12 opłaconych miesięcy, statusy pozycji (W toku / Kwalifikuje / Zatwierdzona / Wypłacona / Anulowana), bulk-zmiana statusów, eksport Excel (pozycje + agregacja per handlowiec)',
