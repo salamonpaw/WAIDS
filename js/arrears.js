@@ -164,7 +164,7 @@ function renderArrearsLapsed() {
               <td style="text-align:center;font-weight:700;color:${urgency}">${d.months_unpaid}</td>
               <td style="text-align:right">${d.monthly_rate > 0 ? fmtPLN(d.monthly_rate) : '—'}</td>
               <td style="text-align:right;font-weight:700;color:${urgency}">${d.total_arrears > 0 ? fmtPLN(d.total_arrears) : '—'}</td>
-              <td style="color:var(--text-muted);font-size:11px">${esc(d.device_type_tag || 'ids')}</td>
+              <td style="color:var(--text-muted);font-size:11px">${esc(d.firm_type || 'ids')}</td>
             </tr>`;
           }).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:2rem">Brak zaległych urządzeń.</td></tr>'}
         </tbody>
@@ -213,7 +213,7 @@ function renderArrearsNever() {
               <td>${esc(d.rep_name)}</td>
               <td style="color:${urgency}">${esc(d.prod_date || '—')}</td>
               <td style="text-align:center;font-weight:700;color:${urgency}">${d.months_since_prod || '—'}</td>
-              <td style="color:var(--text-muted);font-size:11px">${esc(d.device_type_tag || 'ids')}</td>
+              <td style="color:var(--text-muted);font-size:11px">${esc(d.firm_type || 'ids')}</td>
             </tr>`;
           }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:2rem">Brak urządzeń bez płatności.</td></tr>'}
         </tbody>

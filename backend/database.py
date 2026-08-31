@@ -2450,7 +2450,7 @@ def get_arrears_report(min_months_unpaid: int = 1) -> dict:
                        lp.pay_count,
                        COALESCE(ar.monthly_rate, 0)::float AS monthly_rate,
                        d.prod_date,
-                       d.device_type_tag
+                       COALESCE(fc.firm_type, 'ids') AS firm_type
                 FROM devices d
                 JOIN last_paid lp ON lp.sn = d.sn
                 LEFT JOIN avg_rate ar      ON ar.sn   = d.sn
@@ -2481,7 +2481,7 @@ def get_arrears_report(min_months_unpaid: int = 1) -> dict:
                        COALESCE(d.firma, '')   AS firma,
                        COALESCE(rp.rep_name, '(brak opiekuna)') AS rep_name,
                        d.prod_date,
-                       d.device_type_tag
+                       COALESCE(fc.firm_type, 'ids') AS firm_type
                 FROM devices d
                 LEFT JOIN paid_sns ps      ON ps.sn   = d.sn
                 LEFT JOIN reps rp          ON rp.firma = d.firma
@@ -2508,8 +2508,8 @@ def get_arrears_report(min_months_unpaid: int = 1) -> dict:
             'months_unpaid':mu,
             'monthly_rate': float(row['monthly_rate']),
             'total_arrears':total,
-            'prod_date':    str(row['prod_date']) if row['prod_date'] else '',
-            'device_type_tag': row['device_type_tag'] or '',
+            'prod_date':  str(row['prod_date']) if row['prod_date'] else '',
+            'firm_type':  row['firm_type'],
         })
     # sort by total arrears descending (biggest debt first)
     lapsed.sort(key=lambda x: x['total_arrears'], reverse=True)
@@ -2533,9 +2533,9 @@ def get_arrears_report(min_months_unpaid: int = 1) -> dict:
             'sn':              row['sn'],
             'firma':           row['firma'],
             'rep_name':        row['rep_name'],
-            'prod_date':       str(row['prod_date']) if row['prod_date'] else '',
+            'prod_date':        str(row['prod_date']) if row['prod_date'] else '',
             'months_since_prod': ms,
-            'device_type_tag': row['device_type_tag'] or '',
+            'firm_type':        row['firm_type'],
         })
 
     total_lapsed_arrears = round(sum(x['total_arrears'] for x in lapsed), 2)

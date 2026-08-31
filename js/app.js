@@ -74,6 +74,12 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.3.6', date: '2026-08-31',
+    fixed: [
+      '<b>Zaległości — kolejny 500</b> — kolumna <code>device_type_tag</code> istnieje w <code>import_sessions</code>, nie w <code>devices</code>. Zastąpiono <code>COALESCE(fc.firm_type, \'ids\')</code> z istniejącego JOIN-a na <code>firm_config</code>.'
+    ]
+  },
+  {
     version: '2.3.5', date: '2026-08-31',
     fixed: [
       '<b>Zaległości — 500 Internal Server Error</b> — kolumna <code>prod_date</code> w bazie to VARCHAR, nie typ DATE; kod próbował wywołać <code>.year/.month</code> na stringu. Naprawiono parsowanie daty z formatu YYYY-MM-DD / YYYY-MM / DD.MM.YYYY.'
