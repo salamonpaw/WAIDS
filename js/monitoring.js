@@ -30,6 +30,7 @@ async function loadMonitoringTab() {
 
 function monStatus(r, curYM) {
   if (r.status === 'excluded') return 'excluded';
+  if (r.is_suspended) return 'suspended';
   if (!r.total_months) return 'never';
   return monthsDiff(r.last_pay?.slice(0,7), curYM) <= 2 ? 'active' : 'lapsed';
 }
@@ -65,20 +66,22 @@ function renderMonitoring() {
   const sortedMonths = Object.keys(groups).sort().reverse();
   const latestMonth  = sortedMonths[0];
 
-  const totalActive   = masters.filter(r => monStatus(r,curYM)==='active').length;
-  const totalLapsed   = masters.filter(r => monStatus(r,curYM)==='lapsed').length;
-  const totalNever    = masters.filter(r => monStatus(r,curYM)==='never').length;
-  const totalExcluded = masters.filter(r => monStatus(r,curYM)==='excluded').length;
-  const totalBilling  = masters.length - totalExcluded;
+  const totalActive    = masters.filter(r => monStatus(r,curYM)==='active').length;
+  const totalSuspended = masters.filter(r => monStatus(r,curYM)==='suspended').length;
+  const totalLapsed    = masters.filter(r => monStatus(r,curYM)==='lapsed').length;
+  const totalNever     = masters.filter(r => monStatus(r,curYM)==='never').length;
+  const totalExcluded  = masters.filter(r => monStatus(r,curYM)==='excluded').length;
+  const totalBilling   = masters.length - totalExcluded;
 
   let html = `
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:.25rem 0 1rem">
       <span style="font-size:13px;color:var(--text-muted)">
         <strong>${totalBilling}</strong> masterów (abonament) · <strong>${sortedMonths.length}</strong> miesięcy produkcji
       </span>
-      <span class="badge paid">  ${totalActive} aktywnych</span>
-      <span class="badge only">  ${totalLapsed} z przerwą</span>
-      <span class="badge unpaid">${totalNever} bez opłat</span>
+      <span class="badge paid">      ${totalActive} aktywnych</span>
+      ${totalSuspended ? `<span class="badge suspended">${totalSuspended} zawieszonych</span>` : ''}
+      <span class="badge only">      ${totalLapsed} z przerwą</span>
+      <span class="badge unpaid">    ${totalNever} bez opłat</span>
       ${totalExcluded ? `<span class="badge excluded">${totalExcluded} wykluczone</span>` : ''}
     </div>`;
 
@@ -87,6 +90,7 @@ function renderMonitoring() {
     const mSince  = monthsDiff(month, curYM) ?? 0;
 
     const active  = devices.filter(r => monStatus(r,curYM)==='active');
+    const susp    = devices.filter(r => monStatus(r,curYM)==='suspended');
     const lapsed  = devices.filter(r => monStatus(r,curYM)==='lapsed');
     const never   = devices.filter(r => monStatus(r,curYM)==='never');
     const excl    = devices.filter(r => monStatus(r,curYM)==='excluded');
@@ -113,10 +117,11 @@ function renderMonitoring() {
           <span style="font-size:12px;color:var(--text-muted)" title="Liczba miesięcy od daty produkcji tych urządzeń do dziś">${mSince} mies. w polu</span>
           <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
             ${billing.length ? `<span class="badge ${pBadge}" title="Urządzenia z co najmniej jedną płatnością ÷ wszystkie podlegające abonamentowi (bez OEM i wykluczonych)&#10;${everPaid.length} z ${billing.length} opłaciło abonament = ${paidPct}%">${everPaid.length}/${billing.length} płaci (${paidPct}%)</span>` : ''}
-            ${active.length  ? `<span class="badge paid"     style="font-size:10px" title="Aktywne — opłaciły bieżący lub poprzedni miesiąc abonamentu">${active.length} aktywnych</span>`:''}
-            ${lapsed.length  ? `<span class="badge only"     style="font-size:10px" title="Z przerwą — kiedyś płaciły abonament, ale nie w ostatnim/bieżącym miesiącu">${lapsed.length} z przerwą</span>`:''}
-            ${never.length   ? `<span class="badge unpaid"   style="font-size:10px" title="Bez opłat — nigdy nie zarejestrowano żadnej płatności abonamentu">${never.length} bez opłat</span>`:''}
-            ${excl.length    ? `<span class="badge excluded" style="font-size:10px" title="Wykluczone — firma ręcznie wykluczona z abonamentu lub typ urządzenia to OEM">${excl.length} wykluczone</span>`:''}
+            ${active.length  ? `<span class="badge paid"      style="font-size:10px" title="Aktywne — opłaciły bieżący lub poprzedni miesiąc abonamentu">${active.length} aktywnych</span>`:''}
+            ${susp.length    ? `<span class="badge suspended" style="font-size:10px" title="Zawieszone — abonament aktualnie zawieszony">${susp.length} zawieszonych</span>`:''}
+            ${lapsed.length  ? `<span class="badge only"      style="font-size:10px" title="Z przerwą — kiedyś płaciły abonament, ale nie w ostatnim/bieżącym miesiącu">${lapsed.length} z przerwą</span>`:''}
+            ${never.length   ? `<span class="badge unpaid"    style="font-size:10px" title="Bez opłat — nigdy nie zarejestrowano żadnej płatności abonamentu">${never.length} bez opłat</span>`:''}
+            ${excl.length    ? `<span class="badge excluded"  style="font-size:10px" title="Wykluczone — firma ręcznie wykluczona z abonamentu lub typ urządzenia to OEM">${excl.length} wykluczone</span>`:''}
           </div>
           <span style="font-size:11px;color:var(--text-muted)" title="Średnia liczba miesięcy między datą produkcji a pierwszą płatnością abonamentu&#10;(tylko urządzenia, które kiedykolwiek zapłaciły; niżej = lepiej)">
             śr. opóźn. startu: <strong>${avgDelay}</strong> mies.
@@ -147,7 +152,7 @@ function renderMonitoring() {
               ${devices
                 .slice()
                 .sort((a,b) => {
-                  const o = {never:0,lapsed:1,active:2,excluded:3};
+                  const o = {never:0,lapsed:1,suspended:2,active:3,excluded:4};
                   return o[monStatus(a,curYM)] - o[monStatus(b,curYM)];
                 })
                 .map(r => monRow(r, mSince, curYM))
@@ -172,10 +177,11 @@ function monRow(r, mSince, curYM) {
     ? Math.min(100, Math.round(r.total_months / mSince * 100)) : 0;
 
   const SC = {
-    active:   { badge:'paid',     label:'Aktywny'    },
-    lapsed:   { badge:'only',     label:'Przerwa'    },
-    never:    { badge:'unpaid',   label:'Bez opłat'  },
-    excluded: { badge:'excluded', label:'Wykluczone' },
+    active:    { badge:'paid',      label:'Aktywny'    },
+    suspended: { badge:'suspended', label:'Zawieszone' },
+    lapsed:    { badge:'only',      label:'Przerwa'    },
+    never:     { badge:'unpaid',    label:'Bez opłat'  },
+    excluded:  { badge:'excluded',  label:'Wykluczone' },
   };
 
   const isExcluded = (st === 'excluded');

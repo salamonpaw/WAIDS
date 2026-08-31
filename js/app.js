@@ -74,6 +74,12 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.3.7', date: '2026-08-31',
+    added: [
+      '<b>Zawieszenia uwzględnione we wszystkich widokach</b> — Monitoring: nowy status "Zawieszone" (niebieski badge), urządzenia z aktywnym zawieszeniem nie trafiają już do "Przerwa". Zaległości: zawieszone urządzenia oznaczone niebieską etykietą ⏸ i wykluczone z sumy szacowanych zaległości. Zaległości/Nigdy nieopłacone: analogiczne oznaczenie.'
+    ]
+  },
+  {
     version: '2.3.6', date: '2026-08-31',
     fixed: [
       '<b>Zaległości — kolejny 500</b> — kolumna <code>device_type_tag</code> istnieje w <code>import_sessions</code>, nie w <code>devices</code>. Zastąpiono <code>COALESCE(fc.firm_type, \'ids\')</code> z istniejącego JOIN-a na <code>firm_config</code>.'

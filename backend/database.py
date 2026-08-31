@@ -2416,6 +2416,18 @@ def get_arrears_report(min_months_unpaid: int = 1) -> dict:
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
 
+            # ── 0. Currently suspended SNs and firms ──────────────────────
+            cur.execute(
+                "SELECT sn FROM device_suspensions WHERE date_from <= %s AND date_to >= %s",
+                (current_ym, current_ym)
+            )
+            suspended_sns = {r['sn'] for r in cur.fetchall()}
+            cur.execute(
+                "SELECT firma FROM firm_suspensions WHERE date_from <= %s AND date_to >= %s",
+                (current_ym, current_ym)
+            )
+            suspended_firms = {r['firma'] for r in cur.fetchall()}
+
             # ── 1. Lapsed: had payments, last < current_ym ────────────────
             cur.execute("""
                 WITH excl AS (
@@ -2499,6 +2511,7 @@ def get_arrears_report(min_months_unpaid: int = 1) -> dict:
         if mu < min_months_unpaid:
             continue
         total = round(mu * float(row['monthly_rate']), 2)
+        is_susp = row['sn'] in suspended_sns or row['firma'] in suspended_firms
         lapsed.append({
             'sn':           row['sn'],
             'firma':        row['firma'],
@@ -2507,9 +2520,10 @@ def get_arrears_report(min_months_unpaid: int = 1) -> dict:
             'pay_count':    row['pay_count'],
             'months_unpaid':mu,
             'monthly_rate': float(row['monthly_rate']),
-            'total_arrears':total,
-            'prod_date':  str(row['prod_date']) if row['prod_date'] else '',
-            'firm_type':  row['firm_type'],
+            'total_arrears':total if not is_susp else 0,
+            'prod_date':    str(row['prod_date']) if row['prod_date'] else '',
+            'firm_type':    row['firm_type'],
+            'is_suspended': is_susp,
         })
     # sort by total arrears descending (biggest debt first)
     lapsed.sort(key=lambda x: x['total_arrears'], reverse=True)
@@ -2529,16 +2543,18 @@ def get_arrears_report(min_months_unpaid: int = 1) -> dict:
     for row in never_rows:
         prod_ym = _prod_to_ym(row['prod_date'] or '')
         ms = _ym_diff(prod_ym, current_ym) if prod_ym else 0
+        is_susp = row['sn'] in suspended_sns or row['firma'] in suspended_firms
         never.append({
             'sn':              row['sn'],
             'firma':           row['firma'],
             'rep_name':        row['rep_name'],
-            'prod_date':        str(row['prod_date']) if row['prod_date'] else '',
+            'prod_date':       str(row['prod_date']) if row['prod_date'] else '',
             'months_since_prod': ms,
-            'firm_type':        row['firm_type'],
+            'firm_type':       row['firm_type'],
+            'is_suspended':    is_susp,
         })
 
-    total_lapsed_arrears = round(sum(x['total_arrears'] for x in lapsed), 2)
+    total_lapsed_arrears = round(sum(x['total_arrears'] for x in lapsed if not x['is_suspended']), 2)
 
     return {
         'current_ym': current_ym,

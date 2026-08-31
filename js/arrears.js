@@ -155,15 +155,18 @@ function renderArrearsLapsed() {
         </tr></thead>
         <tbody>
           ${rows.length ? rows.map(d => {
-            const urgency = _arrearsMonthsColor(d.months_unpaid);
-            return `<tr>
+            const urgency = d.is_suspended ? '#3B82F6' : _arrearsMonthsColor(d.months_unpaid);
+            const suspBadge = d.is_suspended
+              ? `<span style="font-size:10px;background:#3B82F620;color:#3B82F6;border:0.5px solid #3B82F6;border-radius:99px;padding:1px 7px;margin-left:4px">⏸ zawieszone</span>`
+              : '';
+            return `<tr style="${d.is_suspended ? 'opacity:.75' : ''}">
               <td style="font-family:monospace">${esc(d.sn)}</td>
-              <td>${esc(d.firma)}</td>
+              <td>${esc(d.firma)}${suspBadge}</td>
               <td>${esc(d.rep_name)}</td>
               <td style="color:${urgency};font-weight:600">${esc(d.last_paid_ym)}</td>
               <td style="text-align:center;font-weight:700;color:${urgency}">${d.months_unpaid}</td>
               <td style="text-align:right">${d.monthly_rate > 0 ? fmtPLN(d.monthly_rate) : '—'}</td>
-              <td style="text-align:right;font-weight:700;color:${urgency}">${d.total_arrears > 0 ? fmtPLN(d.total_arrears) : '—'}</td>
+              <td style="text-align:right;font-weight:700;color:${urgency}">${d.is_suspended ? '<span style="color:#3B82F6">⏸</span>' : d.total_arrears > 0 ? fmtPLN(d.total_arrears) : '—'}</td>
               <td style="color:var(--text-muted);font-size:11px">${esc(d.firm_type || 'ids')}</td>
             </tr>`;
           }).join('') : '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:2rem">Brak zaległych urządzeń.</td></tr>'}
@@ -206,10 +209,13 @@ function renderArrearsNever() {
         </tr></thead>
         <tbody>
           ${rows.length ? rows.map(d => {
-            const urgency = _arrearsMonthsColor(d.months_since_prod);
-            return `<tr>
+            const urgency = d.is_suspended ? '#3B82F6' : _arrearsMonthsColor(d.months_since_prod);
+            const suspBadge = d.is_suspended
+              ? `<span style="font-size:10px;background:#3B82F620;color:#3B82F6;border:0.5px solid #3B82F6;border-radius:99px;padding:1px 7px;margin-left:4px">⏸ zawieszone</span>`
+              : '';
+            return `<tr style="${d.is_suspended ? 'opacity:.75' : ''}">
               <td style="font-family:monospace">${esc(d.sn)}</td>
-              <td>${esc(d.firma)}</td>
+              <td>${esc(d.firma)}${suspBadge}</td>
               <td>${esc(d.rep_name)}</td>
               <td style="color:${urgency}">${esc(d.prod_date || '—')}</td>
               <td style="text-align:center;font-weight:700;color:${urgency}">${d.months_since_prod || '—'}</td>
