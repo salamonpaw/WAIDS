@@ -21,6 +21,7 @@ let _pricingView  = 'overview';
 let _pricingCharts = {};    // chart instances keyed by id
 let _pricingSel   = new Set(); // selected SNs in revision list
 let _pricingRaiseRowTargets = {}; // per-SN edited target in revision table
+let _activeDrillSeg = null;  // currently expanded segment in drill-down
 
 // ── init ──────────────────────────────────────────────────────────────────────
 
@@ -256,18 +257,22 @@ function renderPricingSegments() {
   const el = document.getElementById('pPanelSegments');
   if (!el) return;
   const segs = _pricingData?.segments || [];
-  const total = _pricingData?.kpi?.count || 1;
   el.innerHTML = `
-    <table class="data-table" style="font-size:12px;margin-bottom:16px">
+    <table class="data-table" style="font-size:12px;margin-bottom:4px" id="pSegTable">
       <thead><tr>
-        <th>Segment</th><th>Zakres</th><th style="text-align:center">Liczba IDS</th>
+        <th style="width:20px"></th>
+        <th>Segment</th><th>Zakres</th>
+        <th style="text-align:center">Liczba IDS</th>
         <th style="text-align:center">Udział %</th>
-        <th style="text-align:right">Śr. cena</th><th style="text-align:right">Mediana</th>
+        <th style="text-align:right">Śr. cena</th>
+        <th style="text-align:right">Mediana</th>
         <th style="text-align:right">MRR</th>
-        <th style="text-align:right">Target</th><th style="text-align:right">Potencjał /mies.</th>
+        <th style="text-align:right">Target</th>
+        <th style="text-align:right">Potencjał /mies.</th>
       </tr></thead>
       <tbody>
-        ${segs.map(s => `<tr style="cursor:pointer" onclick="pricingDrillSeg('${s.name}')">
+        ${segs.map(s => `<tr style="cursor:pointer;user-select:none" onclick="pricingDrillSeg('${s.name}')" id="pSegRow_${s.name}">
+          <td style="font-size:11px;color:var(--text-muted);text-align:center" id="pSegArrow_${s.name}">▶</td>
           <td>${segBadge(s.name)}</td>
           <td style="color:var(--text-muted)">${s.range}</td>
           <td style="text-align:center;font-weight:600">${s.count}</td>
@@ -277,9 +282,15 @@ function renderPricingSegments() {
           <td style="text-align:right">${fmtPLN(s.mrr)}</td>
           <td style="text-align:right">${s.target > 0 ? fmtPLN(s.target) : '—'}</td>
           <td style="text-align:right;font-weight:600;color:${s.potential_monthly > 0 ? '#15803d' : 'inherit'}">${s.potential_monthly > 0 ? fmtPLN(s.potential_monthly) : '—'}</td>
+        </tr>
+        <tr id="pSegDrill_${s.name}" style="display:none">
+          <td colspan="10" style="padding:0">
+            <div id="pSegDrillContent_${s.name}" style="padding:10px 12px 14px;background:var(--bg-secondary);border-left:3px solid ${PRICING_SEG_COLORS[s.name]}"></div>
+          </td>
         </tr>`).join('')}
       </tbody>
     </table>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:14px;padding-left:4px">↑ Kliknij segment aby rozwinąć listę urządzeń</div>
     <div style="display:flex;gap:14px">
       <div style="flex:1;background:var(--bg-secondary);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:12px">
         <div style="font-size:12px;font-weight:600;margin-bottom:8px">Liczba IDS wg segmentu</div>
@@ -291,6 +302,10 @@ function renderPricingSegments() {
       </div>
     </div>
   `;
+
+  // Restore active drill-down if any
+  if (_activeDrillSeg) _renderSegDrillContent(_activeDrillSeg, true);
+
   destroyPricingChart('segCount');
   const cCtx = document.getElementById('pChartSegCount')?.getContext('2d');
   if (cCtx) _pricingCharts['segCount'] = new Chart(cCtx, {
@@ -318,12 +333,91 @@ function renderPricingSegments() {
 }
 
 function pricingDrillSeg(seg) {
-  // Filter revision list to this segment
-  switchPricingView('revision');
-  setTimeout(() => {
-    const f = document.getElementById('pRevisionSegFilter');
-    if (f) { f.value = seg; renderPricingRevision(); }
-  }, 50);
+  if (_activeDrillSeg === seg) {
+    // toggle off
+    _activeDrillSeg = null;
+    const drillRow = document.getElementById(`pSegDrill_${seg}`);
+    const arrow    = document.getElementById(`pSegArrow_${seg}`);
+    if (drillRow) drillRow.style.display = 'none';
+    if (arrow)    arrow.textContent = '▶';
+    return;
+  }
+  // Close previously open segment
+  if (_activeDrillSeg) {
+    const prev = document.getElementById(`pSegDrill_${_activeDrillSeg}`);
+    const prevA = document.getElementById(`pSegArrow_${_activeDrillSeg}`);
+    if (prev)  prev.style.display = 'none';
+    if (prevA) prevA.textContent = '▶';
+  }
+  _activeDrillSeg = seg;
+  _renderSegDrillContent(seg, false);
+}
+
+function _renderSegDrillContent(seg, restoring) {
+  const drillRow = document.getElementById(`pSegDrill_${seg}`);
+  const arrow    = document.getElementById(`pSegArrow_${seg}`);
+  const content  = document.getElementById(`pSegDrillContent_${seg}`);
+  if (!drillRow || !content) return;
+
+  const devices = (_pricingData?.device_list || []).filter(d => d.segment === seg);
+  const color = PRICING_SEG_COLORS[seg] || '#888';
+  const totalMrr = devices.reduce((s, d) => s + d.price, 0);
+  const totalPot = devices.reduce((s, d) => s + d.potential_monthly, 0);
+
+  // Sort: by price asc for LEGACY/DISCOUNT, desc for premium
+  const sortedDevices = [...devices].sort((a, b) =>
+    ['LEGACY','DISCOUNT'].includes(seg) ? a.price - b.price : b.price - a.price
+  );
+
+  // Group by opiekun for summary line
+  const repGroups = {};
+  devices.forEach(d => {
+    const r = d.rep_name || '(brak)';
+    if (!repGroups[r]) repGroups[r] = { count: 0, mrr: 0, pot: 0 };
+    repGroups[r].count++;
+    repGroups[r].mrr += d.price;
+    repGroups[r].pot += d.potential_monthly;
+  });
+  const repSummary = Object.entries(repGroups)
+    .sort((a, b) => b[1].count - a[1].count)
+    .map(([rep, g]) => `<span style="display:inline-flex;align-items:center;gap:4px;margin:2px 4px 2px 0;font-size:10px;padding:1px 7px;border-radius:99px;background:${color}18;border:0.5px solid ${color}60">
+      ${esc(rep)} <strong>${g.count}</strong>${g.pot > 0 ? ` · ${fmtPLN(g.pot)}/mies.` : ''}</span>`).join('');
+
+  content.innerHTML = `
+    <div style="display:flex;gap:16px;align-items:baseline;flex-wrap:wrap;margin-bottom:10px">
+      <span style="font-size:13px;font-weight:700">${seg} — ${devices.length} urządzeń</span>
+      <span style="font-size:12px;color:var(--text-muted)">MRR: <strong style="color:var(--text)">${fmtPLN(totalMrr)}</strong></span>
+      ${totalPot > 0 ? `<span style="font-size:12px;color:#15803d">Potencjał: <strong>${fmtPLN(totalPot)}/mies.</strong></span>` : ''}
+    </div>
+    <div style="margin-bottom:10px">${repSummary}</div>
+    <div style="overflow-x:auto;max-height:340px;overflow-y:auto">
+      <table class="data-table" style="font-size:11px;min-width:600px">
+        <thead style="position:sticky;top:0;z-index:1;background:var(--bg-secondary)"><tr>
+          <th>Symbol IDS</th><th>Firma</th><th>Opiekun</th>
+          <th style="text-align:right">Stawka</th>
+          ${totalPot > 0 ? '<th style="text-align:right">Potencjał /mies.</th>' : ''}
+          <th>Ost. płatność</th>
+        </tr></thead>
+        <tbody>
+          ${sortedDevices.map(d => `<tr>
+            <td style="font-family:monospace">${esc(d.sn)}</td>
+            <td>${esc(d.firma)}</td>
+            <td>${esc(d.rep_name || '—')}</td>
+            <td style="text-align:right;font-weight:600">${fmtPLN(d.price)}</td>
+            ${totalPot > 0 ? `<td style="text-align:right;color:${d.potential_monthly > 0 ? '#15803d' : 'var(--text-muted)'}">${d.potential_monthly > 0 ? fmtPLN(d.potential_monthly) : '—'}</td>` : ''}
+            <td style="color:var(--text-muted)">${d.last_paid_ym || '—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  drillRow.style.display = '';
+  if (arrow) arrow.textContent = '▼';
+
+  if (!restoring) {
+    drillRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 }
 
 // ── 6.3 Opiekunowie ───────────────────────────────────────────────────────────
@@ -389,7 +483,7 @@ function renderPricingRevision() {
   const fSeg = document.getElementById('pRevisionSegFilter')?.value || '';
   const fRep = document.getElementById('pRevisionRepFilter')?.value || '';
 
-  let items = _pricingData.revision_list;
+  let items = _pricingData.device_list;
   if (fSeg) items = items.filter(i => i.segment === fSeg);
   if (fRep) items = items.filter(i => i.rep_name === fRep);
 
@@ -400,7 +494,7 @@ function renderPricingRevision() {
   // Build filters HTML
   const segOptions = ['LEGACY','DISCOUNT','STANDARD','PREMIUM','ENTERPRISE']
     .map(s => `<option value="${s}" ${fSeg===s?'selected':''}>${s}</option>`).join('');
-  const repOptions = [...new Set(_pricingData.revision_list.map(i=>i.rep_name))].sort()
+  const repOptions = [...new Set(_pricingData.device_list.map(i=>i.rep_name))].sort()
     .map(r => `<option value="${esc(r)}" ${fRep===r?'selected':''}>${esc(r)}</option>`).join('');
 
   el.innerHTML = `
@@ -466,7 +560,7 @@ function pricingToggleSel(sn, checked) {
 function pricingSelectAll() {
   const fSeg = document.getElementById('pRevisionSegFilter')?.value || '';
   const fRep = document.getElementById('pRevisionRepFilter')?.value || '';
-  let items = _pricingData?.revision_list || [];
+  let items = _pricingData?.device_list || [];
   if (fSeg) items = items.filter(i => i.segment === fSeg);
   if (fRep) items = items.filter(i => i.rep_name === fRep);
   items.forEach(i => _pricingSel.add(i.sn));
@@ -475,7 +569,7 @@ function pricingSelectAll() {
 
 async function addToRaiseList() {
   if (!_pricingSel.size) return;
-  const items = (_pricingData?.revision_list || [])
+  const items = (_pricingData?.device_list || [])
     .filter(i => _pricingSel.has(i.sn))
     .map(i => ({
       sn:            i.sn,

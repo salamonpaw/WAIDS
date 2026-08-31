@@ -2281,14 +2281,17 @@ def get_pricing_analysis(
             'potential_monthly': round(r['potential_monthly'], 2),
         })
 
+    # Full device list (all items, for drill-down)
+    def _item_row(i):
+        return {'sn': i['sn'], 'firma': i['firma'], 'rep_name': i['rep_name'],
+                'price': i['price'], 'segment': i['segment'],
+                'target': i['target'], 'potential_monthly': i['potential_monthly'],
+                'active': i['active'], 'last_paid_ym': i['last_paid_ym']}
+
+    device_list = [_item_row(i) for i in items]
+
     # Revision list (only devices with potential > 0), sorted by price asc
-    revision = [
-        {'sn': i['sn'], 'firma': i['firma'], 'rep_name': i['rep_name'],
-         'price': i['price'], 'segment': i['segment'],
-         'target': i['target'], 'potential_monthly': i['potential_monthly'],
-         'active': i['active'], 'last_paid_ym': i['last_paid_ym']}
-        for i in items if i['potential_monthly'] > 0
-    ]
+    revision = [_item_row(i) for i in items if i['potential_monthly'] > 0]
 
     # Histogram bins (PLN/mies.)
     bins = [(0, 40), (40, 60), (60, 80), (80, 100), (100, 120),
@@ -2316,6 +2319,7 @@ def get_pricing_analysis(
         },
         'segments': segments_out,
         'reps': reps_out,
+        'device_list': device_list,
         'revision_list': revision,
         'histogram': histogram,
         'params': {
@@ -2394,3 +2398,149 @@ def delete_pricing_raise(raise_id: int) -> bool:
         with conn.cursor() as cur:
             cur.execute("DELETE FROM pricing_raises WHERE id = %s AND status = 'DO_KONTAKTU'", (raise_id,))
             return cur.rowcount > 0
+
+
+# ── Zaległości — lapsed & never-paid devices ──────────────────────────────────
+
+def get_arrears_report(min_months_unpaid: int = 1) -> dict:
+    from datetime import date
+    now = date.today()
+    current_ym = f"{now.year}-{now.month:02d}"
+
+    def _ym_diff(ym_from: str, ym_to: str) -> int:
+        """Months between two YYYY-MM strings (to - from), always >= 0."""
+        y1, m1 = int(ym_from[:4]), int(ym_from[5:7])
+        y2, m2 = int(ym_to[:4]),   int(ym_to[5:7])
+        return max(0, (y2 - y1) * 12 + (m2 - m1))
+
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+
+            # ── 1. Lapsed: had payments, last < current_ym ────────────────
+            cur.execute("""
+                WITH excl AS (
+                    SELECT firma FROM excluded_firms
+                ),
+                reps AS (
+                    SELECT fr.firma, MIN(sr.name) AS rep_name
+                    FROM firm_reps fr
+                    JOIN sales_reps sr ON sr.id = fr.rep_id
+                    GROUP BY fr.firma
+                ),
+                last_paid AS (
+                    SELECT sn,
+                           MAX(year_month)  AS last_paid_ym,
+                           COUNT(*)         AS pay_count
+                    FROM payments WHERE amount_netto > 0
+                    GROUP BY sn
+                ),
+                avg_rate AS (
+                    SELECT sn, ROUND(AVG(amount_netto)::numeric, 2) AS monthly_rate
+                    FROM (
+                        SELECT sn, amount_netto,
+                               ROW_NUMBER() OVER (PARTITION BY sn ORDER BY year_month DESC) AS rn
+                        FROM payments WHERE amount_netto > 0
+                    ) t WHERE rn <= 3
+                    GROUP BY sn
+                )
+                SELECT d.sn,
+                       COALESCE(d.firma, '')   AS firma,
+                       COALESCE(rp.rep_name, '(brak opiekuna)') AS rep_name,
+                       lp.last_paid_ym,
+                       lp.pay_count,
+                       COALESCE(ar.monthly_rate, 0)::float AS monthly_rate,
+                       d.prod_date,
+                       d.device_type_tag
+                FROM devices d
+                JOIN last_paid lp ON lp.sn = d.sn
+                LEFT JOIN avg_rate ar      ON ar.sn   = d.sn
+                LEFT JOIN reps rp          ON rp.firma = d.firma
+                LEFT JOIN firm_config fc   ON fc.firma = d.firma
+                WHERE lp.last_paid_ym < %s
+                  AND COALESCE(d.firma, '') NOT IN (SELECT firma FROM excl)
+                  AND COALESCE(fc.firm_type, 'ids') NOT IN ('oem', 'licencja')
+                ORDER BY lp.last_paid_ym ASC
+            """, (current_ym,))
+            lapsed_rows = cur.fetchall()
+
+            # ── 2. Never paid: no positive payment at all ─────────────────
+            cur.execute("""
+                WITH excl AS (
+                    SELECT firma FROM excluded_firms
+                ),
+                reps AS (
+                    SELECT fr.firma, MIN(sr.name) AS rep_name
+                    FROM firm_reps fr
+                    JOIN sales_reps sr ON sr.id = fr.rep_id
+                    GROUP BY fr.firma
+                ),
+                paid_sns AS (
+                    SELECT DISTINCT sn FROM payments WHERE amount_netto > 0
+                )
+                SELECT d.sn,
+                       COALESCE(d.firma, '')   AS firma,
+                       COALESCE(rp.rep_name, '(brak opiekuna)') AS rep_name,
+                       d.prod_date,
+                       d.device_type_tag
+                FROM devices d
+                LEFT JOIN paid_sns ps      ON ps.sn   = d.sn
+                LEFT JOIN reps rp          ON rp.firma = d.firma
+                LEFT JOIN firm_config fc   ON fc.firma = d.firma
+                WHERE ps.sn IS NULL
+                  AND COALESCE(d.firma, '') NOT IN (SELECT firma FROM excl)
+                  AND COALESCE(fc.firm_type, 'ids') NOT IN ('oem', 'licencja')
+                ORDER BY d.prod_date ASC NULLS LAST
+            """)
+            never_rows = cur.fetchall()
+
+    lapsed = []
+    for row in lapsed_rows:
+        mu = _ym_diff(row['last_paid_ym'], current_ym)
+        if mu < min_months_unpaid:
+            continue
+        total = round(mu * float(row['monthly_rate']), 2)
+        lapsed.append({
+            'sn':           row['sn'],
+            'firma':        row['firma'],
+            'rep_name':     row['rep_name'],
+            'last_paid_ym': row['last_paid_ym'],
+            'pay_count':    row['pay_count'],
+            'months_unpaid':mu,
+            'monthly_rate': float(row['monthly_rate']),
+            'total_arrears':total,
+            'prod_date':    str(row['prod_date']) if row['prod_date'] else '',
+            'device_type_tag': row['device_type_tag'] or '',
+        })
+    # sort by total arrears descending (biggest debt first)
+    lapsed.sort(key=lambda x: x['total_arrears'], reverse=True)
+
+    never = []
+    for row in never_rows:
+        if row['prod_date']:
+            ms = _ym_diff(
+                f"{row['prod_date'].year}-{row['prod_date'].month:02d}",
+                current_ym
+            )
+        else:
+            ms = 0
+        never.append({
+            'sn':              row['sn'],
+            'firma':           row['firma'],
+            'rep_name':        row['rep_name'],
+            'prod_date':       str(row['prod_date']) if row['prod_date'] else '',
+            'months_since_prod': ms,
+            'device_type_tag': row['device_type_tag'] or '',
+        })
+
+    total_lapsed_arrears = round(sum(x['total_arrears'] for x in lapsed), 2)
+
+    return {
+        'current_ym': current_ym,
+        'lapsed':     lapsed,
+        'never_paid': never,
+        'summary': {
+            'lapsed_count':        len(lapsed),
+            'never_paid_count':    len(never),
+            'total_lapsed_arrears': total_lapsed_arrears,
+        },
+    }

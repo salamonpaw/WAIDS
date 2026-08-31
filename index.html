@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-  <link rel="stylesheet" href="css/main.css?v=2.3.1">
+  <link rel="stylesheet" href="css/main.css?v=2.3.4">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -70,6 +70,7 @@
   <button class="tab-btn"        onclick="switchTab('bonus')">🆕 Pierwsze IDS</button>
   <button class="tab-btn" id="tabBtnCommissions" onclick="switchTab('commissions')" style="display:none">💸 Prowizje</button>
   <button class="tab-btn" id="tabBtnPricing"     onclick="switchTab('pricing')"     style="display:none">📈 Pricing</button>
+  <button class="tab-btn"                        onclick="switchTab('arrears')">⚠ Zaległości</button>
   <button class="tab-btn" id="tabBtnConfig"  onclick="switchTab('config')"  style="display:none">⚙ Konfiguracja</button>
 </div>
 
@@ -1501,6 +1502,55 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
 </div>
 </div>
 
+<!-- ══════════════════ ZALEGŁOŚCI TAB ══════════════════ -->
+<div class="tab-panel" id="tab-arrears">
+<div class="container">
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+    <h2 style="margin:0;font-size:18px">⚠ Zaległości abonamentowe</h2>
+    <div style="display:flex;align-items:center;gap:6px;margin-left:auto;flex-wrap:wrap">
+      <label style="font-size:12px;color:var(--text-muted)">Min. miesięcy bez opłat:</label>
+      <input id="arrMinMonths" type="number" min="1" max="60" value="1"
+             style="width:56px;padding:4px 6px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-secondary);color:var(--text)">
+      <select id="arrRepFilter" onchange="onArrearsRepFilter()"
+              style="padding:4px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-secondary);color:var(--text)">
+        <option value="">— Wszyscy opiekunowie —</option>
+      </select>
+      <button id="arrBtnRefresh" onclick="loadArrears()"
+              style="padding:5px 14px;font-size:12px;border-radius:var(--radius-md);background:var(--primary);color:#fff;border:none;cursor:pointer">
+        Odśwież
+      </button>
+      <span id="arrStatus" style="font-size:12px;color:var(--text-muted)"></span>
+    </div>
+  </div>
+
+  <!-- KPI row -->
+  <div id="arrKpi" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px"></div>
+
+  <!-- View switcher -->
+  <div style="display:flex;gap:8px;margin-bottom:12px">
+    <button id="arrBtnLapsed" class="tab-btn active" onclick="switchArrearsView('lapsed')"
+            style="font-size:12px;padding:5px 16px">
+      🔴 Przestały płacić
+    </button>
+    <button id="arrBtnNever" class="tab-btn" onclick="switchArrearsView('never')"
+            style="font-size:12px;padding:5px 16px">
+      ⭕ Nigdy nieopłacone
+    </button>
+  </div>
+
+  <!-- Legend -->
+  <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;display:flex;gap:16px;flex-wrap:wrap">
+    <span style="color:#15803d">● ≤ 2 mies.</span>
+    <span style="color:#b45309">● 3–6 mies.</span>
+    <span style="color:#c2410c">● 7–12 mies.</span>
+    <span style="color:#991b1b">● &gt; 12 mies.</span>
+  </div>
+
+  <!-- Table -->
+  <div id="arrTableWrap"></div>
+</div>
+</div>
+
 <!-- ══════════════════ CONFIG TAB ══════════════════ -->
 <div class="tab-panel" id="tab-config">
 <div class="container">
@@ -1950,20 +2000,21 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.3.1"></script>
-<script src="js/auth.js?v=2.3.1"></script>
-<script src="js/app.js?v=2.3.1"></script>
-<script src="js/import.js?v=2.3.1"></script>
-<script src="js/report.js?v=2.3.1"></script>
-<script src="js/monitoring.js?v=2.3.1"></script>
-<script src="js/config.js?v=2.3.1"></script>
-<script src="js/firstpay.js?v=2.3.1"></script>
-<script src="js/device.js?v=2.3.1"></script>
-<script src="js/revenue.js?v=2.3.1"></script>
-<script src="js/bonus.js?v=2.3.1"></script>
-<script src="js/commissions.js?v=2.3.1"></script>
-<script src="js/pricing.js?v=2.3.1"></script>
-<script src="js/tooltip.js?v=2.3.1"></script>
+<script src="js/utils.js?v=2.3.4"></script>
+<script src="js/auth.js?v=2.3.4"></script>
+<script src="js/app.js?v=2.3.4"></script>
+<script src="js/import.js?v=2.3.4"></script>
+<script src="js/report.js?v=2.3.4"></script>
+<script src="js/monitoring.js?v=2.3.4"></script>
+<script src="js/config.js?v=2.3.4"></script>
+<script src="js/firstpay.js?v=2.3.4"></script>
+<script src="js/device.js?v=2.3.4"></script>
+<script src="js/revenue.js?v=2.3.4"></script>
+<script src="js/bonus.js?v=2.3.4"></script>
+<script src="js/commissions.js?v=2.3.4"></script>
+<script src="js/pricing.js?v=2.3.4"></script>
+<script src="js/arrears.js?v=2.3.4"></script>
+<script src="js/tooltip.js?v=2.3.4"></script>
 
 </body>
 </html>

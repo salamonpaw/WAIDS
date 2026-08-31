@@ -53,6 +53,8 @@ from database import (
     # pricing analysis
     get_pricing_analysis, get_pricing_raises, add_pricing_raises,
     update_pricing_raise, delete_pricing_raise, PRICING_RAISE_STATUSES,
+    # arrears
+    get_arrears_report,
     # import sessions
     create_import_session, get_import_sessions, undo_import_session,
     # bulk device update
@@ -2325,3 +2327,10 @@ def api_delete_raise(raise_id: int, _: dict = Depends(require_pricing)):
     if not ok:
         raise HTTPException(400, "Nie można usunąć (status inny niż DO_KONTAKTU)")
     return {"ok": True}
+
+
+# ── Zaległości ─────────────────────────────────────────────────────────────────
+
+@app.get("/arrears")
+def api_get_arrears(min_months: int = 1, _: dict = Depends(get_auth_user)):
+    return get_arrears_report(min_months_unpaid=min_months)

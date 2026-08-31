@@ -22,6 +22,7 @@ function switchTab(name) {
   if (name === 'config')       { loadConfig(); loadLicenseFees(); }
   if (name === 'commissions')  { onTabCommissions(); }
   if (name === 'pricing')      { onTabPricing(); }
+  if (name === 'arrears')      { onTabArrears(); }
 }
 
 function applyAdminTabs() {
@@ -72,6 +73,24 @@ async function refreshStatus() {
 // ── Changelog modal ────────────────────────────────────────────────────────
 
 const CHANGELOG_ENTRIES = [
+  {
+    version: '2.3.4', date: '2026-08-31',
+    fixed: [
+      '<b>Lista rewizji — pusta dla segmentów bez targetu (np. PREMIUM)</b> — lista używała <code>revision_list</code> (tylko urządzenia z potencjałem > 0). Teraz używa <code>device_list</code> (wszystkie urządzenia), więc PREMIUM/ENTERPRISE/STANDARD widoczne zawsze; target można ręcznie ustawić per wiersz i dodać do listy podwyżek.'
+    ]
+  },
+  {
+    version: '2.3.3', date: '2026-08-31',
+    added: [
+      '<b>⚠ Zaległości abonamentowe</b> — nowa zakładka dostępna dla wszystkich zalogowanych użytkowników. Dwa widoki: <b>Przestały płacić</b> — urządzenia IDS z co najmniej 1 miesiącem bez opłat (filtr minimalnej liczby miesięcy), z wyliczeniem szacowanej zaległości (mies. × śr. stawka z ostatnich 3 płatności); <b>Nigdy nieopłacone</b> — urządzenia wyprodukowane bez żadnej zarejestrowanej płatności. Kolory wierszy sygnalizują pilność (zielony ≤ 2 mies., żółty 3–6, pomarańczowy 7–12, czerwony > 12). Sortowanie po każdej kolumnie, filtr opiekuna, KPI na górze.'
+    ]
+  },
+  {
+    version: '2.3.2', date: '2026-08-31',
+    added: [
+      '<b>Drilldown segmentu w widoku Segmenty (6.2)</b> — kliknięcie wiersza segmentu rozwija panel inline z listą wszystkich urządzeń w segmencie (Symbol IDS, Firma, Opiekun, Stawka, Potencjał/mies., Ost. płatność), podsumowaniem MRR i potencjału segmentu oraz rozkładem wg opiekunów. Ponowne kliknięcie zwija panel. Sortowanie: LEGACY/DISCOUNT od najtańszych, pozostałe od najdroższych.'
+    ]
+  },
   {
     version: '2.3.1', date: '2026-08-31',
     fixed: [
