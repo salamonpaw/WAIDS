@@ -2514,15 +2514,21 @@ def get_arrears_report(min_months_unpaid: int = 1) -> dict:
     # sort by total arrears descending (biggest debt first)
     lapsed.sort(key=lambda x: x['total_arrears'], reverse=True)
 
+    def _prod_to_ym(s: str) -> str | None:
+        """Parse VARCHAR prod_date (YYYY-MM-DD, YYYY-MM, DD.MM.YYYY) → YYYY-MM."""
+        if not s:
+            return None
+        s = s.strip()
+        if len(s) >= 7 and s[4] == '-':   # YYYY-MM-DD or YYYY-MM
+            return s[:7]
+        if len(s) == 10 and s[2] == '.' and s[5] == '.':  # DD.MM.YYYY
+            return f"{s[6:10]}-{s[3:5]}"
+        return None
+
     never = []
     for row in never_rows:
-        if row['prod_date']:
-            ms = _ym_diff(
-                f"{row['prod_date'].year}-{row['prod_date'].month:02d}",
-                current_ym
-            )
-        else:
-            ms = 0
+        prod_ym = _prod_to_ym(row['prod_date'] or '')
+        ms = _ym_diff(prod_ym, current_ym) if prod_ym else 0
         never.append({
             'sn':              row['sn'],
             'firma':           row['firma'],

@@ -74,6 +74,12 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.3.5', date: '2026-08-31',
+    fixed: [
+      '<b>Zaległości — 500 Internal Server Error</b> — kolumna <code>prod_date</code> w bazie to VARCHAR, nie typ DATE; kod próbował wywołać <code>.year/.month</code> na stringu. Naprawiono parsowanie daty z formatu YYYY-MM-DD / YYYY-MM / DD.MM.YYYY.'
+    ]
+  },
+  {
     version: '2.3.4', date: '2026-08-31',
     fixed: [
       '<b>Lista rewizji — pusta dla segmentów bez targetu (np. PREMIUM)</b> — lista używała <code>revision_list</code> (tylko urządzenia z potencjałem > 0). Teraz używa <code>device_list</code> (wszystkie urządzenia), więc PREMIUM/ENTERPRISE/STANDARD widoczne zawsze; target można ręcznie ustawić per wiersz i dodać do listy podwyżek.'
