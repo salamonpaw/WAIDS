@@ -199,7 +199,10 @@ async function computeCommPeriod(id) {
         `Przeliczono: ${d.items_computed} pozycji (${d.devices_in_cohort} urządzeń w kohortcie) · ${d.qualifying} kwalifikuje · ${d.in_progress} w toku`, 'ok');
     }
     await loadCommPeriods(); renderCommPeriods();
-    if (_activePeriodId === id) await loadAndRenderItems();
+    // auto-select and show items panel after compute
+    _activePeriodId = id;
+    document.getElementById('commItemsPanel').style.display = '';
+    await loadAndRenderItems();
   } else {
     setMsg('commPeriodsMsg', d.detail || 'Błąd przeliczania', 'error');
   }
@@ -215,9 +218,21 @@ async function toggleCommLock(id, locked) {
 }
 
 async function exportCommPeriod(id) {
-  const a = document.createElement('a');
-  a.href = `${API}/commission/periods/${id}/export`;
+  const r = await fetch(`${API}/commission/periods/${id}/export`);
+  if (!r.ok) {
+    const d = await r.json().catch(() => ({}));
+    alert(d.detail || 'Błąd eksportu');
+    return;
+  }
+  const blob = await r.blob();
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  const cd   = r.headers.get('Content-Disposition') || '';
+  const m    = cd.match(/filename="([^"]+)"/);
+  a.download = m ? m[1] : `prowizje_${id}.xlsx`;
   a.click();
+  URL.revokeObjectURL(url);
 }
 
 async function selectCommPeriod(id) {
