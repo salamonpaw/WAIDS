@@ -59,7 +59,7 @@ function renderCommRates() {
     </tr></thead>
     <tbody>
       ${_commRates.map(r => `<tr>
-        <td>${esc(r.rep_name || '<em style="color:var(--text-muted)">Globalna</em>')}</td>
+        <td>${r.rep_name ? esc(r.rep_name) : '<em style="color:var(--text-muted)">Globalna (domyślna)</em>'}</td>
         <td style="font-weight:600">${r.pct}%</td>
         <td>${fmtDate(r.valid_from)}</td>
         <td>${r.valid_to ? fmtDate(r.valid_to) : '—'}</td>
@@ -127,27 +127,22 @@ function renderCommPeriods() {
     const kw = p.qualifying || 0, tot = p.item_count || 0;
     const comm = parseFloat(p.total_commission || 0);
     return `<div class="comm-period-card ${_activePeriodId === p.id ? 'active' : ''}" onclick="selectCommPeriod(${p.id})">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-        <div>
-          <div style="font-weight:600;font-size:13px">${esc(p.name)}</div>
-          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
-            Kohorta: ${fmtDate(p.cohort_from)} – ${fmtDate(p.cohort_to)}
-          </div>
-          <div style="font-size:11px;color:var(--text-muted)">
-            ${tot} urządzeń · ${kw} kwalifikuje · ${fmtPLN(comm)} prowizji
-          </div>
-        </div>
-        <div style="display:flex;gap:4px;align-items:center;flex-shrink:0">
-          ${p.locked ? '<span style="font-size:10px;color:var(--text-muted);padding:2px 6px;border:0.5px solid var(--border);border-radius:99px">🔒 Zablok.</span>' : ''}
-          ${isAdmin ? `
-            <button class="ghost sm" onclick="event.stopPropagation();computeCommPeriod(${p.id})" title="Przelicz">⟳</button>
-            <button class="ghost sm" onclick="event.stopPropagation();toggleCommLock(${p.id},${!p.locked})" title="${p.locked ? 'Odblokuj' : 'Zablokuj'}">${p.locked ? '🔓' : '🔒'}</button>
-            <button class="ghost sm" onclick="event.stopPropagation();exportCommPeriod(${p.id})" title="Eksport Excel">⬇ XLS</button>
-            <button class="ghost sm" onclick="event.stopPropagation();deleteCommPeriod(${p.id})" title="Usuń">✕</button>
-          ` : `
-            <button class="ghost sm" onclick="event.stopPropagation();exportCommPeriod(${p.id})" title="Eksport Excel">⬇ XLS</button>
-          `}
-        </div>
+      <div style="font-weight:600;font-size:13px;margin-bottom:3px">
+        ${esc(p.name)} ${p.locked ? '<span style="font-size:10px;color:var(--text-muted);padding:2px 6px;border:0.5px solid var(--border);border-radius:99px">🔒</span>' : ''}
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px">
+        Kohorta: ${fmtDate(p.cohort_from)} – ${fmtDate(p.cohort_to)} &nbsp;·&nbsp;
+        ${tot} urządzeń &nbsp;·&nbsp; ${kw} kwalifikuje &nbsp;·&nbsp; ${fmtPLN(comm)} prowizji
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px" onclick="event.stopPropagation()">
+        ${isAdmin ? `
+          <button class="primary sm" onclick="computeCommPeriod(${p.id})">⟳ Przelicz</button>
+          <button class="ghost sm" onclick="exportCommPeriod(${p.id})">⬇ Excel</button>
+          <button class="ghost sm" onclick="toggleCommLock(${p.id},${!p.locked})">${p.locked ? '🔓 Odblokuj' : '🔒 Zablokuj'}</button>
+          <button class="ghost sm" onclick="deleteCommPeriod(${p.id})">✕ Usuń</button>
+        ` : `
+          <button class="ghost sm" onclick="exportCommPeriod(${p.id})">⬇ Excel</button>
+        `}
       </div>
     </div>`;
   }).join('');
@@ -196,8 +191,13 @@ async function computeCommPeriod(id) {
   const r = await fetch(`${API}/commission/periods/${id}/compute`, { method: 'POST' });
   const d = await r.json().catch(() => ({}));
   if (r.ok) {
-    setMsg('commPeriodsMsg',
-      `Przeliczono: ${d.items_computed} pozycji · ${d.qualifying} kwalifikuje · ${d.in_progress} w toku`, 'ok');
+    if (d.devices_in_cohort === 0) {
+      setMsg('commPeriodsMsg',
+        `Brak urządzeń z datą produkcji w podanym zakresie. Sprawdź czy urządzenia mają ustawioną datę produkcji (kolumna prod_date w imporcie).`, 'error');
+    } else {
+      setMsg('commPeriodsMsg',
+        `Przeliczono: ${d.items_computed} pozycji (${d.devices_in_cohort} urządzeń w kohortcie) · ${d.qualifying} kwalifikuje · ${d.in_progress} w toku`, 'ok');
+    }
     await loadCommPeriods(); renderCommPeriods();
     if (_activePeriodId === id) await loadAndRenderItems();
   } else {
@@ -250,6 +250,10 @@ function switchCommView(v) {
   document.getElementById('btnViewSummary').classList.toggle('primary', v === 'summary');
   document.getElementById('btnViewItems').classList.toggle('ghost', v !== 'items');
   document.getElementById('btnViewSummary').classList.toggle('ghost', v !== 'summary');
+  // swap table headers
+  document.getElementById('commItemsHead').style.display = v === 'items' ? '' : 'none';
+  document.getElementById('commSummaryHead').style.display = v === 'summary' ? '' : 'none';
+  document.getElementById('commFiltersRow').style.display = v === 'items' ? '' : 'none';
   if (v === 'summary') renderCommSummary();
   else renderCommItemsTable();
 }
