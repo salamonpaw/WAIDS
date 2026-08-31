@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-  <link rel="stylesheet" href="css/main.css?v=2.1.2">
+  <link rel="stylesheet" href="css/main.css?v=2.2.0">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -68,6 +68,7 @@
   <button class="tab-btn"        onclick="switchTab('device')">🔍 Urządzenie</button>
   <button class="tab-btn" id="tabBtnRevenue" onclick="switchTab('revenue')" style="display:none">💰 Wyliczenia</button>
   <button class="tab-btn"        onclick="switchTab('bonus')">🆕 Pierwsze IDS</button>
+  <button class="tab-btn" id="tabBtnCommissions" onclick="switchTab('commissions')" style="display:none">💸 Prowizje</button>
   <button class="tab-btn" id="tabBtnConfig"  onclick="switchTab('config')"  style="display:none">⚙ Konfiguracja</button>
 </div>
 
@@ -1240,6 +1241,142 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
 </div>
 </div>
 
+<!-- ══════════════════ PROWIZJE TAB ══════════════════ -->
+<div class="tab-panel" id="tab-commissions">
+<div class="container">
+
+  <!-- Stawki prowizji -->
+  <div class="section-card" id="commRatesSection">
+    <div class="section-title">💸 Stawki prowizji</div>
+    <div id="commRatesTable" style="margin-bottom:12px"></div>
+    <div id="commAdminRateForm" style="display:none">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-top:8px">
+        <div>
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Handlowiec (puste = globalna)</label>
+          <input id="crRepName" type="text" placeholder="Np. Jan Kowalski"
+                 style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text);width:180px">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Stawka %</label>
+          <input id="crPct" type="number" min="0" max="100" step="0.01" placeholder="np. 10"
+                 style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text);width:80px">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Obowiązuje od</label>
+          <input id="crFrom" type="date"
+                 style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">do (puste = bezterminowo)</label>
+          <input id="crTo" type="date"
+                 style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Uwagi</label>
+          <input id="crNote" type="text" placeholder="Opcjonalnie"
+                 style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text);width:140px">
+        </div>
+        <button class="primary sm" onclick="saveCommRate()">+ Dodaj stawkę</button>
+      </div>
+    </div>
+    <div id="commRatesMsg" class="msg" style="margin-top:6px"></div>
+  </div>
+
+  <!-- Okresy rozliczeniowe -->
+  <div class="section-card">
+    <div class="section-title">📆 Okresy rozliczeniowe</div>
+    <div id="commAdminPeriodForm" style="display:none;margin-bottom:12px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <div>
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Nazwa okresu</label>
+          <input id="cpName" type="text" placeholder="np. Q1 2025"
+                 style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text);width:150px">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Data prod. od</label>
+          <input id="cpFrom" type="date"
+                 style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">do</label>
+          <input id="cpTo" type="date"
+                 style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+        </div>
+        <button class="primary sm" onclick="createCommPeriod()">+ Utwórz okres</button>
+      </div>
+    </div>
+    <div id="commPeriodsList" style="margin-bottom:4px"></div>
+    <div id="commPeriodsMsg" class="msg"></div>
+  </div>
+
+  <!-- Pozycje prowizji -->
+  <div id="commItemsPanel" style="display:none">
+    <div class="section-card">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+        <div class="section-title" style="margin:0">Pozycje prowizji</div>
+        <button id="btnViewItems" class="primary sm" onclick="switchCommView('items')">Lista</button>
+        <button id="btnViewSummary" class="ghost sm" onclick="switchCommView('summary')">Agregacja</button>
+        <span id="commItemsCount" style="font-size:11px;color:var(--text-muted);margin-left:auto"></span>
+      </div>
+
+      <!-- Filtry -->
+      <div class="comm-items-toolbar" id="commFiltersRow">
+        <select id="fCommRep" onchange="renderCommItemsTable()" style="height:30px;font-size:12px;padding:0 6px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+          <option value="">Wszyscy handlowcy</option>
+        </select>
+        <select id="fCommStatus" onchange="renderCommItemsTable()" style="height:30px;font-size:12px;padding:0 6px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+          <option value="">Wszystkie statusy</option>
+          <option value="W_TOKU">W toku</option>
+          <option value="KWALIFIKUJE">Kwalifikuje</option>
+          <option value="WYPLATA_ZATWIERDZONA">Zatwierdzona</option>
+          <option value="WYPLACONA">Wypłacona</option>
+          <option value="ANULOWANA">Anulowana</option>
+        </select>
+        <select id="fCommAdv" onchange="renderCommItemsTable()" style="height:30px;font-size:12px;padding:0 6px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+          <option value="">Wszystkie</option>
+          <option value="1">⬆ Płatność z góry</option>
+          <option value="0">Bez zaliczki</option>
+        </select>
+        <button class="ghost sm" onclick="selectAllCommItems()">☑ Zaznacz wszystkie</button>
+        <button class="ghost sm" onclick="deselectAllCommItems()">☐ Odznacz</button>
+      </div>
+
+      <!-- Bulk bar -->
+      <div id="commBulkBar">
+        <span id="commSelCount" style="font-weight:600;font-size:13px;flex:1"></span>
+        <input id="commBulkNote" type="text" placeholder="Uwaga (opcjonalna)"
+               style="height:28px;font-size:11px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid rgba(255,255,255,.4);background:rgba(255,255,255,.15);color:#fff;width:160px">
+        <button onclick="bulkSetStatus('WYPLATA_ZATWIERDZONA')">✓ Zatwierdź</button>
+        <button onclick="bulkSetStatus('WYPLACONA')">💰 Wypłacono</button>
+        <button onclick="bulkSetStatus('W_TOKU')">↺ Cofnij do W toku</button>
+        <button onclick="bulkSetStatus('ANULOWANA')">✕ Anuluj</button>
+      </div>
+
+      <div id="commItemsMsg" class="msg" style="margin-bottom:6px"></div>
+
+      <!-- Tabela pozycji -->
+      <div style="overflow-x:auto">
+        <table class="data-table" style="font-size:11px;min-width:900px" id="commItemsTable">
+          <thead id="commItemsHead">
+            <tr>
+              <th class="cb-col"><input type="checkbox" onchange="if(this.checked)selectAllCommItems();else deselectAllCommItems()"></th>
+              <th>SN</th><th>Firma</th><th>Handlowiec</th>
+              <th>Data prod.</th><th>Mies.</th><th>12. mies.</th>
+              <th style="text-align:right">Podstawa</th>
+              <th style="text-align:right">Stawka</th>
+              <th style="text-align:right">Prowizja</th>
+              <th>Status</th><th>Zmień</th>
+            </tr>
+          </thead>
+          <tbody id="commItemsBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+</div><!-- /tab-commissions -->
+
 <!-- ══════════════════ CONFIG TAB ══════════════════ -->
 <div class="tab-panel" id="tab-config">
 <div class="container">
@@ -1281,6 +1418,7 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
           <th>Nazwa</th>
           <th>Rola</th>
           <th style="text-align:center" title="Uprawnienie do zmiany firmy, operatora i typu urządzenia">✏ Edycja urządzeń</th>
+          <th style="text-align:center" title="Dostęp do zakładki Prowizje">💸 Prowizje</th>
           <th>Status</th>
           <th>Akcje</th>
         </tr></thead>
@@ -1681,18 +1819,19 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.1.2"></script>
-<script src="js/auth.js?v=2.1.2"></script>
-<script src="js/app.js?v=2.1.2"></script>
-<script src="js/import.js?v=2.1.2"></script>
-<script src="js/report.js?v=2.1.2"></script>
-<script src="js/monitoring.js?v=2.1.2"></script>
-<script src="js/config.js?v=2.1.2"></script>
-<script src="js/firstpay.js?v=2.1.2"></script>
-<script src="js/device.js?v=2.1.2"></script>
-<script src="js/revenue.js?v=2.1.2"></script>
-<script src="js/bonus.js?v=2.1.2"></script>
-<script src="js/tooltip.js?v=2.1.2"></script>
+<script src="js/utils.js?v=2.2.0"></script>
+<script src="js/auth.js?v=2.2.0"></script>
+<script src="js/app.js?v=2.2.0"></script>
+<script src="js/import.js?v=2.2.0"></script>
+<script src="js/report.js?v=2.2.0"></script>
+<script src="js/monitoring.js?v=2.2.0"></script>
+<script src="js/config.js?v=2.2.0"></script>
+<script src="js/firstpay.js?v=2.2.0"></script>
+<script src="js/device.js?v=2.2.0"></script>
+<script src="js/revenue.js?v=2.2.0"></script>
+<script src="js/bonus.js?v=2.2.0"></script>
+<script src="js/commissions.js?v=2.2.0"></script>
+<script src="js/tooltip.js?v=2.2.0"></script>
 
 </body>
 </html>

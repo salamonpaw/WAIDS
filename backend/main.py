@@ -42,6 +42,14 @@ from database import (
     get_or_create_secret_key, create_admin_if_needed,
     verify_user, get_user_by_id,
     list_users, create_user_db, set_user_status, reset_user_password, set_user_can_edit,
+    set_user_can_commission,
+    # commission
+    get_commission_rates, upsert_commission_rate, delete_commission_rate,
+    list_commission_periods, create_commission_period, delete_commission_period,
+    lock_commission_period, compute_commission_period,
+    get_commission_items, get_commission_summary,
+    update_commission_status, bulk_update_commission_status,
+    COMMISSION_STATUSES,
     # import sessions
     create_import_session, get_import_sessions, undo_import_session,
     # bulk device update
@@ -93,6 +101,13 @@ def require_edit(user: dict = Depends(get_auth_user)) -> dict:
     """Admin lub użytkownik z uprawnieniem can_edit_devices."""
     if not (user.get("is_admin") or user.get("can_edit_devices")):
         raise HTTPException(403, "Brak uprawnienia do edycji urządzeń")
+    return user
+
+
+def require_commission(user: dict = Depends(get_auth_user)) -> dict:
+    """Admin lub użytkownik z uprawnieniem can_view_commissions."""
+    if not (user.get("is_admin") or user.get("can_view_commissions")):
+        raise HTTPException(403, "Brak uprawnienia do prowizji")
     return user
 
 
@@ -225,12 +240,14 @@ def admin_set_active(uid: int, body: SetActiveIn, _: dict = Depends(require_admi
 
 
 class SetPermissionsIn(BaseModel):
-    can_edit_devices: bool = False
+    can_edit_devices:    bool = False
+    can_view_commissions: bool = False
 
 
 @app.patch("/admin/users/{uid}/permissions")
 def admin_set_permissions(uid: int, body: SetPermissionsIn, _: dict = Depends(require_admin)):
     set_user_can_edit(uid, body.can_edit_devices)
+    set_user_can_commission(uid, body.can_view_commissions)
     return {"ok": True}
 
 
@@ -713,7 +730,8 @@ async def import_payments(
                 rec_m = offset % 12 + 1
                 records.append((sn, f"{rec_y}-{rec_m:02d}", customer,
                                  amount_per_month, currency,
-                                 netto_per_month, brutto_per_month))
+                                 netto_per_month, brutto_per_month,
+                                 months_count))
 
     elif month_cols:
         # ── Tabela przestawna ─────────────────────────────────────────────────
@@ -772,9 +790,10 @@ async def import_payments(
         sn, ym, customer, amount, currency = rec[0], rec[1], rec[2], rec[3], rec[4]
         netto   = rec[5] if len(rec) > 5 else 0.0
         brutto  = rec[6] if len(rec) > 6 else 0.0
+        batch   = rec[7] if len(rec) > 7 else 1
         key = (sn, ym)
         if key not in deduped_pay:
-            deduped_pay[key] = (sn, ym, customer, amount, currency, netto, brutto)
+            deduped_pay[key] = (sn, ym, customer, amount, currency, netto, brutto, batch)
         else:
             ex = deduped_pay[key]
             deduped_pay[key] = (
@@ -784,6 +803,7 @@ async def import_payments(
                 ex[4] if ex[4] else currency,
                 ex[5] if ex[5] >= netto   else netto,
                 ex[6] if ex[6] >= brutto  else brutto,
+                max(ex[7], batch),
             )
     deduped_list = list(deduped_pay.values())
 
@@ -794,7 +814,7 @@ async def import_payments(
             with conn.cursor() as cur:
                 if mode == "overwrite":
                     execute_values(cur, """
-                        INSERT INTO payments (sn, year_month, customer, amount, currency, amount_netto, amount_brutto)
+                        INSERT INTO payments (sn, year_month, customer, amount, currency, amount_netto, amount_brutto, months_batch)
                         VALUES %s
                         ON CONFLICT (sn, year_month) DO UPDATE SET
                             customer      = CASE WHEN EXCLUDED.customer <> '' THEN EXCLUDED.customer
@@ -806,12 +826,14 @@ async def import_payments(
                             amount_netto  = CASE WHEN EXCLUDED.amount_netto  > 0 THEN EXCLUDED.amount_netto
                                                  ELSE payments.amount_netto  END,
                             amount_brutto = CASE WHEN EXCLUDED.amount_brutto > 0 THEN EXCLUDED.amount_brutto
-                                                 ELSE payments.amount_brutto END
+                                                 ELSE payments.amount_brutto END,
+                            months_batch  = CASE WHEN EXCLUDED.months_batch  > 1 THEN EXCLUDED.months_batch
+                                                 ELSE payments.months_batch  END
                     """, deduped_list)
                     pay_inserted = len(deduped_list)
                 else:  # append — skip existing (sn, year_month) pairs
                     rows = execute_values(cur, """
-                        INSERT INTO payments (sn, year_month, customer, amount, currency, amount_netto, amount_brutto)
+                        INSERT INTO payments (sn, year_month, customer, amount, currency, amount_netto, amount_brutto, months_batch)
                         VALUES %s
                         ON CONFLICT (sn, year_month) DO NOTHING
                         RETURNING sn, year_month
@@ -1940,5 +1962,230 @@ def merge_firms_endpoint(body: MergeFirmsIn):
         return {"ok": True, "source": source, "target": target, "affected": counts}
     except ValueError as e:
         raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PROWIZJE — commission system
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── stawki ────────────────────────────────────────────────────────────────────
+
+@app.get("/commission/rates")
+def api_get_rates(_: dict = Depends(require_commission)):
+    try:
+        return {"rates": get_commission_rates()}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+class CommissionRateIn(BaseModel):
+    rep_name:   str = ""       # puste = globalna
+    pct:        float
+    valid_from: str
+    valid_to:   str = ""
+    note:       str = ""
+
+
+@app.post("/commission/rates")
+def api_create_rate(body: CommissionRateIn, _: dict = Depends(require_admin)):
+    if body.pct < 0 or body.pct > 100:
+        raise HTTPException(400, "Procent musi być w zakresie 0–100")
+    if not body.valid_from:
+        raise HTTPException(400, "Pole valid_from jest wymagane")
+    try:
+        rate = upsert_commission_rate(
+            body.rep_name, body.pct, body.valid_from, body.valid_to, body.note)
+        return {"ok": True, "rate": rate}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.delete("/commission/rates/{rate_id}")
+def api_delete_rate(rate_id: int, _: dict = Depends(require_admin)):
+    try:
+        delete_commission_rate(rate_id)
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# ── okresy rozliczeniowe ──────────────────────────────────────────────────────
+
+@app.get("/commission/periods")
+def api_list_periods(_: dict = Depends(require_commission)):
+    try:
+        return {"periods": list_commission_periods()}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+class CommissionPeriodIn(BaseModel):
+    name:        str
+    cohort_from: str
+    cohort_to:   str
+
+
+@app.post("/commission/periods")
+def api_create_period(body: CommissionPeriodIn, user: dict = Depends(require_admin)):
+    if not body.name.strip():
+        raise HTTPException(400, "Nazwa okresu jest wymagana")
+    if not body.cohort_from or not body.cohort_to:
+        raise HTTPException(400, "Daty kohorty są wymagane")
+    if body.cohort_from > body.cohort_to:
+        raise HTTPException(400, "Data 'od' musi być wcześniejsza niż 'do'")
+    try:
+        period = create_commission_period(
+            body.name.strip(), body.cohort_from, body.cohort_to, user["id"])
+        return {"ok": True, "period": period}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.delete("/commission/periods/{period_id}")
+def api_delete_period(period_id: int, _: dict = Depends(require_admin)):
+    try:
+        delete_commission_period(period_id)
+        return {"ok": True}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+class LockIn(BaseModel):
+    locked: bool
+
+
+@app.patch("/commission/periods/{period_id}/lock")
+def api_lock_period(period_id: int, body: LockIn, _: dict = Depends(require_admin)):
+    try:
+        lock_commission_period(period_id, body.locked)
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.post("/commission/periods/{period_id}/compute")
+def api_compute_period(period_id: int, _: dict = Depends(require_admin)):
+    try:
+        result = compute_commission_period(period_id)
+        return {"ok": True, **result}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+# ── pozycje prowizji ──────────────────────────────────────────────────────────
+
+@app.get("/commission/periods/{period_id}/items")
+def api_get_items(period_id: int, status: str = None, rep_name: str = None,
+                  _: dict = Depends(require_commission)):
+    try:
+        items = get_commission_items(period_id, status, rep_name)
+        return {"items": items}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.get("/commission/periods/{period_id}/summary")
+def api_get_summary(period_id: int, _: dict = Depends(require_commission)):
+    try:
+        return {"summary": get_commission_summary(period_id)}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+class StatusChangeIn(BaseModel):
+    status: str
+    note:   str = ""
+
+
+@app.patch("/commission/items/{item_id}/status")
+def api_update_status(item_id: int, body: StatusChangeIn,
+                      user: dict = Depends(require_commission)):
+    if body.status not in COMMISSION_STATUSES:
+        raise HTTPException(400, f"Nieprawidłowy status. Dostępne: {', '.join(COMMISSION_STATUSES)}")
+    try:
+        updated = update_commission_status(item_id, body.status, user["id"], body.note)
+        return {"ok": True, "item": updated}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+class BulkStatusIn(BaseModel):
+    item_ids: List[int]
+    status:   str
+    note:     str = ""
+
+
+@app.patch("/commission/periods/{period_id}/items/bulk-status")
+def api_bulk_status(period_id: int, body: BulkStatusIn,
+                    user: dict = Depends(require_commission)):
+    if body.status not in COMMISSION_STATUSES:
+        raise HTTPException(400, f"Nieprawidłowy status. Dostępne: {', '.join(COMMISSION_STATUSES)}")
+    try:
+        count = bulk_update_commission_status(
+            period_id, body.item_ids, body.status, user["id"], body.note)
+        return {"ok": True, "updated": count}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.get("/commission/periods/{period_id}/export")
+def api_export_commission(period_id: int, _: dict = Depends(require_commission)):
+    """Export pozycji prowizji do Excela."""
+    try:
+        items = get_commission_items(period_id)
+        summary = get_commission_summary(period_id)
+        periods = list_commission_periods()
+        period = next((p for p in periods if p['id'] == period_id), None)
+        period_name = period['name'] if period else f"Okres {period_id}"
+
+        wb = openpyxl.Workbook()
+
+        # Sheet 1: pozycje
+        ws1 = wb.active
+        ws1.title = "Pozycje prowizji"
+        headers1 = ["SN", "Firma", "Handlowiec", "Data prod.", "Opłacone mies.",
+                    "12. miesiąc", "Podstawa netto", "Stawka %", "Prowizja PLN",
+                    "Status", "Płatność z góry"]
+        ws1.append(headers1)
+        for it in items:
+            ws1.append([
+                it['sn'], it['firma'], it['rep_name'], it['prod_date'],
+                it['months_paid'], it.get('month_12_ym') or '',
+                float(it['base_netto']), float(it['rate_pct']),
+                float(it['commission_amt']), it['status'],
+                "Tak" if it['advance_flag'] else "Nie",
+            ])
+
+        # Sheet 2: summary per handlowiec
+        ws2 = wb.create_sheet("Agregacja")
+        headers2 = ["Handlowiec", "Kwalifikuje", "W toku", "Zatwierdzone",
+                    "Wypłacone", "Anulowane", "Łączna prowizja PLN", "Wypłacono PLN"]
+        ws2.append(headers2)
+        for s in summary:
+            ws2.append([
+                s['rep_name'], s['qualifying'], s['in_progress'],
+                s['approved'], s['paid_out'], s['cancelled'],
+                float(s['total_commission']), float(s['paid_commission']),
+            ])
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        safe = period_name.replace("/", "-").replace("\\", "-")
+        return StreamingResponse(
+            buf,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="prowizje_{safe}.xlsx"'},
+        )
     except Exception as e:
         raise HTTPException(500, str(e))

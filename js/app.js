@@ -5,23 +5,33 @@ const ADMIN_TABS = ['revenue', 'config'];
 
 function switchTab(name) {
   if (ADMIN_TABS.includes(name) && !currentUser?.is_admin) return;
+  if (name === 'commissions' &&
+      !currentUser?.is_admin && !currentUser?.can_view_commissions) return;
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
   event.currentTarget.classList.add('active');
-  if (name === 'report')   loadReport();
-  if (name === 'monitor')  loadMonitoringTab();
-  if (name === 'firstpay') loadFirstPayTab();
-  if (name === 'device')   { /* data loaded on demand via searchBySN() */ }
-  if (name === 'revenue')  { loadRevenue(); loadSeasonality(); }
-  if (name === 'bonus')    { loadBonusTab(); }
-  if (name === 'config')   { loadConfig(); loadLicenseFees(); }
+  if (name === 'report')       loadReport();
+  if (name === 'monitor')      loadMonitoringTab();
+  if (name === 'firstpay')     loadFirstPayTab();
+  if (name === 'device')       { /* data loaded on demand via searchBySN() */ }
+  if (name === 'revenue')      { loadRevenue(); loadSeasonality(); }
+  if (name === 'bonus')        { loadBonusTab(); }
+  if (name === 'config')       { loadConfig(); loadLicenseFees(); }
+  if (name === 'commissions')  { onTabCommissions(); }
 }
 
 function applyAdminTabs() {
   const isAdmin = currentUser?.is_admin || false;
-  document.getElementById('tabBtnRevenue').style.display = isAdmin ? '' : 'none';
-  document.getElementById('tabBtnConfig').style.display  = isAdmin ? '' : 'none';
+  const canComm = isAdmin || currentUser?.can_view_commissions || false;
+  document.getElementById('tabBtnRevenue').style.display     = isAdmin ? '' : 'none';
+  document.getElementById('tabBtnCommissions').style.display = canComm  ? '' : 'none';
+  document.getElementById('tabBtnConfig').style.display      = isAdmin ? '' : 'none';
+  // Show admin-only rate form
+  const rateForm = document.getElementById('commAdminRateForm');
+  if (rateForm) rateForm.style.display = isAdmin ? '' : 'none';
+  const periodForm = document.getElementById('commAdminPeriodForm');
+  if (periodForm) periodForm.style.display = isAdmin ? '' : 'none';
 }
 
 // ── DB status bar ──────────────────────────────────────────────────────────
@@ -57,6 +67,14 @@ async function refreshStatus() {
 // ── Changelog modal ────────────────────────────────────────────────────────
 
 const CHANGELOG_ENTRIES = [
+  {
+    version: '2.2.0', date: '2026-08-31',
+    added: [
+      '<b>System prowizji handlowców (tab 💸 Prowizje)</b> — pełny moduł rozliczeniowy: stawki % per handlowiec (data-based), okresy rozliczeniowe z kohortą dat produkcji, automatyczne wyliczanie prowizji na podstawie 12 opłaconych miesięcy, statusy pozycji (W toku / Kwalifikuje / Zatwierdzona / Wypłacona / Anulowana), bulk-zmiana statusów, eksport Excel (pozycje + agregacja per handlowiec)',
+      '<b>Uprawnienie: can_view_commissions</b> — niezależne od roli Admin; zarządzanie w Konfiguracja → Użytkownicy',
+      '<b>months_batch w płatnościach</b> — import faktury z ob_Ilosc > 1 zapisuje liczbę miesięcy w kolumnie <code>months_batch</code>; używane do wykrywania płatności z góry (⬆ badge) w systemie prowizji'
+    ]
+  },
   {
     version: '2.1.2', date: '2026-08-13',
     added: [

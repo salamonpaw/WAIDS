@@ -6,6 +6,7 @@ from datetime import date as _date
 
 import psycopg2
 import psycopg2.extras
+from psycopg2.extras import execute_values
 from dotenv import load_dotenv
 import bcrypt as _bcrypt_lib
 
@@ -258,6 +259,79 @@ def init_db() -> None:
                 SELECT sn, device_type_override, COALESCE(showroom_until,'')
                 FROM devices WHERE device_type_override <> ''
                 ON CONFLICT (sn) DO NOTHING;
+            """)
+
+            # ── Migracja: months_batch w payments (wykrywanie płatności z góry) ───
+            cur.execute("""
+                ALTER TABLE payments
+                ADD COLUMN IF NOT EXISTS months_batch INTEGER NOT NULL DEFAULT 1;
+            """)
+
+            # ── Migracja: can_view_commissions ────────────────────────────────
+            cur.execute("""
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS can_view_commissions BOOLEAN NOT NULL DEFAULT FALSE;
+            """)
+
+            # ── Tabele systemu prowizji ───────────────────────────────────────
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS commission_rates (
+                    id          SERIAL PRIMARY KEY,
+                    rep_name    VARCHAR,
+                    pct         NUMERIC(5,2) NOT NULL,
+                    valid_from  DATE NOT NULL,
+                    valid_to    DATE,
+                    note        VARCHAR NOT NULL DEFAULT ''
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS commission_periods (
+                    id            SERIAL PRIMARY KEY,
+                    name          VARCHAR NOT NULL,
+                    cohort_from   DATE NOT NULL,
+                    cohort_to     DATE NOT NULL,
+                    created_by    INTEGER REFERENCES users(id),
+                    created_at    TIMESTAMP NOT NULL DEFAULT NOW(),
+                    locked        BOOLEAN NOT NULL DEFAULT FALSE
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS commission_items (
+                    id              SERIAL PRIMARY KEY,
+                    period_id       INTEGER NOT NULL REFERENCES commission_periods(id) ON DELETE CASCADE,
+                    sn              VARCHAR NOT NULL,
+                    firma           VARCHAR NOT NULL DEFAULT '',
+                    rep_name        VARCHAR NOT NULL DEFAULT '',
+                    prod_date       VARCHAR NOT NULL DEFAULT '',
+                    months_paid     INTEGER NOT NULL DEFAULT 0,
+                    month_12_ym     VARCHAR(7),
+                    base_netto      NUMERIC(12,2) NOT NULL DEFAULT 0,
+                    rate_pct        NUMERIC(5,2)  NOT NULL DEFAULT 0,
+                    commission_amt  NUMERIC(12,2) NOT NULL DEFAULT 0,
+                    currency        VARCHAR(3)    NOT NULL DEFAULT 'PLN',
+                    status          VARCHAR(30)   NOT NULL DEFAULT 'W_TOKU',
+                    advance_flag    BOOLEAN       NOT NULL DEFAULT FALSE,
+                    UNIQUE (period_id, sn, rep_name)
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_comm_items_period
+                ON commission_items(period_id);
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS commission_status_log (
+                    id          SERIAL PRIMARY KEY,
+                    item_id     INTEGER NOT NULL REFERENCES commission_items(id) ON DELETE CASCADE,
+                    old_status  VARCHAR(30),
+                    new_status  VARCHAR(30) NOT NULL,
+                    changed_by  INTEGER REFERENCES users(id),
+                    changed_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+                    note        VARCHAR NOT NULL DEFAULT ''
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_comm_log_item
+                ON commission_status_log(item_id);
             """)
 
             # Historia sesji importu (urządzenia + płatności)
@@ -842,7 +916,8 @@ def list_users() -> list:
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
-                "SELECT id, email, name, is_active, is_admin, can_edit_devices, created_at, last_login"
+                "SELECT id, email, name, is_active, is_admin, can_edit_devices,"
+                " can_view_commissions, created_at, last_login"
                 " FROM users ORDER BY id"
             )
             return [dict(r) for r in cur.fetchall()]
@@ -866,6 +941,15 @@ def set_user_can_edit(user_id: int, can_edit: bool) -> None:
             cur.execute(
                 "UPDATE users SET can_edit_devices = %s WHERE id = %s",
                 (can_edit, user_id),
+            )
+
+
+def set_user_can_commission(user_id: int, can_view: bool) -> None:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET can_view_commissions = %s WHERE id = %s",
+                (can_view, user_id),
             )
 
 
@@ -1595,3 +1679,362 @@ def bulk_update_devices(
                 if not sets:
                     count = len(sns)
             return count
+
+
+# ── commission rates ───────────────────────────────────────────────────────────
+
+COMMISSION_STATUSES = ('W_TOKU', 'KWALIFIKUJE', 'WYPLATA_ZATWIERDZONA', 'WYPLACONA', 'ANULOWANA')
+
+
+def get_commission_rates() -> list:
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT id, COALESCE(rep_name, '') AS rep_name, pct,
+                       valid_from::text, COALESCE(valid_to::text, '') AS valid_to, note
+                FROM commission_rates
+                ORDER BY COALESCE(rep_name, '') NULLS FIRST, valid_from
+            """)
+            return [dict(r) for r in cur.fetchall()]
+
+
+def upsert_commission_rate(rep_name: str, pct: float,
+                           valid_from: str, valid_to: str,
+                           note: str = '', rate_id: int = None) -> dict:
+    rep = rep_name.strip() or None
+    vto = valid_to.strip() or None
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            if rate_id:
+                cur.execute("""
+                    UPDATE commission_rates
+                    SET rep_name=%s, pct=%s, valid_from=%s, valid_to=%s, note=%s
+                    WHERE id=%s
+                    RETURNING id, COALESCE(rep_name,'') AS rep_name, pct,
+                              valid_from::text, COALESCE(valid_to::text,'') AS valid_to, note
+                """, (rep, pct, valid_from, vto, note, rate_id))
+            else:
+                cur.execute("""
+                    INSERT INTO commission_rates (rep_name, pct, valid_from, valid_to, note)
+                    VALUES (%s, %s, %s, %s, %s)
+                    RETURNING id, COALESCE(rep_name,'') AS rep_name, pct,
+                              valid_from::text, COALESCE(valid_to::text,'') AS valid_to, note
+                """, (rep, pct, valid_from, vto, note))
+            row = cur.fetchone()
+            if not row:
+                raise ValueError("Nie znaleziono stawki")
+            return dict(row)
+
+
+def delete_commission_rate(rate_id: int) -> None:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM commission_rates WHERE id = %s", (rate_id,))
+
+
+# ── commission periods ─────────────────────────────────────────────────────────
+
+def list_commission_periods() -> list:
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT cp.id, cp.name, cp.cohort_from::text, cp.cohort_to::text,
+                       cp.locked, cp.created_at,
+                       u.name AS created_by_name,
+                       COUNT(ci.id) AS item_count,
+                       COUNT(ci.id) FILTER (WHERE ci.status = 'KWALIFIKUJE')           AS qualifying,
+                       COUNT(ci.id) FILTER (WHERE ci.status = 'W_TOKU')                AS in_progress,
+                       COUNT(ci.id) FILTER (WHERE ci.status = 'WYPLATA_ZATWIERDZONA')  AS approved,
+                       COUNT(ci.id) FILTER (WHERE ci.status = 'WYPLACONA')             AS paid_out,
+                       COALESCE(SUM(ci.commission_amt) FILTER (WHERE ci.status IN ('KWALIFIKUJE','WYPLATA_ZATWIERDZONA','WYPLACONA')), 0) AS total_commission
+                FROM commission_periods cp
+                LEFT JOIN users u ON cp.created_by = u.id
+                LEFT JOIN commission_items ci ON ci.period_id = cp.id
+                GROUP BY cp.id, cp.name, cp.cohort_from, cp.cohort_to, cp.locked, cp.created_at, u.name
+                ORDER BY cp.created_at DESC
+            """)
+            return [dict(r) for r in cur.fetchall()]
+
+
+def create_commission_period(name: str, cohort_from: str, cohort_to: str,
+                             user_id: int) -> dict:
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                INSERT INTO commission_periods (name, cohort_from, cohort_to, created_by)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id, name, cohort_from::text, cohort_to::text, locked, created_at
+            """, (name, cohort_from, cohort_to, user_id))
+            return dict(cur.fetchone())
+
+
+def delete_commission_period(period_id: int) -> None:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT locked FROM commission_periods WHERE id = %s", (period_id,))
+            row = cur.fetchone()
+            if not row:
+                raise ValueError("Okres nie istnieje")
+            if row[0]:
+                raise ValueError("Nie można usunąć zablokowanego okresu")
+            cur.execute("DELETE FROM commission_periods WHERE id = %s", (period_id,))
+
+
+def lock_commission_period(period_id: int, locked: bool) -> None:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("UPDATE commission_periods SET locked = %s WHERE id = %s",
+                        (locked, period_id))
+
+
+def compute_commission_period(period_id: int) -> dict:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT cohort_from, cohort_to, locked FROM commission_periods WHERE id = %s",
+                        (period_id,))
+            row = cur.fetchone()
+            if not row:
+                raise ValueError("Okres nie istnieje")
+            cohort_from, cohort_to, locked = row
+            if locked:
+                raise ValueError("Okres jest zablokowany — odblokuj przed przeliczeniem")
+
+            # Devices in cohort: prod_date BETWEEN cohort_from AND cohort_to, non-OEM/wycofany
+            cur.execute("""
+                SELECT d.sn, COALESCE(d.firma, '') AS firma, d.prod_date
+                FROM devices d
+                LEFT JOIN device_type_overrides dto ON d.sn = dto.sn
+                WHERE d.prod_date >= %s AND d.prod_date <= %s
+                  AND COALESCE(NULLIF(COALESCE(dto.type_override,''),''),
+                               CASE WHEN d.maszyna ILIKE '%%OEM%%' THEN 'oem' ELSE 'master' END
+                              ) NOT IN ('oem', 'wycofany')
+            """, (str(cohort_from), str(cohort_to)))
+            devices = cur.fetchall()
+
+            if not devices:
+                return {"items_computed": 0, "devices_in_cohort": 0,
+                        "qualifying": 0, "in_progress": 0}
+
+            qualifying_sns = [d[0] for d in devices]
+
+            # Payments sorted per SN
+            cur.execute("""
+                SELECT sn, year_month, COALESCE(amount_netto, 0) AS netto,
+                       COALESCE(months_batch, 1) AS batch
+                FROM payments
+                WHERE sn = ANY(%s)
+                ORDER BY sn, year_month
+            """, (qualifying_sns,))
+            pays_by_sn: dict = {}
+            for sn, ym, netto, batch in cur.fetchall():
+                pays_by_sn.setdefault(sn, []).append((ym, float(netto), int(batch)))
+
+            # firm → [rep_names]
+            firms = list({d[1] for d in devices if d[1]})
+            firm_to_reps: dict = {}
+            if firms:
+                cur.execute("""
+                    SELECT fr.firma, sr.name
+                    FROM firm_reps fr
+                    JOIN sales_reps sr ON fr.rep_id = sr.id
+                    WHERE fr.firma = ANY(%s)
+                    ORDER BY fr.firma, sr.name
+                """, (firms,))
+                for firma, rep in cur.fetchall():
+                    firm_to_reps.setdefault(firma, []).append(rep)
+
+            # Commission rates valid today
+            today = _date.today().isoformat()
+            cur.execute("""
+                SELECT COALESCE(rep_name, '') AS rep_name, pct
+                FROM commission_rates
+                WHERE valid_from <= %s
+                  AND (valid_to IS NULL OR valid_to >= %s)
+                ORDER BY rep_name NULLS LAST
+            """, (today, today))
+            rates: dict = {}
+            global_rate = 0.0
+            for rep_name, pct in cur.fetchall():
+                if not rep_name:
+                    global_rate = float(pct)
+                else:
+                    rates[rep_name] = float(pct)
+
+            # Delete non-finalized items for this period
+            cur.execute("""
+                DELETE FROM commission_items
+                WHERE period_id = %s
+                  AND status NOT IN ('WYPLACONA', 'WYPLATA_ZATWIERDZONA')
+            """, (period_id,))
+
+            # Build items
+            items = []
+            for sn, firma, prod_date in devices:
+                pays = pays_by_sn.get(sn, [])
+                months_paid = len(pays)
+                advance_flag = any(p[2] >= 12 for p in pays)
+
+                if months_paid >= 12:
+                    first_12 = pays[:12]
+                    month_12_ym = first_12[-1][0]
+                    base_netto = round(sum(p[1] for p in first_12), 2)
+                    status = 'KWALIFIKUJE'
+                else:
+                    month_12_ym = None
+                    base_netto = round(sum(p[1] for p in pays), 2)
+                    status = 'W_TOKU'
+
+                reps = firm_to_reps.get(firma, [])
+                if not reps:
+                    rate_pct = global_rate
+                    items.append((
+                        period_id, sn, firma, '', str(prod_date) if prod_date else '',
+                        months_paid, month_12_ym, base_netto,
+                        rate_pct, round(base_netto * rate_pct / 100, 2),
+                        'PLN', status, advance_flag
+                    ))
+                else:
+                    for rep in reps:
+                        rate_pct = rates.get(rep, global_rate)
+                        items.append((
+                            period_id, sn, firma, rep, str(prod_date) if prod_date else '',
+                            months_paid, month_12_ym, base_netto,
+                            rate_pct, round(base_netto * rate_pct / 100, 2),
+                            'PLN', status, advance_flag
+                        ))
+
+            if items:
+                execute_values(cur, """
+                    INSERT INTO commission_items
+                        (period_id, sn, firma, rep_name, prod_date, months_paid,
+                         month_12_ym, base_netto, rate_pct, commission_amt,
+                         currency, status, advance_flag)
+                    VALUES %s
+                    ON CONFLICT (period_id, sn, rep_name) DO UPDATE SET
+                        months_paid    = EXCLUDED.months_paid,
+                        month_12_ym    = EXCLUDED.month_12_ym,
+                        base_netto     = EXCLUDED.base_netto,
+                        rate_pct       = EXCLUDED.rate_pct,
+                        commission_amt = EXCLUDED.commission_amt,
+                        advance_flag   = EXCLUDED.advance_flag,
+                        status = CASE
+                            WHEN commission_items.status IN ('WYPLACONA','WYPLATA_ZATWIERDZONA')
+                            THEN commission_items.status
+                            ELSE EXCLUDED.status
+                        END
+                """, items)
+
+            qualifying = sum(1 for it in items if it[11] == 'KWALIFIKUJE')
+            return {
+                "items_computed": len(items),
+                "devices_in_cohort": len(devices),
+                "qualifying": qualifying,
+                "in_progress": len(items) - qualifying,
+            }
+
+
+def get_commission_items(period_id: int, status: str = None,
+                         rep_name: str = None) -> list:
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            where = ["period_id = %s"]
+            params: list = [period_id]
+            if status:
+                where.append("status = %s")
+                params.append(status)
+            if rep_name is not None:
+                where.append("rep_name = %s")
+                params.append(rep_name)
+            cur.execute(f"""
+                SELECT id, period_id, sn, firma, rep_name, prod_date,
+                       months_paid, month_12_ym, base_netto, rate_pct,
+                       commission_amt, currency, status, advance_flag
+                FROM commission_items
+                WHERE {' AND '.join(where)}
+                ORDER BY rep_name, firma, sn
+            """, params)
+            return [dict(r) for r in cur.fetchall()]
+
+
+def get_commission_summary(period_id: int) -> list:
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT
+                    rep_name,
+                    COUNT(*) FILTER (WHERE status = 'KWALIFIKUJE')          AS qualifying,
+                    COUNT(*) FILTER (WHERE status = 'W_TOKU')               AS in_progress,
+                    COUNT(*) FILTER (WHERE status = 'WYPLATA_ZATWIERDZONA') AS approved,
+                    COUNT(*) FILTER (WHERE status = 'WYPLACONA')            AS paid_out,
+                    COUNT(*) FILTER (WHERE status = 'ANULOWANA')            AS cancelled,
+                    COALESCE(SUM(commission_amt) FILTER (
+                        WHERE status IN ('KWALIFIKUJE','WYPLATA_ZATWIERDZONA','WYPLACONA')
+                    ), 0) AS total_commission,
+                    COALESCE(SUM(commission_amt) FILTER (
+                        WHERE status = 'WYPLACONA'
+                    ), 0) AS paid_commission
+                FROM commission_items
+                WHERE period_id = %s
+                GROUP BY rep_name
+                ORDER BY rep_name
+            """, (period_id,))
+            return [dict(r) for r in cur.fetchall()]
+
+
+def update_commission_status(item_id: int, new_status: str,
+                             user_id: int, note: str = '') -> dict:
+    if new_status not in COMMISSION_STATUSES:
+        raise ValueError(f"Nieprawidłowy status: {new_status}")
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT status, period_id FROM commission_items WHERE id = %s", (item_id,))
+            row = cur.fetchone()
+            if not row:
+                raise ValueError("Pozycja nie istnieje")
+            old_status = row['status']
+            # Check period not locked (except WYPLACONA → allow locking state)
+            cur.execute("SELECT locked FROM commission_periods WHERE id = %s", (row['period_id'],))
+            period = cur.fetchone()
+            if period and period['locked'] and new_status not in ('WYPLACONA',):
+                raise ValueError("Okres jest zablokowany")
+
+            cur.execute("""
+                UPDATE commission_items SET status = %s WHERE id = %s
+                RETURNING id, sn, firma, rep_name, status, commission_amt
+            """, (new_status, item_id))
+            updated = dict(cur.fetchone())
+            cur.execute("""
+                INSERT INTO commission_status_log (item_id, old_status, new_status, changed_by, note)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (item_id, old_status, new_status, user_id, note))
+            return updated
+
+
+def bulk_update_commission_status(period_id: int, item_ids: list,
+                                  new_status: str, user_id: int,
+                                  note: str = '') -> int:
+    if new_status not in COMMISSION_STATUSES:
+        raise ValueError(f"Nieprawidłowy status: {new_status}")
+    if not item_ids:
+        return 0
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT id, status FROM commission_items
+                WHERE id = ANY(%s) AND period_id = %s
+                  AND status NOT IN ('WYPLACONA')
+            """, (item_ids, period_id))
+            rows = cur.fetchall()
+            if not rows:
+                return 0
+            ids = [r[0] for r in rows]
+            cur.execute("""
+                UPDATE commission_items SET status = %s WHERE id = ANY(%s)
+            """, (new_status, ids))
+            log_rows = [(item_id, r[1], new_status, user_id, note)
+                        for r in rows for item_id in [r[0]]]
+            execute_values(cur, """
+                INSERT INTO commission_status_log (item_id, old_status, new_status, changed_by, note)
+                VALUES %s
+            """, log_rows)
+            return len(ids)

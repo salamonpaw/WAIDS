@@ -398,3 +398,41 @@
   margin-left: auto;
 }
 .cb-col { width: 32px; text-align: center; padding: 4px 2px !important; }
+
+/* ── Commission system ──────────────────────────────────────────────────── */
+.comm-period-card {
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: background .12s;
+  margin-bottom: 6px;
+}
+.comm-period-card:hover { background: var(--bg-secondary); }
+.comm-period-card.active {
+  border-color: var(--blue);
+  background: var(--blue-light, #eff6ff);
+}
+@media (prefers-color-scheme: dark) {
+  .comm-period-card.active { background: color-mix(in srgb, var(--blue) 15%, transparent); }
+}
+:root[data-theme="dark"] .comm-period-card.active {
+  background: color-mix(in srgb, var(--blue) 15%, transparent);
+}
+#commItemsPanel { margin-top: 16px; }
+.comm-items-toolbar {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px;
+}
+#commBulkBar {
+  display: none; flex-wrap: wrap; gap: 8px; align-items: center;
+  background: var(--blue); color: #fff;
+  padding: 8px 14px; border-radius: var(--radius-md);
+  margin-bottom: 6px;
+}
+#commBulkBar button {
+  background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35);
+  color: #fff; border-radius: var(--radius-md); padding: 4px 10px;
+  font-size: 12px; cursor: pointer;
+}
+#commBulkBar button:hover { background: rgba(255,255,255,.28); }
+.row-selected td { background: color-mix(in srgb, var(--blue) 8%, transparent) !important; }

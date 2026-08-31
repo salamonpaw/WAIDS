@@ -1,0 +1,417 @@
+// ── WAIDS — Prowizje (commission system) ─────────────────────────────────────
+
+const STATUS_LABELS_COMM = {
+  W_TOKU:                'W toku',
+  KWALIFIKUJE:           'Kwalifikuje',
+  WYPLATA_ZATWIERDZONA:  'Zatwierdzona',
+  WYPLACONA:             'Wypłacona',
+  ANULOWANA:             'Anulowana',
+};
+
+const STATUS_COLORS_COMM = {
+  W_TOKU:                { bg: 'var(--bg-secondary)', color: 'var(--text-muted)',  border: 'var(--border)' },
+  KWALIFIKUJE:           { bg: '#eff6ff',             color: '#1d4ed8',            border: '#93c5fd' },
+  WYPLATA_ZATWIERDZONA:  { bg: '#f0fdf4',             color: '#15803d',            border: '#86efac' },
+  WYPLACONA:             { bg: '#dcfce7',             color: '#166534',            border: '#4ade80' },
+  ANULOWANA:             { bg: '#fef2f2',             color: '#dc2626',            border: '#fca5a5' },
+};
+
+// state
+let _commPeriods    = [];
+let _commRates      = [];
+let _commItems      = [];
+let _commSummary    = [];
+let _activePeriodId = null;
+let _commView       = 'items';   // 'items' | 'summary'
+let _selItems       = new Set();
+
+// ── init ───────────────────────────────────────────────────────────────────
+
+async function initCommissions() {
+  await Promise.all([loadCommRates(), loadCommPeriods()]);
+  renderCommRates();
+  renderCommPeriods();
+}
+
+// ── rates ──────────────────────────────────────────────────────────────────
+
+async function loadCommRates() {
+  try {
+    const r = await fetch(`${API}/commission/rates`);
+    if (!r.ok) return;
+    const d = await r.json();
+    _commRates = d.rates || [];
+  } catch {}
+}
+
+function renderCommRates() {
+  const isAdmin = currentUser?.is_admin;
+  const el = document.getElementById('commRatesTable');
+  if (!el) return;
+  if (!_commRates.length) {
+    el.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px 0">Brak zdefiniowanych stawek.</div>';
+    return;
+  }
+  el.innerHTML = `<table class="data-table" style="font-size:12px">
+    <thead><tr>
+      <th>Handlowiec</th><th>Stawka %</th><th>Obowiązuje od</th><th>do</th><th>Uwagi</th>
+      ${isAdmin ? '<th></th>' : ''}
+    </tr></thead>
+    <tbody>
+      ${_commRates.map(r => `<tr>
+        <td>${esc(r.rep_name || '<em style="color:var(--text-muted)">Globalna</em>')}</td>
+        <td style="font-weight:600">${r.pct}%</td>
+        <td>${fmtDate(r.valid_from)}</td>
+        <td>${r.valid_to ? fmtDate(r.valid_to) : '—'}</td>
+        <td>${esc(r.note)}</td>
+        ${isAdmin ? `<td><button class="ghost sm" onclick="deleteCommRate(${r.id})">✕</button></td>` : ''}
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+async function deleteCommRate(id) {
+  if (!confirm('Usunąć tę stawkę?')) return;
+  const r = await fetch(`${API}/commission/rates/${id}`, { method: 'DELETE' });
+  if (r.ok) { await loadCommRates(); renderCommRates(); }
+  else setMsg('commRatesMsg', 'Błąd usuwania stawki', 'error');
+}
+
+async function saveCommRate() {
+  const repName  = document.getElementById('crRepName').value.trim();
+  const pct      = parseFloat(document.getElementById('crPct').value || '0');
+  const from     = document.getElementById('crFrom').value;
+  const to       = document.getElementById('crTo').value;
+  const note     = document.getElementById('crNote').value.trim();
+  if (!from) { setMsg('commRatesMsg', 'Podaj datę obowiązywania od', 'error'); return; }
+  if (isNaN(pct) || pct < 0 || pct > 100) { setMsg('commRatesMsg', 'Stawka musi być liczbą 0–100', 'error'); return; }
+  const r = await fetch(`${API}/commission/rates`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rep_name: repName, pct, valid_from: from, valid_to: to, note }),
+  });
+  if (r.ok) {
+    document.getElementById('crRepName').value = '';
+    document.getElementById('crPct').value     = '';
+    document.getElementById('crFrom').value    = '';
+    document.getElementById('crTo').value      = '';
+    document.getElementById('crNote').value    = '';
+    setMsg('commRatesMsg', 'Stawka zapisana', 'ok');
+    await loadCommRates(); renderCommRates();
+  } else {
+    const d = await r.json().catch(() => ({}));
+    setMsg('commRatesMsg', d.detail || 'Błąd zapisu', 'error');
+  }
+}
+
+// ── periods ────────────────────────────────────────────────────────────────
+
+async function loadCommPeriods() {
+  try {
+    const r = await fetch(`${API}/commission/periods`);
+    if (!r.ok) return;
+    const d = await r.json();
+    _commPeriods = d.periods || [];
+  } catch {}
+}
+
+function renderCommPeriods() {
+  const isAdmin = currentUser?.is_admin;
+  const el = document.getElementById('commPeriodsList');
+  if (!el) return;
+  if (!_commPeriods.length) {
+    el.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px 0">Brak okresów rozliczeniowych.</div>';
+    return;
+  }
+  el.innerHTML = _commPeriods.map(p => {
+    const kw = p.qualifying || 0, tot = p.item_count || 0;
+    const comm = parseFloat(p.total_commission || 0);
+    return `<div class="comm-period-card ${_activePeriodId === p.id ? 'active' : ''}" onclick="selectCommPeriod(${p.id})">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div>
+          <div style="font-weight:600;font-size:13px">${esc(p.name)}</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px">
+            Kohorta: ${fmtDate(p.cohort_from)} – ${fmtDate(p.cohort_to)}
+          </div>
+          <div style="font-size:11px;color:var(--text-muted)">
+            ${tot} urządzeń · ${kw} kwalifikuje · ${fmtPLN(comm)} prowizji
+          </div>
+        </div>
+        <div style="display:flex;gap:4px;align-items:center;flex-shrink:0">
+          ${p.locked ? '<span style="font-size:10px;color:var(--text-muted);padding:2px 6px;border:0.5px solid var(--border);border-radius:99px">🔒 Zablok.</span>' : ''}
+          ${isAdmin ? `
+            <button class="ghost sm" onclick="event.stopPropagation();computeCommPeriod(${p.id})" title="Przelicz">⟳</button>
+            <button class="ghost sm" onclick="event.stopPropagation();toggleCommLock(${p.id},${!p.locked})" title="${p.locked ? 'Odblokuj' : 'Zablokuj'}">${p.locked ? '🔓' : '🔒'}</button>
+            <button class="ghost sm" onclick="event.stopPropagation();exportCommPeriod(${p.id})" title="Eksport Excel">⬇ XLS</button>
+            <button class="ghost sm" onclick="event.stopPropagation();deleteCommPeriod(${p.id})" title="Usuń">✕</button>
+          ` : `
+            <button class="ghost sm" onclick="event.stopPropagation();exportCommPeriod(${p.id})" title="Eksport Excel">⬇ XLS</button>
+          `}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function createCommPeriod() {
+  const name = document.getElementById('cpName').value.trim();
+  const from = document.getElementById('cpFrom').value;
+  const to   = document.getElementById('cpTo').value;
+  if (!name) { setMsg('commPeriodsMsg', 'Podaj nazwę okresu', 'error'); return; }
+  if (!from || !to) { setMsg('commPeriodsMsg', 'Podaj zakres dat kohorty', 'error'); return; }
+  if (from > to) { setMsg('commPeriodsMsg', 'Data "od" musi być wcześniejsza niż "do"', 'error'); return; }
+  const r = await fetch(`${API}/commission/periods`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, cohort_from: from, cohort_to: to }),
+  });
+  if (r.ok) {
+    const d = await r.json();
+    setMsg('commPeriodsMsg', 'Okres utworzony', 'ok');
+    document.getElementById('cpName').value = '';
+    document.getElementById('cpFrom').value = '';
+    document.getElementById('cpTo').value   = '';
+    await loadCommPeriods(); renderCommPeriods();
+    selectCommPeriod(d.period.id);
+  } else {
+    const d = await r.json().catch(() => ({}));
+    setMsg('commPeriodsMsg', d.detail || 'Błąd tworzenia okresu', 'error');
+  }
+}
+
+async function deleteCommPeriod(id) {
+  if (!confirm('Usunąć ten okres? Zostaną usunięte wszystkie pozycje prowizji (poza wypłaconymi).')) return;
+  const r = await fetch(`${API}/commission/periods/${id}`, { method: 'DELETE' });
+  if (r.ok) {
+    if (_activePeriodId === id) { _activePeriodId = null; renderCommItemsPanel([]); }
+    await loadCommPeriods(); renderCommPeriods();
+  } else {
+    const d = await r.json().catch(() => ({}));
+    alert(d.detail || 'Błąd usuwania okresu');
+  }
+}
+
+async function computeCommPeriod(id) {
+  setMsg('commPeriodsMsg', 'Przeliczanie…', '');
+  const r = await fetch(`${API}/commission/periods/${id}/compute`, { method: 'POST' });
+  const d = await r.json().catch(() => ({}));
+  if (r.ok) {
+    setMsg('commPeriodsMsg',
+      `Przeliczono: ${d.items_computed} pozycji · ${d.qualifying} kwalifikuje · ${d.in_progress} w toku`, 'ok');
+    await loadCommPeriods(); renderCommPeriods();
+    if (_activePeriodId === id) await loadAndRenderItems();
+  } else {
+    setMsg('commPeriodsMsg', d.detail || 'Błąd przeliczania', 'error');
+  }
+}
+
+async function toggleCommLock(id, locked) {
+  const r = await fetch(`${API}/commission/periods/${id}/lock`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ locked }),
+  });
+  if (r.ok) { await loadCommPeriods(); renderCommPeriods(); }
+}
+
+async function exportCommPeriod(id) {
+  const a = document.createElement('a');
+  a.href = `${API}/commission/periods/${id}/export`;
+  a.click();
+}
+
+async function selectCommPeriod(id) {
+  _activePeriodId = id;
+  _selItems.clear();
+  renderCommPeriods();
+  await loadAndRenderItems();
+  document.getElementById('commItemsPanel').style.display = '';
+}
+
+// ── items ──────────────────────────────────────────────────────────────────
+
+async function loadAndRenderItems() {
+  if (!_activePeriodId) return;
+  const [ir, sr] = await Promise.all([
+    fetch(`${API}/commission/periods/${_activePeriodId}/items`),
+    fetch(`${API}/commission/periods/${_activePeriodId}/summary`),
+  ]);
+  if (ir.ok) { const d = await ir.json(); _commItems = d.items || []; }
+  if (sr.ok) { const d = await sr.json(); _commSummary = d.summary || []; }
+
+  buildRepFilterOptions();
+  if (_commView === 'summary') renderCommSummary();
+  else renderCommItemsTable();
+}
+
+function switchCommView(v) {
+  _commView = v;
+  document.getElementById('btnViewItems').classList.toggle('primary', v === 'items');
+  document.getElementById('btnViewSummary').classList.toggle('primary', v === 'summary');
+  document.getElementById('btnViewItems').classList.toggle('ghost', v !== 'items');
+  document.getElementById('btnViewSummary').classList.toggle('ghost', v !== 'summary');
+  if (v === 'summary') renderCommSummary();
+  else renderCommItemsTable();
+}
+
+function commStatusBadge(status) {
+  const c = STATUS_COLORS_COMM[status] || {};
+  const lbl = STATUS_LABELS_COMM[status] || status;
+  return `<span style="font-size:10px;padding:2px 7px;border-radius:99px;
+    background:${c.bg||'var(--bg-secondary)'};color:${c.color||'var(--text)'};
+    border:0.5px solid ${c.border||'var(--border)'}">${lbl}</span>`;
+}
+
+function renderCommItemsTable() {
+  const el = document.getElementById('commItemsBody');
+  if (!el) return;
+  const isAdmin = currentUser?.is_admin || currentUser?.can_view_commissions;
+  const fRep    = document.getElementById('fCommRep')?.value    || '';
+  const fStatus = document.getElementById('fCommStatus')?.value || '';
+  const fAdv    = document.getElementById('fCommAdv')?.value    || '';
+
+  let items = _commItems;
+  if (fRep)    items = items.filter(i => i.rep_name === fRep);
+  if (fStatus) items = items.filter(i => i.status === fStatus);
+  if (fAdv === '1') items = items.filter(i => i.advance_flag);
+  if (fAdv === '0') items = items.filter(i => !i.advance_flag);
+
+  document.getElementById('commItemsCount').textContent =
+    `${items.length} pozycji`;
+
+  if (!items.length) {
+    el.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:16px">Brak pozycji</td></tr>';
+    return;
+  }
+
+  el.innerHTML = items.map(it => `
+    <tr class="${_selItems.has(it.id) ? 'row-selected' : ''}">
+      <td><input type="checkbox" ${_selItems.has(it.id) ? 'checked' : ''}
+           onchange="toggleItemSel(${it.id},this.checked)"></td>
+      <td style="font-family:monospace;font-size:11px">${esc(it.sn)}</td>
+      <td>${esc(it.firma)}</td>
+      <td>${esc(it.rep_name || '—')}</td>
+      <td>${fmtDate(it.prod_date)}</td>
+      <td style="text-align:center">${it.months_paid}/12</td>
+      <td>${it.month_12_ym ? fmtDate(it.month_12_ym) : '—'}</td>
+      <td style="text-align:right">${fmtPLN(it.base_netto)}</td>
+      <td style="text-align:right">${it.rate_pct}%</td>
+      <td style="text-align:right;font-weight:600">${fmtPLN(it.commission_amt)}</td>
+      <td>${commStatusBadge(it.status)}
+          ${it.advance_flag ? ' <span title="Płatność z góry" style="font-size:10px">⬆</span>' : ''}
+      </td>
+      <td>
+        <select class="ghost sm" style="font-size:11px;padding:2px 4px;max-width:120px"
+                onchange="changeItemStatus(${it.id},this.value)"
+                ${!isAdmin && !currentUser?.is_admin ? 'disabled' : ''}>
+          ${Object.entries(STATUS_LABELS_COMM).map(([k,v]) =>
+            `<option value="${k}" ${k === it.status ? 'selected' : ''}>${v}</option>`).join('')}
+        </select>
+      </td>
+    </tr>`).join('');
+
+  updateBulkBar(items);
+}
+
+function updateBulkBar(items) {
+  const bar = document.getElementById('commBulkBar');
+  if (!bar) return;
+  const selCount = items.filter(i => _selItems.has(i.id)).length;
+  if (selCount > 0) {
+    bar.style.display = 'flex';
+    document.getElementById('commSelCount').textContent = `${selCount} zaznaczonych`;
+  } else {
+    bar.style.display = 'none';
+  }
+}
+
+function toggleItemSel(id, checked) {
+  if (checked) _selItems.add(id);
+  else _selItems.delete(id);
+  renderCommItemsTable();
+}
+
+function selectAllCommItems() {
+  const fRep    = document.getElementById('fCommRep')?.value    || '';
+  const fStatus = document.getElementById('fCommStatus')?.value || '';
+  let items = _commItems;
+  if (fRep)    items = items.filter(i => i.rep_name === fRep);
+  if (fStatus) items = items.filter(i => i.status === fStatus);
+  items.forEach(i => _selItems.add(i.id));
+  renderCommItemsTable();
+}
+
+function deselectAllCommItems() {
+  _selItems.clear();
+  renderCommItemsTable();
+}
+
+async function bulkSetStatus(status) {
+  if (!_selItems.size) return;
+  const ids = [..._selItems];
+  const note = document.getElementById('commBulkNote')?.value || '';
+  const r = await fetch(`${API}/commission/periods/${_activePeriodId}/items/bulk-status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ item_ids: ids, status, note }),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (r.ok) {
+    _selItems.clear();
+    setMsg('commItemsMsg', `Zaktualizowano ${d.updated} pozycji`, 'ok');
+    await loadAndRenderItems();
+  } else {
+    setMsg('commItemsMsg', d.detail || 'Błąd aktualizacji', 'error');
+  }
+}
+
+async function changeItemStatus(itemId, newStatus) {
+  const r = await fetch(`${API}/commission/items/${itemId}/status`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status: newStatus }),
+  });
+  if (r.ok) {
+    const idx = _commItems.findIndex(i => i.id === itemId);
+    if (idx >= 0) _commItems[idx].status = newStatus;
+    renderCommItemsTable();
+    await loadCommPeriods(); renderCommPeriods();
+  } else {
+    const d = await r.json().catch(() => ({}));
+    setMsg('commItemsMsg', d.detail || 'Błąd zmiany statusu', 'error');
+    renderCommItemsTable();
+  }
+}
+
+function renderCommSummary() {
+  const el = document.getElementById('commItemsBody');
+  if (!el) return;
+  document.getElementById('commItemsCount').textContent = '';
+  if (!_commSummary.length) {
+    el.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:16px">Brak danych</td></tr>';
+    return;
+  }
+  el.innerHTML = _commSummary.map(s => `<tr>
+    <td colspan="2" style="font-weight:600">${esc(s.rep_name || '(bez handlowca)')}</td>
+    <td style="text-align:center">${commStatusBadge('KWALIFIKUJE')} ${s.qualifying}</td>
+    <td style="text-align:center">${commStatusBadge('W_TOKU')} ${s.in_progress}</td>
+    <td style="text-align:center">${commStatusBadge('WYPLATA_ZATWIERDZONA')} ${s.approved}</td>
+    <td style="text-align:center">${commStatusBadge('WYPLACONA')} ${s.paid_out}</td>
+    <td style="text-align:right;font-weight:600">${fmtPLN(s.total_commission)}</td>
+    <td style="text-align:right;color:#15803d;font-weight:600">${fmtPLN(s.paid_commission)}</td>
+  </tr>`).join('');
+}
+
+function buildRepFilterOptions() {
+  const reps = [...new Set(_commItems.map(i => i.rep_name))].sort();
+  const sel = document.getElementById('fCommRep');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Wszyscy handlowcy</option>' +
+    reps.map(r => `<option value="${esc(r)}" ${r === cur ? 'selected' : ''}>${esc(r || '(bez handlowca)')}</option>`).join('');
+}
+
+// called when items tab is activated
+async function onTabCommissions() {
+  await initCommissions();
+}
