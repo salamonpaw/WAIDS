@@ -68,6 +68,12 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.2.4', date: '2026-08-31',
+    added: [
+      '<b>Rok rozliczeniowy w prowizjach</b> — kolumna "Rok rozl." w tabeli pozycji pokazuje rok 12. miesiąca płatności (rok księgowy prowizji); nowy filtr "Wszystkie lata / 2024 / 2025 / …" pozwala wyfiltrować pozycje według roku rozliczenia'
+    ]
+  },
+  {
     version: '2.2.3', date: '2026-08-31',
     fixed: [
       '<b>Przypisanie/usunięcie firmy handlowca</b> — brak invalidacji cache powodował że raport nadal pokazywał stare dane; dodano <code>_invalidate_cache()</code> po każdej zmianie',

@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-  <link rel="stylesheet" href="css/main.css?v=2.2.3">
+  <link rel="stylesheet" href="css/main.css?v=2.2.4">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -1337,6 +1337,9 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
           <option value="1">⬆ Płatność z góry</option>
           <option value="0">Bez zaliczki</option>
         </select>
+        <select id="fCommYear" onchange="renderCommItemsTable()" style="height:30px;font-size:12px;padding:0 6px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+          <option value="">Wszystkie lata</option>
+        </select>
         <button class="ghost sm" onclick="selectAllCommItems()">☑ Zaznacz wszystkie</button>
         <button class="ghost sm" onclick="deselectAllCommItems()">☐ Odznacz</button>
       </div>
@@ -1362,6 +1365,7 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
               <th class="cb-col"><input type="checkbox" onchange="if(this.checked)selectAllCommItems();else deselectAllCommItems()"></th>
               <th>SN</th><th>Firma</th><th>Handlowiec</th>
               <th>Data prod.</th><th>Mies.</th><th>12. mies.</th>
+              <th style="text-align:center">Rok rozl.</th>
               <th style="text-align:right">Podstawa</th>
               <th style="text-align:right">Stawka</th>
               <th style="text-align:right">Prowizja</th>
@@ -1836,19 +1840,19 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.2.3"></script>
-<script src="js/auth.js?v=2.2.3"></script>
-<script src="js/app.js?v=2.2.3"></script>
-<script src="js/import.js?v=2.2.3"></script>
-<script src="js/report.js?v=2.2.3"></script>
-<script src="js/monitoring.js?v=2.2.3"></script>
-<script src="js/config.js?v=2.2.3"></script>
-<script src="js/firstpay.js?v=2.2.3"></script>
-<script src="js/device.js?v=2.2.3"></script>
-<script src="js/revenue.js?v=2.2.3"></script>
-<script src="js/bonus.js?v=2.2.3"></script>
-<script src="js/commissions.js?v=2.2.3"></script>
-<script src="js/tooltip.js?v=2.2.3"></script>
+<script src="js/utils.js?v=2.2.4"></script>
+<script src="js/auth.js?v=2.2.4"></script>
+<script src="js/app.js?v=2.2.4"></script>
+<script src="js/import.js?v=2.2.4"></script>
+<script src="js/report.js?v=2.2.4"></script>
+<script src="js/monitoring.js?v=2.2.4"></script>
+<script src="js/config.js?v=2.2.4"></script>
+<script src="js/firstpay.js?v=2.2.4"></script>
+<script src="js/device.js?v=2.2.4"></script>
+<script src="js/revenue.js?v=2.2.4"></script>
+<script src="js/bonus.js?v=2.2.4"></script>
+<script src="js/commissions.js?v=2.2.4"></script>
+<script src="js/tooltip.js?v=2.2.4"></script>
 
 </body>
 </html>

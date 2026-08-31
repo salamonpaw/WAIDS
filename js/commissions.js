@@ -296,24 +296,27 @@ function renderCommItemsTable() {
   const fRep    = document.getElementById('fCommRep')?.value    || '';
   const fStatus = document.getElementById('fCommStatus')?.value || '';
   const fAdv    = document.getElementById('fCommAdv')?.value    || '';
+  const fYear   = document.getElementById('fCommYear')?.value   || '';
 
   let items = _commItems;
   if (fRep)    items = items.filter(i => i.rep_name === fRep);
   if (fStatus) items = items.filter(i => i.status === fStatus);
   if (fAdv === '1') items = items.filter(i => i.advance_flag);
   if (fAdv === '0') items = items.filter(i => !i.advance_flag);
+  if (fYear)   items = items.filter(i => (i.month_12_ym || '').startsWith(fYear));
 
   document.getElementById('commItemsCount').textContent =
     `${items.length} pozycji`;
 
   if (!items.length) {
-    el.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:16px">Brak pozycji</td></tr>';
+    el.innerHTML = '<tr><td colspan="12" style="text-align:center;color:var(--text-muted);padding:16px">Brak pozycji</td></tr>';
     return;
   }
 
   el.innerHTML = items.map(it => {
     const canAct = currentUser?.is_admin || currentUser?.can_view_commissions;
     const locked = it.status === 'WYPLACONA';
+    const rok12  = it.month_12_ym ? it.month_12_ym.substring(0, 4) : '—';
     // Quick-action buttons shown per status
     const actions = canAct && !locked ? `
       ${it.status !== 'WYPLATA_ZATWIERDZONA' ? `<button class="ghost sm" style="font-size:10px;padding:2px 7px" onclick="changeItemStatus(${it.id},'WYPLATA_ZATWIERDZONA')" title="Zatwierdź do wypłaty">✓ Zatwierdź</button>` : ''}
@@ -330,6 +333,7 @@ function renderCommItemsTable() {
       <td>${fmtDate(it.prod_date)}</td>
       <td style="text-align:center">${it.months_paid}/12</td>
       <td>${it.month_12_ym ? fmtDate(it.month_12_ym) : '—'}</td>
+      <td style="text-align:center;font-weight:600;font-size:12px">${rok12}</td>
       <td style="text-align:right">${fmtPLN(it.base_netto)}</td>
       <td style="text-align:right">${it.rate_pct}%</td>
       <td style="text-align:right;font-weight:600">${fmtPLN(it.commission_amt)}</td>
@@ -362,9 +366,14 @@ function toggleItemSel(id, checked) {
 function selectAllCommItems() {
   const fRep    = document.getElementById('fCommRep')?.value    || '';
   const fStatus = document.getElementById('fCommStatus')?.value || '';
+  const fYear   = document.getElementById('fCommYear')?.value   || '';
+  const fAdv    = document.getElementById('fCommAdv')?.value    || '';
   let items = _commItems;
   if (fRep)    items = items.filter(i => i.rep_name === fRep);
   if (fStatus) items = items.filter(i => i.status === fStatus);
+  if (fYear)   items = items.filter(i => (i.month_12_ym || '').startsWith(fYear));
+  if (fAdv === '1') items = items.filter(i => i.advance_flag);
+  if (fAdv === '0') items = items.filter(i => !i.advance_flag);
   items.forEach(i => _selItems.add(i.id));
   renderCommItemsTable();
 }
@@ -433,10 +442,19 @@ function renderCommSummary() {
 function buildRepFilterOptions() {
   const reps = [...new Set(_commItems.map(i => i.rep_name))].sort();
   const sel = document.getElementById('fCommRep');
-  if (!sel) return;
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">Wszyscy handlowcy</option>' +
-    reps.map(r => `<option value="${esc(r)}" ${r === cur ? 'selected' : ''}>${esc(r || '(bez handlowca)')}</option>`).join('');
+  if (sel) {
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Wszyscy handlowcy</option>' +
+      reps.map(r => `<option value="${esc(r)}" ${r === cur ? 'selected' : ''}>${esc(r || '(bez handlowca)')}</option>`).join('');
+  }
+
+  const years = [...new Set(_commItems.map(i => (i.month_12_ym || '').substring(0, 4)).filter(y => y))].sort();
+  const ySel = document.getElementById('fCommYear');
+  if (ySel) {
+    const curY = ySel.value;
+    ySel.innerHTML = '<option value="">Wszystkie lata</option>' +
+      years.map(y => `<option value="${y}" ${y === curY ? 'selected' : ''}>${y}</option>`).join('');
+  }
 }
 
 // called when items tab is activated
