@@ -74,6 +74,12 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.3.8', date: '2026-09-01',
+    fixed: [
+      '<b>Pierwsze IDS — błąd kalendarza i czerwone przyszłe miesiące</b> — nagłówki kolumn były brane z pierwszego urządzenia, więc urządzenia z późniejszą pierwszą płatnością (np. BEESWIFT first_pay 2026-06) renderowały komórki pod złymi kolumnami. Naprawiono przez globalny wspólny kalendarz — union wszystkich miesięcy ze wszystkich urządzeń. Miesiące przed pierwszą płatnością urządzenia → szare (półprzezroczyste), przyszłe miesiące (po bieżącym) → jasno-szare zamiast czerwonych.'
+    ]
+  },
+  {
     version: '2.3.7', date: '2026-08-31',
     added: [
       '<b>Zawieszenia uwzględnione we wszystkich widokach</b> — Monitoring: nowy status "Zawieszone" (niebieski badge), urządzenia z aktywnym zawieszeniem nie trafiają już do "Przerwa". Zaległości: zawieszone urządzenia oznaczone niebieską etykietą ⏸ i wykluczone z sumy szacowanych zaległości. Zaległości/Nigdy nieopłacone: analogiczne oznaczenie.'

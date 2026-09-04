@@ -91,6 +91,7 @@ function renderBonusSummary(s) {
 function renderBonusTable() {
   const tbody = document.getElementById('bonusTableBody');
   const thead = document.getElementById('bonusMonthsHeader');
+  const curYM = nowYM();
   const search = (_firstIdsSearch || '').toLowerCase();
   if (!tbody) return;
 
@@ -108,14 +109,23 @@ function renderBonusTable() {
     return;
   }
 
-  // Month headers — based on first row's window (all windows same length)
-  if (thead && show[0]) {
-    thead.innerHTML = show[0].monthly_detail.map(m =>
-      `<th style="padding:4px 3px;font-size:10px;font-weight:500;color:var(--text-muted);
+  // ── Global aligned calendar ───────────────────────────────────────────────
+  // Collect ALL months from ALL devices, sort, deduplicate.
+  // Each device has its own window starting at first_pay — we need one shared range.
+  const allMonths = [...new Set(
+    show.flatMap(d => d.monthly_detail.map(m => m.month))
+  )].sort();
+
+  // Month headers
+  if (thead) {
+    thead.innerHTML = allMonths.map(m => {
+      const isFuture = m > curYM;
+      return `<th style="padding:4px 3px;font-size:10px;font-weight:500;
+                  color:${isFuture ? 'var(--border)' : 'var(--text-muted)'};
                   text-align:center;white-space:nowrap;min-width:22px">
-        ${m.month.slice(5)}<br><span style="opacity:.6">${m.month.slice(2,4)}</span>
-      </th>`
-    ).join('');
+        ${m.slice(5)}<br><span style="opacity:.6">${m.slice(2,4)}</span>
+      </th>`;
+    }).join('');
   }
 
   tbody.innerHTML = show.map(d => {
@@ -126,23 +136,46 @@ function renderBonusTable() {
     const pctColor = d.coverage_pct === 100 ? 'var(--green)'
                    : d.coverage_pct >= 50   ? 'var(--amber)' : 'var(--danger)';
 
-    const monthCells = d.monthly_detail.map(m => {
+    // Build per-month lookup for this device
+    const detailMap = Object.fromEntries(d.monthly_detail.map(m => [m.month, m]));
+
+    const monthCells = allMonths.map(m => {
+      // Before this device's subscription started → gray
+      if (m < d.first_pay) {
+        return `<td style="text-align:center;padding:3px 2px" title="${m}: przed pierwszą płatnością">
+          <span style="display:inline-block;width:14px;height:14px;border-radius:3px;
+                       background:#d1d5db;opacity:.4"></span></td>`;
+      }
+      // Future month (not yet occurred) → light gray
+      if (m > curYM) {
+        return `<td style="text-align:center;padding:3px 2px" title="${m}: przyszły miesiąc">
+          <span style="display:inline-block;width:14px;height:14px;border-radius:3px;
+                       background:#e5e7eb;opacity:.5"></span></td>`;
+      }
+      // Month in device's window
+      const entry = detailMap[m];
+      if (!entry) {
+        // Month is past device's window end → gray
+        return `<td style="text-align:center;padding:3px 2px" title="${m}: poza oknem">
+          <span style="display:inline-block;width:14px;height:14px;border-radius:3px;
+                       background:#d1d5db;opacity:.4"></span></td>`;
+      }
       const COLORS = {
-        paid:        ['#1D9E75', m.amount > 0 ? fmtPLN(m.amount) : 'Opłacone'],
+        paid:        ['#1D9E75', entry.amount > 0 ? fmtPLN(entry.amount) : 'Opłacone'],
         suspended:   ['#3B82F6', 'Zawieszone'],
         gap_resumed: ['#F59E0B', 'Przerwa — później wznowiono'],
         unpaid:      ['#E24B4A', 'Nie opłacone'],
       };
-      const [bg, tip] = COLORS[m.status] || ['#9ca3af', m.status];
-      return `<td style="text-align:center;padding:3px 2px" title="${m.month}: ${tip}">
+      const [bg, tip] = COLORS[entry.status] || ['#9ca3af', entry.status];
+      return `<td style="text-align:center;padding:3px 2px" title="${m}: ${tip}">
         <span style="display:inline-block;width:14px;height:14px;border-radius:3px;
                      background:${bg}"></span></td>`;
     }).join('');
 
-    const susNote  = d.months_suspended  > 0
+    const susNote = d.months_suspended > 0
       ? `<span style="font-size:10px;color:#3B82F6;margin-left:3px"
                title="${d.months_suspended} mies. zawieszonych">+${d.months_suspended}⏸</span>` : '';
-    const gapNote  = d.months_gap_resumed > 0
+    const gapNote = d.months_gap_resumed > 0
       ? `<span style="font-size:10px;color:var(--amber);margin-left:3px"
                title="${d.months_gap_resumed} przerw z wznowieniem">${d.months_gap_resumed}⚠</span>` : '';
 
