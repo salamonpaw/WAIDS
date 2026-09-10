@@ -23,6 +23,7 @@ function switchTab(name) {
   if (name === 'commissions')  { onTabCommissions(); }
   if (name === 'pricing')      { onTabPricing(); }
   if (name === 'arrears')      { onTabArrears(); }
+  if (name === 'sales')        { onTabSales(); }
 }
 
 function applyAdminTabs() {
@@ -73,6 +74,12 @@ async function refreshStatus() {
 // ── Changelog modal ────────────────────────────────────────────────────────
 
 const CHANGELOG_ENTRIES = [
+  {
+    version: '2.4.0', date: '2026-09-10',
+    added: [
+      '<b>Zakupy per klient</b> — nowa zakładka 📦 Zakupy: agregacja urządzeń z tabeli produkcyjnej (devices) per firma, z filtrem zakresu dat produkcji, kolumnami per typ maszyny i eksportem XLSX.'
+    ]
+  },
   {
     version: '2.3.8', date: '2026-09-01',
     fixed: [

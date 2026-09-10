@@ -55,6 +55,8 @@ from database import (
     update_pricing_raise, delete_pricing_raise, PRICING_RAISE_STATUSES,
     # arrears
     get_arrears_report,
+    # sales by client
+    get_sales_by_client,
     # import sessions
     create_import_session, get_import_sessions, undo_import_session,
     # bulk device update
@@ -2334,3 +2336,14 @@ def api_delete_raise(raise_id: int, _: dict = Depends(require_pricing)):
 @app.get("/arrears")
 def api_get_arrears(min_months: int = 1, _: dict = Depends(get_auth_user)):
     return get_arrears_report(min_months_unpaid=min_months)
+
+
+# ── Zakupy per klient ──────────────────────────────────────────────────────────
+
+@app.get("/devices/sales-by-client")
+def api_sales_by_client(
+    from_ym: str | None = None,
+    to_ym: str | None = None,
+    _: dict = Depends(get_auth_user),
+):
+    return get_sales_by_client(from_ym=from_ym, to_ym=to_ym)

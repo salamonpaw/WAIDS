@@ -2566,3 +2566,85 @@ def get_arrears_report(min_months_unpaid: int = 1) -> dict:
             'total_lapsed_arrears': total_lapsed_arrears,
         },
     }
+
+
+# ── Zakupy per klient ──────────────────────────────────────────────────────────
+
+def _prod_varchar_to_ym(s: str | None) -> str | None:
+    """Parse VARCHAR prod_date (YYYY-MM-DD, YYYY-MM, DD.MM.YYYY) → YYYY-MM."""
+    if not s:
+        return None
+    s = s.strip()
+    if len(s) >= 7 and s[4] == '-':
+        return s[:7]
+    if len(s) == 10 and s[2] == '.' and s[5] == '.':
+        return f"{s[6:10]}-{s[3:5]}"
+    return None
+
+
+def get_sales_by_client(from_ym: str | None = None, to_ym: str | None = None) -> dict:
+    """Aggregate devices from `devices` table by firma and maszyna type."""
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT d.sn, d.firma, d.maszyna, d.operator, d.prod_date,
+                       COALESCE(fc.firm_type, 'ids') AS firm_type
+                FROM devices d
+                LEFT JOIN firm_config fc ON fc.firma = d.firma
+                LEFT JOIN excluded_firms ef ON ef.firma = d.firma
+                WHERE ef.firma IS NULL
+            """)
+            rows = cur.fetchall()
+
+    # Filter by prod date range
+    filtered = []
+    for r in rows:
+        ym = _prod_varchar_to_ym(r['prod_date'])
+        if from_ym and (not ym or ym < from_ym):
+            continue
+        if to_ym and (not ym or ym > to_ym):
+            continue
+        filtered.append({**dict(r), '_prod_ym': ym})
+
+    # Collect all unique maszyna types (sorted)
+    maszyna_types = sorted({r['maszyna'] for r in filtered if r['maszyna']})
+
+    # Aggregate per firma
+    from collections import defaultdict
+    firm_map: dict[str, dict] = {}
+    for r in filtered:
+        firma = r['firma'] or '—'
+        if firma not in firm_map:
+            firm_map[firma] = {
+                'firma': firma,
+                'firm_type': r['firm_type'],
+                'total': 0,
+                'by_maszyna': defaultdict(int),
+                'sns': [],
+            }
+        firm_map[firma]['total'] += 1
+        if r['maszyna']:
+            firm_map[firma]['by_maszyna'][r['maszyna']] += 1
+        firm_map[firma]['sns'].append(r['sn'])
+
+    clients = []
+    for firma, data in sorted(firm_map.items(), key=lambda x: -x[1]['total']):
+        by_maszyna = {m: data['by_maszyna'].get(m, 0) for m in maszyna_types}
+        clients.append({
+            'firma': data['firma'],
+            'firm_type': data['firm_type'],
+            'total': data['total'],
+            'by_maszyna': by_maszyna,
+            'device_count': len(data['sns']),
+        })
+
+    return {
+        'from_ym': from_ym,
+        'to_ym': to_ym,
+        'maszyna_types': maszyna_types,
+        'clients': clients,
+        'summary': {
+            'total_clients': len(clients),
+            'total_devices': sum(c['total'] for c in clients),
+        },
+    }

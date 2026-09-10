@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-  <link rel="stylesheet" href="css/main.css?v=2.3.8">
+  <link rel="stylesheet" href="css/main.css?v=2.4.0">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -71,6 +71,7 @@
   <button class="tab-btn" id="tabBtnCommissions" onclick="switchTab('commissions')" style="display:none">💸 Prowizje</button>
   <button class="tab-btn" id="tabBtnPricing"     onclick="switchTab('pricing')"     style="display:none">📈 Pricing</button>
   <button class="tab-btn"                        onclick="switchTab('arrears')">⚠ Zaległości</button>
+  <button class="tab-btn"                        onclick="switchTab('sales')">📦 Zakupy</button>
   <button class="tab-btn" id="tabBtnConfig"  onclick="switchTab('config')"  style="display:none">⚙ Konfiguracja</button>
 </div>
 
@@ -1551,6 +1552,39 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
 </div>
 </div>
 
+<!-- ══════════════════ ZAKUPY TAB ══════════════════ -->
+<div class="tab-panel" id="tab-sales">
+<div class="container">
+  <div class="section-card">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:1rem">
+      <h2 style="margin:0;font-size:18px">📦 Zakupy per klient</h2>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <label style="font-size:12px;color:var(--text-muted)">Produkcja od:</label>
+        <input type="month" id="salesFrom" style="height:34px;font-size:13px">
+        <label style="font-size:12px;color:var(--text-muted)">do:</label>
+        <input type="month" id="salesTo" style="height:34px;font-size:13px">
+        <button onclick="loadSales()" style="height:34px;padding:0 16px;font-size:13px">🔍 Szukaj</button>
+        <button onclick="exportSalesXLSX()" class="ghost"
+                style="height:34px;padding:0 14px;font-size:12px">⬇ Eksportuj XLSX</button>
+      </div>
+      <span id="salesStatus" style="font-size:12px"></span>
+    </div>
+
+    <!-- Szukaj firmy -->
+    <div style="margin-bottom:10px">
+      <input type="text" placeholder="Szukaj firmy…" oninput="salesSearchChanged(this.value)"
+             style="height:32px;width:240px;font-size:13px;padding:0 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text)">
+    </div>
+
+    <!-- KPI -->
+    <div id="salesKpi" style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:1rem"></div>
+
+    <!-- Tabela -->
+    <div id="salesTableWrap"></div>
+  </div>
+</div>
+</div>
+
 <!-- ══════════════════ CONFIG TAB ══════════════════ -->
 <div class="tab-panel" id="tab-config">
 <div class="container">
@@ -2000,21 +2034,22 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.3.8"></script>
-<script src="js/auth.js?v=2.3.8"></script>
-<script src="js/app.js?v=2.3.8"></script>
-<script src="js/import.js?v=2.3.8"></script>
-<script src="js/report.js?v=2.3.8"></script>
-<script src="js/monitoring.js?v=2.3.8"></script>
-<script src="js/config.js?v=2.3.8"></script>
-<script src="js/firstpay.js?v=2.3.8"></script>
-<script src="js/device.js?v=2.3.8"></script>
-<script src="js/revenue.js?v=2.3.8"></script>
-<script src="js/bonus.js?v=2.3.8"></script>
-<script src="js/commissions.js?v=2.3.8"></script>
-<script src="js/pricing.js?v=2.3.8"></script>
-<script src="js/arrears.js?v=2.3.8"></script>
-<script src="js/tooltip.js?v=2.3.8"></script>
+<script src="js/utils.js?v=2.4.0"></script>
+<script src="js/auth.js?v=2.4.0"></script>
+<script src="js/app.js?v=2.4.0"></script>
+<script src="js/import.js?v=2.4.0"></script>
+<script src="js/report.js?v=2.4.0"></script>
+<script src="js/monitoring.js?v=2.4.0"></script>
+<script src="js/config.js?v=2.4.0"></script>
+<script src="js/firstpay.js?v=2.4.0"></script>
+<script src="js/device.js?v=2.4.0"></script>
+<script src="js/revenue.js?v=2.4.0"></script>
+<script src="js/bonus.js?v=2.4.0"></script>
+<script src="js/commissions.js?v=2.4.0"></script>
+<script src="js/pricing.js?v=2.4.0"></script>
+<script src="js/arrears.js?v=2.4.0"></script>
+<script src="js/sales.js?v=2.4.0"></script>
+<script src="js/tooltip.js?v=2.4.0"></script>
 
 </body>
 </html>
