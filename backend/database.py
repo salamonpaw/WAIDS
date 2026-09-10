@@ -2583,7 +2583,8 @@ def _prod_varchar_to_ym(s: str | None) -> str | None:
 
 
 def get_sales_by_client(from_ym: str | None = None, to_ym: str | None = None) -> dict:
-    """Aggregate devices from `devices` table by firma and maszyna type."""
+    """Aggregate devices from `devices` table by firma and maszyna type.
+    No excluded_firms filter — this is a production count, not billing analysis."""
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("""
@@ -2591,18 +2592,20 @@ def get_sales_by_client(from_ym: str | None = None, to_ym: str | None = None) ->
                        COALESCE(fc.firm_type, 'ids') AS firm_type
                 FROM devices d
                 LEFT JOIN firm_config fc ON fc.firma = d.firma
-                LEFT JOIN excluded_firms ef ON ef.firma = d.firma
-                WHERE ef.firma IS NULL
             """)
             rows = cur.fetchall()
 
-    # Filter by prod date range
+    # Filter by prod date range; devices with unparseable date pass through
     filtered = []
     for r in rows:
         ym = _prod_varchar_to_ym(r['prod_date'])
-        if from_ym and (not ym or ym < from_ym):
-            continue
-        if to_ym and (not ym or ym > to_ym):
+        if ym is not None:
+            if from_ym and ym < from_ym:
+                continue
+            if to_ym and ym > to_ym:
+                continue
+        # Device with no parseable date: include only if no date filter is active
+        elif from_ym or to_ym:
             continue
         filtered.append({**dict(r), '_prod_ym': ym})
 

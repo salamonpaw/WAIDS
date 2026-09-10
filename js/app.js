@@ -75,6 +75,12 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.4.1', date: '2026-09-10',
+    fixed: [
+      '<b>Zakupy — brak klientów na licencji</b> — firmy wykluczone z analizy abonamentowej (excluded_firms, np. klienci na licencji) były pomijane w zestawieniu zakupów. Zakupy to raport produkcyjny — teraz pokazuje WSZYSTKIE wyprodukowane maszyny niezależnie od statusu abonamentu.'
+    ]
+  },
+  {
     version: '2.4.0', date: '2026-09-10',
     added: [
       '<b>Zakupy per klient</b> — nowa zakładka 📦 Zakupy: agregacja urządzeń z tabeli produkcyjnej (devices) per firma, z filtrem zakresu dat produkcji, kolumnami per typ maszyny i eksportem XLSX.'
