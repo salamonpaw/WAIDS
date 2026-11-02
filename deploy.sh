@@ -2,12 +2,29 @@
 # WAIDS — skrypt wdrożenia
 # Użycie: sudo ./deploy.sh
 # Dane w bazie NIE są kasowane (volume waids_pgdata persystentny).
+#
+# Całość jest w funkcji main() — bash parsuje cały plik przed wykonaniem, więc
+# `git pull` nadpisujący ten skrypt w trakcie działania nie psuje bieżącego przebiegu.
+# Jeśli pull zmienił deploy.sh, skrypt uruchamia się ponownie w nowej wersji.
 
+main() {
 set -e
 APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 WEB_DIR="/var/www/waids"
+REAL_USER="${SUDO_USER:-$USER}"
+cd "$APP_DIR"
 
-echo "=== WAIDS deploy: $(date '+%Y-%m-%d %H:%M:%S') ==="
+if [ "$1" != "--pulled" ]; then
+  echo "=== WAIDS deploy: $(date '+%Y-%m-%d %H:%M:%S') ==="
+  # 1. Pobierz najnowszy kod (jako oryginalny użytkownik, nie root)
+  echo "[1/5] git pull..."
+  BEFORE="$(sha256sum "$APP_DIR/deploy.sh")"
+  sudo -u "$REAL_USER" git pull
+  if [ "$(sha256sum "$APP_DIR/deploy.sh")" != "$BEFORE" ]; then
+    echo "      deploy.sh zmieniony — uruchamiam nową wersję"
+    exec "$APP_DIR/deploy.sh" --pulled
+  fi
+fi
 
 # Blokada — skrypt diagnostyczny (ops/waids_health.py) nie robi samonaprawy w trakcie deployu
 touch /run/waids-deploy.lock
@@ -17,18 +34,12 @@ trap 'rm -f /run/waids-deploy.lock' EXIT
 systemctl enable docker containerd >/dev/null 2>&1 || true
 
 # Diagnostyka + samonaprawa co minutę (health.json dla ekranu logowania).
-# Instalowane na początku — działa nawet gdy dalsza część deployu się wywali.
+# Instalowane przed buildem — działa nawet gdy dalsza część deployu się wywali.
 cat > /etc/cron.d/waids-health <<CRON
 # WAIDS — diagnostyka + samonaprawa (generowane przez deploy.sh)
 * * * * * root /usr/bin/python3 $APP_DIR/ops/waids_health.py >/dev/null 2>&1
 CRON
 chmod 644 /etc/cron.d/waids-health
-
-# 1. Pobierz najnowszy kod (jako oryginalny użytkownik, nie root)
-echo "[1/5] git pull..."
-cd "$APP_DIR"
-REAL_USER="${SUDO_USER:-$USER}"
-sudo -u "$REAL_USER" git pull
 
 # 2. Przebuduj i uruchom kontenery
 echo "[2/5] Docker build + up..."
@@ -71,3 +82,7 @@ rm -f /run/waids-deploy.lock
 echo ""
 echo "=== Gotowe! ==="
 curl -s http://127.0.0.1:8001/version && echo ""
+}
+
+main "$@"
+exit

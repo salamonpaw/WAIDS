@@ -75,6 +75,12 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.5.1', date: '2026-11-02',
+    fixed: [
+      '<b>deploy.sh — nowa wersja skryptu nie była wykonywana</b> — <code>git pull</code> wewnątrz deploy.sh podmieniał skrypt w trakcie działania i dalej leciała stara wersja (bez instalacji crona diagnostyki). Teraz skrypt po pullu uruchamia się ponownie, jeśli się zmienił; całość w funkcji main(), więc nadpisanie pliku w trakcie nie psuje przebiegu.'
+    ]
+  },
+  {
     version: '2.5.0', date: '2026-11-02',
     added: [
       '<b>Diagnostyka awarii na ekranie logowania</b> — przy błędzie 502/503/504 lub braku połączenia ekran logowania pokazuje przyczynę: restart VM, stan Dockera i kontenerów (z komunikatem błędu), wynik automatycznej naprawy, miejsce na dysku i ostatnie logi. Dane z pliku <code>health.json</code> generowanego co minutę na VM przez <code>ops/waids_health.py</code> (cron instalowany przez deploy.sh).',
