@@ -9,14 +9,29 @@ WEB_DIR="/var/www/waids"
 
 echo "=== WAIDS deploy: $(date '+%Y-%m-%d %H:%M:%S') ==="
 
+# Blokada — skrypt diagnostyczny (ops/waids_health.py) nie robi samonaprawy w trakcie deployu
+touch /run/waids-deploy.lock
+trap 'rm -f /run/waids-deploy.lock' EXIT
+
+# Docker musi wstawać sam po restarcie VM (np. po awarii zasilania)
+systemctl enable docker containerd >/dev/null 2>&1 || true
+
+# Diagnostyka + samonaprawa co minutę (health.json dla ekranu logowania).
+# Instalowane na początku — działa nawet gdy dalsza część deployu się wywali.
+cat > /etc/cron.d/waids-health <<CRON
+# WAIDS — diagnostyka + samonaprawa (generowane przez deploy.sh)
+* * * * * root /usr/bin/python3 $APP_DIR/ops/waids_health.py >/dev/null 2>&1
+CRON
+chmod 644 /etc/cron.d/waids-health
+
 # 1. Pobierz najnowszy kod (jako oryginalny użytkownik, nie root)
-echo "[1/4] git pull..."
+echo "[1/5] git pull..."
 cd "$APP_DIR"
 REAL_USER="${SUDO_USER:-$USER}"
 sudo -u "$REAL_USER" git pull
 
 # 2. Przebuduj i uruchom kontenery
-echo "[2/4] Docker build + up..."
+echo "[2/5] Docker build + up..."
 # Zatrzymaj legacy systemd service (jeśli jeszcze działa)
 systemctl stop waids 2>/dev/null || true
 # Zwolnij port 8001 gdyby coś go trzymało
@@ -29,7 +44,7 @@ docker network rm subscription-checker_waids_net 2>/dev/null || true
 docker compose up -d --build
 
 # 3. Poczekaj aż backend odpowie (max 60s)
-echo "[3/4] Czekam na backend..."
+echo "[3/5] Czekam na backend..."
 for i in $(seq 1 30); do
   if curl -sf http://127.0.0.1:8001/version > /dev/null 2>&1; then
     echo "      Backend gotowy (${i}×2s)"
@@ -42,11 +57,16 @@ for i in $(seq 1 30); do
 done
 
 # 4. Skopiuj frontend do nginx (rm+cp zamiast cp -r — unika problemu z nadpisywaniem)
-echo "[4/4] Kopiowanie frontendu..."
+echo "[4/5] Kopiowanie frontendu..."
 cp "$APP_DIR/index.html" "$WEB_DIR/index.html"
 rm -rf "$WEB_DIR/css" && cp -r "$APP_DIR/css" "$WEB_DIR/css"
 rm -rf "$WEB_DIR/js"  && cp -r "$APP_DIR/js"  "$WEB_DIR/js"
 chown -R www-data:www-data "$WEB_DIR/"
+
+# 5. Odśwież health.json od razu (cron i tak robi to co minutę)
+echo "[5/5] Diagnostyka..."
+rm -f /run/waids-deploy.lock
+/usr/bin/python3 "$APP_DIR/ops/waids_health.py" || echo "      UWAGA: waids_health.py zakończył się błędem"
 
 echo ""
 echo "=== Gotowe! ==="

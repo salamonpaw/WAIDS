@@ -75,6 +75,17 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.5.0', date: '2026-11-02',
+    added: [
+      '<b>Diagnostyka awarii na ekranie logowania</b> — przy błędzie 502/503/504 lub braku połączenia ekran logowania pokazuje przyczynę: restart VM, stan Dockera i kontenerów (z komunikatem błędu), wynik automatycznej naprawy, miejsce na dysku i ostatnie logi. Dane z pliku <code>health.json</code> generowanego co minutę na VM przez <code>ops/waids_health.py</code> (cron instalowany przez deploy.sh).',
+      '<b>Samonaprawa po restarcie VM</b> — gdy Docker działa, a kontenery WAIDS nie, skrypt diagnostyczny wykonuje <code>docker compose up -d</code> (max raz na 5 min, pomijane w trakcie deployu). deploy.sh włącza autostart Dockera.'
+    ],
+    fixed: [
+      '<b>Awaria po restarcie serwera (zasilanie)</b> — systemowy PostgreSQL zajmował port 5432 przed Dockerem i kontener bazy nie startował (502 przy logowaniu). Baza WAIDS wystawiona teraz na hoście na porcie <code>127.0.0.1:5433</code>; backend bez zmian (łączy się przez sieć Dockera).',
+      '<b>Logowanie</b> — błąd serwera nie pokazuje już „Unexpected token &lt;… is not valid JSON”, a awaria backendu przy wejściu na stronę nie kasuje sesji.'
+    ]
+  },
+  {
     version: '2.4.1', date: '2026-09-10',
     fixed: [
       '<b>Zakupy — brak klientów na licencji</b> — firmy wykluczone z analizy abonamentowej (excluded_firms, np. klienci na licencji) były pomijane w zestawieniu zakupów. Zakupy to raport produkcyjny — teraz pokazuje WSZYSTKIE wyprodukowane maszyny niezależnie od statusu abonamentu.'
