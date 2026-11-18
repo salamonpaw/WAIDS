@@ -80,6 +80,12 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.8.3', date: '2026-11-18',
+    fixed: [
+      '<b>Segmentacja — 5 niezmapowanych modeli z produkcji dopisanych do słownika</b> (potwierdzone przez użytkownika): „D810M NEO” to literówka „D810 NEO” (alias, 0,85 JP); „L40 PRO” liczony jak „L40 M” (0,30), „D540” (bez NEO) jak „D540 NEO” (0,80), „D540M” jak „D810M” (0,80), „T10” jak „T15” (0,30) — te cztery jako osobne wpisy w słowniku, żeby zostały widoczne pod własną nazwą w raportach (miks modeli), a nie zniknęły pod inną.',
+    ],
+  },
+  {
     version: '2.8.2', date: '2026-11-18',
     added: [
       '<b>Segmentacja — filtr zakresu wykresów „w czasie”</b> (12/24/36 mies. / wszystkie zrzuty) nad wykresami „JP wg segmentów” i „Klienci w segmentach”.',

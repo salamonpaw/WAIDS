@@ -58,12 +58,11 @@ VALID_MODEL_TYPES = {"wlasne", "oem"}
 
 # Aliasy dopisywane do ISTNIEJĄCEGO słownika przy każdym starcie (idempotentne —
 # dopisuje tylko brakujące, bezpieczne dla bazy zasianej dawniej przez seed powyżej).
-# Znalezione w prawdziwych danych produkcyjnych po wdrożeniu (18.11.2026):
-# "D810NEO"/"D810Neo" bez spacji — oczywisty wariant zapisu "D810 NEO", bez ryzyka
-# pomyłki z innym modelem. Pozostałe niezmapowane (L40 PRO, D540, T10, D810M NEO,
-# D540M) wymagają potwierdzenia wartości JP — patrz rozmowa z 18.11.2026.
+# Znalezione w prawdziwych danych produkcyjnych po wdrożeniu (18.11.2026), potwierdzone
+# przez użytkownika: "D810NEO"/"D810Neo" (bez spacji) i "D810M NEO" — literówki/warianty
+# zapisu tego samego modelu "D810 NEO" (0,85), nie osobne modele.
 EXTRA_ALIASES = {
-    "D810 NEO": ["D810NEO"],
+    "D810 NEO": ["D810NEO", "D810M NEO"],
 }
 
 
@@ -78,6 +77,34 @@ def ensure_model_aliases() -> None:
                     if missing:
                         cur.execute("UPDATE seg_models SET aliasy = aliasy || %s::varchar[] WHERE id = %s",
                                     (missing, row["id"]))
+
+
+# Nowe kody modeli znalezione w danych produkcyjnych — to OSOBNE, prawdziwe warianty
+# (nie literówki), więc dostają WŁASNY wpis w słowniku (zachowują tożsamość w raportach
+# typu "miks modeli"), z JP przyjętym wg analogii potwierdzonej przez użytkownika
+# 18.11.2026: L40 PRO = jak L40 M (własne); D540 (bez NEO) = jak D540 NEO; D540M = jak
+# D810M; T10 = jak T15. nazwa_cennikowa nieznana — zostawiona pusta do uzupełnienia.
+EXTRA_MODELS = [
+    # (kod_modelu, jp_na_szt, typ)
+    ("L40 PRO", 0.30, "wlasne"),
+    ("D540",    0.80, "wlasne"),
+    ("D540M",   0.80, "wlasne"),
+    ("T10",     0.30, "wlasne"),
+]
+
+
+def ensure_extra_models() -> None:
+    """Dopisuje nowe kody modeli do słownika (idempotentne — pomija już istniejące)."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            for kod, jp, typ in EXTRA_MODELS:
+                cur.execute("SELECT 1 FROM seg_models WHERE kod_modelu = %s", (kod,))
+                if not cur.fetchone():
+                    cur.execute(
+                        "INSERT INTO seg_models (kod_modelu, aliasy, nazwa_cennikowa, jp_na_szt, typ)"
+                        " VALUES (%s, '{}', '', %s, %s)",
+                        (kod, jp, typ),
+                    )
 
 
 def seed_segmentation_defaults() -> None:
