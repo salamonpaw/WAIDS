@@ -106,7 +106,7 @@ function renderRevKPI() {
 
   const label = kpi.year ? `${kpi.year}` : 'Wszystkie lata';
   document.getElementById('revKpiNettoLbl').textContent     = `Przychody ${label} (PLN netto)`;
-  document.getElementById('revKpiEurLbl').textContent       = `Przychody ${label} (EUR)`;
+  document.getElementById('revKpiEurLbl').textContent       = `↳ z tego w EUR (ten sam kafelek co obok — nie dodawaj)`;
   document.getElementById('revKpiDevicesLbl').textContent   = `Płacących urządzeń (${label})`;
   document.getElementById('revKpiCustomersLbl').textContent = `Płacących klientów (${label})`;
 
@@ -114,6 +114,16 @@ function renderRevKPI() {
   document.getElementById('revKpiEur').textContent       = fmtEUR(kpi.eur);
   document.getElementById('revKpiDevices').textContent   = fmtNum(kpi.devices);
   document.getElementById('revKpiCustomers').textContent = fmtNum(kpi.customers);
+
+  // Ta sama informacja widoczna OD RAZU pod głównym kafelkiem — bez potrzeby
+  // patrzenia na sąsiedni kafelek ani czytania tooltipa (realna przyczyna
+  // pytania "czy PLN + EUR się sumują" — zgłoszenie użytkownika 18.11.2026).
+  const subEl = document.getElementById('revKpiNettoSub');
+  if (subEl) {
+    subEl.textContent = kpi.eur > 0
+      ? `z tego ${fmtEUR(kpi.eur)} to faktury w EUR (już tu policzone, nie dodawaj osobno)`
+      : ' ';
+  }
 }
 
 function onRevYearChange() {

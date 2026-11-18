@@ -101,6 +101,11 @@
     .kpi.red    .kpi-value { color: var(--red); }
     .kpi.amber  .kpi-value { color: var(--amber); }
     .kpi.teal   .kpi-value { color: var(--teal); }
+    /* Kafelek "podrzędny" — wizualnie podporządkowany sąsiadowi z lewej (np. "w tym EUR"
+       pod "PLN netto"), żeby nie wyglądał jak drugi, osobny total do zsumowania. */
+    .kpi.kpi-nested { border-left: 3px solid var(--teal); background: transparent;
+                       box-shadow: none; opacity: .85; }
+    .kpi-value-sm { font-size: 17px !important; color: var(--text-muted) !important; }
 
     /* ── charts ── */
     .charts-row { display: grid; gap: 12px; margin-bottom: 1.25rem; }

@@ -81,6 +81,15 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.9.1', date: '2026-11-18',
+    fixed: [
+      '<b>Wyliczenia — prawdziwa przyczyna mylącego kafelka „Przychody EUR”</b>: JS nadpisywał `.textContent` całego diva z etykietą, kasując przy każdym renderze ikonkę ⓘ (tooltip z wyjaśnieniem nigdy nie był widoczny) i resetując tekst do ogólnego „Przychody {rok} (EUR)” — wcześniejsza poprawka tekstu w HTML (v2.8.1) nigdy realnie nie trafiała na ekran. Tekst etykiet jest teraz w osobnym `&lt;span&gt;`, JS dotyka tylko jego.',
+    ],
+    added: [
+      '<b>Kafelek „w tym EUR” wizualnie podporządkowany</b> kafelkowi PLN netto (cieńsza ramka, mniejsza czcionka, strzałka ↳) zamiast wyglądać jak drugi, równorzędny total do zsumowania. Pod głównym kafelkiem PLN netto dodatkowo widoczna od razu kwota EUR z dopiskiem „już tu policzone” — bez potrzeby patrzenia na sąsiedni kafelek czy czytania tooltipa.',
+    ],
+  },
+  {
     version: '2.9.0', date: '2026-11-18',
     added: [
       '<b>❓ Przewodnik po aplikacji</b> (driver.js) — tura z opisami kluczowych elementów dla każdej zakładki, odpala się automatycznie przy pierwszym wejściu (zapamiętane, nie powtarza się) i ręcznie przyciskiem „❓ Pomoc” w nagłówku dla aktualnie otwartej zakładki.',

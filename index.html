@@ -9,7 +9,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/driver.js@1/dist/driver.js.iife.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1/dist/driver.css">
-  <link rel="stylesheet" href="css/main.css?v=2.9.0">
+  <link rel="stylesheet" href="css/main.css?v=2.9.1">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -643,7 +643,7 @@
   <!-- KPI row -->
   <div class="rev-kpi-grid" id="revKpiGrid">
     <div class="kpi teal">
-      <div class="kpi-label" id="revKpiNettoLbl">Przychody YTD (PLN netto)
+      <div class="kpi-label"><span id="revKpiNettoLbl">Przychody YTD (PLN netto)</span>
         <i class="info-icon" data-info="SUMA przychodów netto w PLN za wybrany okres.
 
 Źródło: kolumna ob_CenaNetto z pliku IDS — cena netto faktury w złotówkach.
@@ -654,24 +654,23 @@ Formuła: SUM(amount_netto) dla wszystkich płatności w wybranym roku.
 💡 Użyj filtra roku w nagłówku zakładki aby zmienić okres.">i</i>
       </div>
       <div class="kpi-value" id="revKpiNetto">—</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px" id="revKpiNettoSub">&nbsp;</div>
     </div>
-    <div class="kpi green">
-      <div class="kpi-label" id="revKpiEurLbl">w tym EUR (podzbiór PLN netto)
-        <i class="info-icon" data-info="SUMA przychodów w walucie EUR za wybrany okres — w kwocie oryginalnej, nieprzeliczonej.
+    <div class="kpi kpi-nested">
+      <div class="kpi-label"><span id="revKpiEurLbl">↳ z tego w EUR (ten sam kafelek co obok — nie dodawaj)</span>
+        <i class="info-icon" data-info="To NIE jest osobny przychód — jest już policzony w kafelku „PLN netto” z lewej (IDS przelicza faktury EUR na PLN wg kursu z dnia wystawienia). Tu widzisz tylko tę samą kwotę w walucie oryginalnej, nieprzeliczoną.
 
-⚠️ To NIE jest przychód dodatkowy ponad „PLN netto" obok. Faktury EUR są już wliczone
-w kafelek PLN netto (IDS przelicza je na PLN wg kursu z dnia wystawienia) — tu widać
-tylko tę samą kwotę w walucie oryginalnej. Nie sumuj tych dwóch kafelków.
+👉 Jeśli chcesz wiedzieć „ile razem", patrz WYŁĄCZNIE na kafelek PLN netto z lewej — on już zawiera EUR, USD i GBP. Ten kafelek i tabela „Przychody wg waluty” niżej to tylko inny widok TEJ SAMEJ kwoty, rozbity na walutę.
 
-Pełny rozkład wg wszystkich walut (w tym USD, GBP) — patrz tabela „Przychody wg waluty" niżej.
+Pełny rozkład wg wszystkich walut (w tym USD, GBP) — patrz tabela „Przychody wg waluty” niżej.
 
 Źródło: kolumna ob_CenaWaluta z pliku IDS, dla faktur z nzf_IdWaluty = &#39;EUR&#39;.
 Formuła: SUM(amount) WHERE currency = &#39;EUR&#39;.">i</i>
       </div>
-      <div class="kpi-value" id="revKpiEur">—</div>
+      <div class="kpi-value kpi-value-sm" id="revKpiEur">—</div>
     </div>
     <div class="kpi amber">
-      <div class="kpi-label" id="revKpiDevicesLbl">Płacących urządzeń (YTD)
+      <div class="kpi-label"><span id="revKpiDevicesLbl">Płacących urządzeń (YTD)</span>
         <i class="info-icon" data-info="LICZBA unikalnych urządzeń (numerów seryjnych SN) które miały co najmniej jedną zarejestrowaną płatność w wybranym okresie.
 
 Źródło: tabela payments — każdy rekord odpowiada jednemu SN + miesiąc.
@@ -683,7 +682,7 @@ Urządzenia bez żadnej płatności (status &#39;brak opłaty&#39;) nie są licz
       <div class="kpi-value" id="revKpiDevices">—</div>
     </div>
     <div class="kpi">
-      <div class="kpi-label" id="revKpiCustomersLbl">Płacących klientów (YTD)
+      <div class="kpi-label"><span id="revKpiCustomersLbl">Płacących klientów (YTD)</span>
         <i class="info-icon" data-info="LICZBA unikalnych klientów (wartość pola &#39;Klient / Operator&#39; z pliku IDS) którzy mieli co najmniej jedną płatność w wybranym okresie.
 
 Źródło: kolumna customer w tabeli payments — pobierana z pliku płatności IDS.
@@ -2238,24 +2237,24 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.9.0"></script>
-<script src="js/auth.js?v=2.9.0"></script>
-<script src="js/app.js?v=2.9.0"></script>
-<script src="js/import.js?v=2.9.0"></script>
-<script src="js/report.js?v=2.9.0"></script>
-<script src="js/monitoring.js?v=2.9.0"></script>
-<script src="js/config.js?v=2.9.0"></script>
-<script src="js/firstpay.js?v=2.9.0"></script>
-<script src="js/device.js?v=2.9.0"></script>
-<script src="js/revenue.js?v=2.9.0"></script>
-<script src="js/bonus.js?v=2.9.0"></script>
-<script src="js/commissions.js?v=2.9.0"></script>
-<script src="js/pricing.js?v=2.9.0"></script>
-<script src="js/arrears.js?v=2.9.0"></script>
-<script src="js/sales.js?v=2.9.0"></script>
-<script src="js/segmentation.js?v=2.9.0"></script>
-<script src="js/tooltip.js?v=2.9.0"></script>
-<script src="js/tour.js?v=2.9.0"></script>
+<script src="js/utils.js?v=2.9.1"></script>
+<script src="js/auth.js?v=2.9.1"></script>
+<script src="js/app.js?v=2.9.1"></script>
+<script src="js/import.js?v=2.9.1"></script>
+<script src="js/report.js?v=2.9.1"></script>
+<script src="js/monitoring.js?v=2.9.1"></script>
+<script src="js/config.js?v=2.9.1"></script>
+<script src="js/firstpay.js?v=2.9.1"></script>
+<script src="js/device.js?v=2.9.1"></script>
+<script src="js/revenue.js?v=2.9.1"></script>
+<script src="js/bonus.js?v=2.9.1"></script>
+<script src="js/commissions.js?v=2.9.1"></script>
+<script src="js/pricing.js?v=2.9.1"></script>
+<script src="js/arrears.js?v=2.9.1"></script>
+<script src="js/sales.js?v=2.9.1"></script>
+<script src="js/segmentation.js?v=2.9.1"></script>
+<script src="js/tooltip.js?v=2.9.1"></script>
+<script src="js/tour.js?v=2.9.1"></script>
 
 </body>
 </html>
