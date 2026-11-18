@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-  <link rel="stylesheet" href="css/main.css?v=2.8.0">
+  <link rel="stylesheet" href="css/main.css?v=2.8.1">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -694,21 +694,22 @@ Puste wartości pola klienta są pomijane.">i</i>
   <div class="rev-section" id="revCurrencySection" style="margin-bottom:1.25rem">
     <div class="rev-section-title">
       <span>💱 Przychody wg waluty (łącznie, wszystkie lata)
-        <i class="info-icon" data-info="Rozkład CAŁEGO przychodu (kolumna „PLN netto” z kafelków/wykresów powyżej) wg waluty oryginalnej faktury.
+        <i class="info-icon" data-info="Rozkład CAŁEGO przychodu (wszystkie lata razem — patrz niżej) wg waluty oryginalnej faktury.
 
-Kolumna „Odpowiednik w PLN netto” sumuje się dokładnie do kafelka „Przychody (PLN netto)” — to te same pieniądze, tylko podzielone wg waluty. NIE dodawaj ich do kafelka EUR osobno.
+⚠️ Ta tabela NIE jest objęta filtrem roku z nagłówka zakładki — jest zawsze za wszystkie lata łącznie (tak jak „Rozkład wg typu klienta” i „Top klienci” niżej). Kafelek „Przychody (PLN netto)” u góry pokazuje tylko wybrany rok. Jeśli filtr roku ≠ „Wszystkie lata”, suma kolumny „Odpowiednik w PLN netto” będzie WIĘKSZA niż ten kafelek — to poprawne, nie błąd.
 
-Kolumna „Kwota w walucie oryginalnej” to wartość z faktury przed przeliczeniem (informacyjnie — niutra do porównywania między walutami).
+Kolumna „Odpowiednik w PLN netto” sumuje się do sumy wszystkich słupków PLN netto z wykresu „Przychody roczne” (wszystkie lata) — to te same pieniądze, podzielone wg waluty. NIE dodawaj ich do kolumny obok jako czegoś dodatkowego.
 
-Źródło: payments.currency (nzf_IdWaluty z pliku IDS), payments.amount_netto (zawsze PLN), payments.amount (kwota oryginalna).
-Zestawienie nieobjęte filtrem roku z nagłówka zakładki — zawsze łącznie, wszystkie lata (tak jak „Rozkład wg typu klienta” i „Top klienci”).">i</i>
+Kolumna „Kwota w walucie oryginalnej” to CENA z faktury (pole ob_CenaWaluta z pliku IDS) — referencyjna/miesięczna stawka w walucie oryginalnej. Dla faktur z rabatem może być WYŻSZA niż rzeczywista zafakturowana wartość (bo rabaty są naliczane na polu WARTOŚĆ, nie CENA) — nie dzieli jej więc przez tę kolumnę, żeby wyliczyć kurs wymiany, bo to nie jest relacja 1:1 wg jednego kursu.
+
+Źródło: payments.currency (nzf_IdWaluty z pliku IDS), payments.amount_netto (zawsze PLN, z ob_WartNetto), payments.amount (ob_CenaWaluta).">i</i>
       </span>
     </div>
     <div style="overflow-x:auto">
       <table class="rev-table" id="revCurrencyTable">
         <thead><tr>
           <th>Waluta</th>
-          <th class="num">Kwota w walucie oryginalnej</th>
+          <th class="num" title="Cena referencyjna z faktury (ob_CenaWaluta) — może różnić się od rzeczywiście zafakturowanej wartości przy rabatach, patrz ⓘ wyżej">Kwota w walucie oryginalnej</th>
           <th class="num">Odpowiednik w PLN netto</th>
           <th class="num">% całości PLN netto</th>
           <th class="num">Urządzeń</th>
@@ -717,7 +718,7 @@ Zestawienie nieobjęte filtrem roku z nagłówka zakładki — zawsze łącznie,
         <tbody id="revCurrencyTableBody"></tbody>
       </table>
     </div>
-    <div class="chart-hint">💡 Suma kolumny „Odpowiednik w PLN netto” = kafelek „Przychody (PLN netto)” powyżej. Waluty nie sumują się między sobą bez przeliczenia kursem.</div>
+    <div class="chart-hint">💡 Tabela jest zawsze za wszystkie lata łącznie (nie reaguje na filtr roku powyżej) — suma „Odpowiednik w PLN netto” = suma wszystkich lat z wykresu „Przychody roczne”, nie kafelek PLN netto u góry. Waluty nie sumują się między sobą bez przeliczenia kursem.</div>
   </div>
 
   <!-- Row 1: trend + annual -->
@@ -2222,23 +2223,23 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.8.0"></script>
-<script src="js/auth.js?v=2.8.0"></script>
-<script src="js/app.js?v=2.8.0"></script>
-<script src="js/import.js?v=2.8.0"></script>
-<script src="js/report.js?v=2.8.0"></script>
-<script src="js/monitoring.js?v=2.8.0"></script>
-<script src="js/config.js?v=2.8.0"></script>
-<script src="js/firstpay.js?v=2.8.0"></script>
-<script src="js/device.js?v=2.8.0"></script>
-<script src="js/revenue.js?v=2.8.0"></script>
-<script src="js/bonus.js?v=2.8.0"></script>
-<script src="js/commissions.js?v=2.8.0"></script>
-<script src="js/pricing.js?v=2.8.0"></script>
-<script src="js/arrears.js?v=2.8.0"></script>
-<script src="js/sales.js?v=2.8.0"></script>
-<script src="js/segmentation.js?v=2.8.0"></script>
-<script src="js/tooltip.js?v=2.8.0"></script>
+<script src="js/utils.js?v=2.8.1"></script>
+<script src="js/auth.js?v=2.8.1"></script>
+<script src="js/app.js?v=2.8.1"></script>
+<script src="js/import.js?v=2.8.1"></script>
+<script src="js/report.js?v=2.8.1"></script>
+<script src="js/monitoring.js?v=2.8.1"></script>
+<script src="js/config.js?v=2.8.1"></script>
+<script src="js/firstpay.js?v=2.8.1"></script>
+<script src="js/device.js?v=2.8.1"></script>
+<script src="js/revenue.js?v=2.8.1"></script>
+<script src="js/bonus.js?v=2.8.1"></script>
+<script src="js/commissions.js?v=2.8.1"></script>
+<script src="js/pricing.js?v=2.8.1"></script>
+<script src="js/arrears.js?v=2.8.1"></script>
+<script src="js/sales.js?v=2.8.1"></script>
+<script src="js/segmentation.js?v=2.8.1"></script>
+<script src="js/tooltip.js?v=2.8.1"></script>
 
 </body>
 </html>

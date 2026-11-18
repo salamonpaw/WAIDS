@@ -80,6 +80,12 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.8.1', date: '2026-11-18',
+    fixed: [
+      '<b>Wyliczenia — błędna notka pod tabelą „Przychody wg waluty”</b> — napis twierdził, że suma kolumny „Odpowiednik w PLN netto” równa się kafelkowi „Przychody (PLN netto)” u góry. Nieprawda przy filtrze roku: tabela jest zawsze za wszystkie lata łącznie (jak „Top klienci”), a kafelek pokazuje tylko wybrany rok. Poprawiono opis, dodano wyjaśnienie że „Kwota w walucie oryginalnej” to cena referencyjna z faktury (ob_CenaWaluta) — przy rabatach bywa wyższa niż rzeczywiście zafakturowana wartość, więc dzielenie jej przez netto nie daje realnego kursu wymiany.',
+    ],
+  },
+  {
     version: '2.8.0', date: '2026-11-18',
     added: [
       '<b>🎯 Segmentacja — etap 2</b>: filtr „Okres porównawczy” (brak / poprzedni okres / rok wcześniej) dodaje do tabeli kolumny Migracja i Zmiana r/r per klient; kolumny „Segmenty w latach” (wybieralne pilkami) pokazują segment klienta w każdym roku kalendarzowym (bieżący rok oznaczony gwiazdką — niepełny).',
