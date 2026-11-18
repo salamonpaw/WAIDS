@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-  <link rel="stylesheet" href="css/main.css?v=2.6.0">
+  <link rel="stylesheet" href="css/main.css?v=2.7.0">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -70,6 +70,7 @@
   <button class="tab-btn"        onclick="switchTab('bonus')">🆕 Pierwsze IDS</button>
   <button class="tab-btn" id="tabBtnCommissions" onclick="switchTab('commissions')" style="display:none">💸 Prowizje</button>
   <button class="tab-btn" id="tabBtnPricing"     onclick="switchTab('pricing')"     style="display:none">📈 Pricing</button>
+  <button class="tab-btn" id="tabBtnSegmentation" onclick="switchTab('segmentation')" style="display:none">🎯 Segmentacja</button>
   <button class="tab-btn"                        onclick="switchTab('arrears')">⚠ Zaległości</button>
   <button class="tab-btn"                        onclick="switchTab('sales')">📦 Zakupy</button>
   <button class="tab-btn" id="tabBtnConfig"  onclick="switchTab('config')"  style="display:none">⚙ Konfiguracja</button>
@@ -1534,6 +1535,97 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
 </div>
 </div>
 
+<!-- ══════════════════ SEGMENTACJA KLIENTÓW TAB ══════════════════ -->
+<div class="tab-panel" id="tab-segmentation">
+<div class="container">
+
+  <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:1.25rem">
+    <div style="flex:1">
+      <div style="font-size:15px;font-weight:600;margin-bottom:2px">🎯 Segmentacja klientów (A–D)</div>
+      <div style="font-size:12px;color:var(--text-muted)">Segment wg wolumenu w jednostkach produkcyjnych (JP), przeliczonego na 12 miesięcy. Etap 1: tabela klientów dla wybranego okresu — bez historii lat, migracji i trendu (etap 2).</div>
+    </div>
+  </div>
+
+  <div id="segMsg" class="msg" style="margin-bottom:10px"></div>
+
+  <!-- Filtry -->
+  <div style="background:var(--bg-secondary);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:16px">
+    <div style="font-size:12px;font-weight:600;margin-bottom:10px;color:var(--text-muted)">OKRES I FILTRY</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Od</label>
+        <input id="segOd" type="date" style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Do</label>
+        <input id="segDo" type="date" style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+      </div>
+      <div style="display:flex;gap:4px;padding-bottom:1px">
+        <button class="ghost sm" onclick="setSegPreset('last12')">Ostatnie 12 mies.</button>
+        <button class="ghost sm" onclick="setSegPreset('curr_year')">Bieżący rok</button>
+        <button class="ghost sm" onclick="setSegPreset('prev_year')">Poprzedni rok</button>
+        <button class="ghost sm" onclick="setSegPreset('last_q')">Ostatni kwartał</button>
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Typ maszyn</label>
+        <select id="segTyp" style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+          <option value="">Własne + OEM</option>
+          <option value="wlasne">Tylko własne</option>
+          <option value="oem">Tylko OEM</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Modele <span style="font-weight:400">(Ctrl/Cmd = wielokrotny wybór)</span></label>
+        <select id="segModel" multiple size="3" style="min-width:160px;font-size:12px;padding:4px 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)"></select>
+      </div>
+      <button class="primary" onclick="loadSegmentation()">▶ Przelicz</button>
+      <input type="text" id="segSearch" class="rev-search" placeholder="🔍 Szukaj klienta…" oninput="filterSegTable()" autocomplete="off" style="margin-left:auto">
+    </div>
+    <div style="font-size:11px;color:var(--text-muted);margin-top:8px">
+      ⚠️ Typ maszyn / Modele zmieniają tylko wyświetlane JP i sztuki — <b>segment klienta liczony jest zawsze z pełnego wolumenu</b> (własne + OEM, wszystkie modele).
+    </div>
+  </div>
+
+  <div id="segWarnShort" class="msg warn" style="display:none;margin-bottom:12px">
+    ⚠️ Okres krótszy niż <span id="segMinMies"></span> mies. (<span id="segOkresMies"></span> mies.) — jedna maszyna mocno zawyża segment. Traktuj wynik ostrożnie.
+  </div>
+  <div id="segUnmapped" class="msg err" style="display:none;margin-bottom:12px"></div>
+
+  <!-- KPI segmentów -->
+  <div class="rev-kpi-grid" id="segKpiGrid" style="margin-bottom:1.25rem"></div>
+
+  <!-- Tabela klientów -->
+  <div class="rev-section">
+    <div class="rev-section-title">
+      <span>Klienci wg segmentu — okres: <span id="segPeriodLbl">—</span></span>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="rev-table" id="segCustomerTable">
+        <thead><tr>
+          <th>#</th>
+          <th onclick="sortSegTable('firma')" class="rev-sort-icon">Klient ↕</th>
+          <th onclick="sortSegTable('segment')" class="rev-sort-icon">Segment ↕</th>
+          <th class="num rev-sort-icon" onclick="sortSegTable('jp_okres_filtr')">JP (okres) ↕</th>
+          <th class="num rev-sort-icon" onclick="sortSegTable('jp12')">JP/12mies ↕</th>
+          <th class="num rev-sort-icon" onclick="sortSegTable('jp_miesiecznie')">JP/mies ↕</th>
+          <th class="num rev-sort-icon" onclick="sortSegTable('sztuki_filtr')">Sztuki ↕</th>
+          <th class="num rev-sort-icon" onclick="sortSegTable('liczba_modeli')">Modele ↕</th>
+          <th class="num rev-sort-icon" onclick="sortSegTable('udzial_oem')">Udział OEM ↕</th>
+          <th class="num rev-sort-icon" onclick="sortSegTable('do_wyzszego_segmentu')">Do wyż. segmentu ↕</th>
+          <th class="num rev-sort-icon" onclick="sortSegTable('udzial_w_jp')">Udział w JP ↕</th>
+          <th class="num rev-sort-icon" onclick="sortSegTable('udzial_narastajaco')">Narastająco ↕</th>
+        </tr></thead>
+        <tbody id="segTableBody">
+          <tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:2rem">Ustaw okres i kliknij „Przelicz”.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="chart-hint">💡 Segment i „Do wyższego segmentu” liczone zawsze z pełnego wolumenu klienta — filtr Typ/Modele zmienia tylko kolumny JP (okres) i Sztuki.</div>
+  </div>
+
+</div>
+</div>
+
 <!-- ══════════════════ ZALEGŁOŚCI TAB ══════════════════ -->
 <div class="tab-panel" id="tab-arrears">
 <div class="container">
@@ -1659,6 +1751,7 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
           <th style="text-align:center" title="Uprawnienie do zmiany firmy, operatora i typu urządzenia">✏ Edycja urządzeń</th>
           <th style="text-align:center" title="Dostęp do zakładki Prowizje">💸 Prowizje</th>
           <th style="text-align:center" title="Dostęp do Analizy Pricingu">📈 Pricing</th>
+          <th style="text-align:center" title="Dostęp do zakładki Segmentacja klientów (tylko podgląd — progi i słownik modeli edytuje wyłącznie Admin)">🎯 Segmentacja</th>
           <th>Status</th>
           <th>Akcje</th>
         </tr></thead>
@@ -2065,22 +2158,23 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.6.0"></script>
-<script src="js/auth.js?v=2.6.0"></script>
-<script src="js/app.js?v=2.6.0"></script>
-<script src="js/import.js?v=2.6.0"></script>
-<script src="js/report.js?v=2.6.0"></script>
-<script src="js/monitoring.js?v=2.6.0"></script>
-<script src="js/config.js?v=2.6.0"></script>
-<script src="js/firstpay.js?v=2.6.0"></script>
-<script src="js/device.js?v=2.6.0"></script>
-<script src="js/revenue.js?v=2.6.0"></script>
-<script src="js/bonus.js?v=2.6.0"></script>
-<script src="js/commissions.js?v=2.6.0"></script>
-<script src="js/pricing.js?v=2.6.0"></script>
-<script src="js/arrears.js?v=2.6.0"></script>
-<script src="js/sales.js?v=2.6.0"></script>
-<script src="js/tooltip.js?v=2.6.0"></script>
+<script src="js/utils.js?v=2.7.0"></script>
+<script src="js/auth.js?v=2.7.0"></script>
+<script src="js/app.js?v=2.7.0"></script>
+<script src="js/import.js?v=2.7.0"></script>
+<script src="js/report.js?v=2.7.0"></script>
+<script src="js/monitoring.js?v=2.7.0"></script>
+<script src="js/config.js?v=2.7.0"></script>
+<script src="js/firstpay.js?v=2.7.0"></script>
+<script src="js/device.js?v=2.7.0"></script>
+<script src="js/revenue.js?v=2.7.0"></script>
+<script src="js/bonus.js?v=2.7.0"></script>
+<script src="js/commissions.js?v=2.7.0"></script>
+<script src="js/pricing.js?v=2.7.0"></script>
+<script src="js/arrears.js?v=2.7.0"></script>
+<script src="js/sales.js?v=2.7.0"></script>
+<script src="js/segmentation.js?v=2.7.0"></script>
+<script src="js/tooltip.js?v=2.7.0"></script>
 
 </body>
 </html>

@@ -9,6 +9,8 @@ function switchTab(name) {
       !currentUser?.is_admin && !currentUser?.can_view_commissions) return;
   if (name === 'pricing' &&
       !currentUser?.is_admin && !currentUser?.can_view_pricing) return;
+  if (name === 'segmentation' &&
+      !currentUser?.is_admin && !currentUser?.can_view_segmentation) return;
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
@@ -22,6 +24,7 @@ function switchTab(name) {
   if (name === 'config')       { loadConfig(); loadLicenseFees(); }
   if (name === 'commissions')  { onTabCommissions(); }
   if (name === 'pricing')      { onTabPricing(); }
+  if (name === 'segmentation') { onTabSegmentation(); }
   if (name === 'arrears')      { onTabArrears(); }
   if (name === 'sales')        { onTabSales(); }
 }
@@ -30,9 +33,11 @@ function applyAdminTabs() {
   const isAdmin = currentUser?.is_admin || false;
   const canComm    = isAdmin || currentUser?.can_view_commissions || false;
   const canPricing = isAdmin || currentUser?.can_view_pricing    || false;
+  const canSeg     = isAdmin || currentUser?.can_view_segmentation || false;
   document.getElementById('tabBtnRevenue').style.display     = isAdmin    ? '' : 'none';
   document.getElementById('tabBtnCommissions').style.display = canComm    ? '' : 'none';
   document.getElementById('tabBtnPricing').style.display     = canPricing ? '' : 'none';
+  document.getElementById('tabBtnSegmentation').style.display = canSeg    ? '' : 'none';
   document.getElementById('tabBtnConfig').style.display      = isAdmin    ? '' : 'none';
   // Show admin-only rate form
   const rateForm = document.getElementById('commAdminRateForm');
@@ -74,6 +79,13 @@ async function refreshStatus() {
 // ── Changelog modal ────────────────────────────────────────────────────────
 
 const CHANGELOG_ENTRIES = [
+  {
+    version: '2.7.0', date: '2026-11-18',
+    added: [
+      '<b>🎯 Segmentacja klientów A–D</b> (etap 1, nowe uprawnienie <code>can_view_segmentation</code> — podgląd dla Admina i wyznaczonych osób, konfiguracja progów/słownika modeli na razie wyłącznie przez Admina) — nowa zakładka liczy segment klienta wg wolumenu w jednostkach produkcyjnych (JP), przeliczonego na 12 miesięcy: A ≥30 JP, B ≥8, C ≥3, D <3. Tabela klientów z JP (okres/12mies/miesięcznie), udziałem OEM, flagami „profil OEM” i „blisko progu”, dystansem do wyższego segmentu oraz udziałem w JP/narastająco. Filtry: zakres dat (z presetami), typ maszyn (własne/OEM), modele — zmieniają tylko wyświetlane JP/sztuki, segment zawsze liczony z pełnego wolumenu klienta.',
+      'Słownik 15 modeli z przelicznikiem JP/szt. i progi segmentacji są w pełni konfigurowalne w bazie (wersjonowane), zasiane wartościami startowymi — panel admina do ich edycji to etap 3. Model spoza słownika zgłasza alert administratorowi zamiast cicho znikać z wyliczeń.',
+    ],
+  },
   {
     version: '2.6.0', date: '2026-11-18',
     added: [

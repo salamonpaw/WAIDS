@@ -279,6 +279,12 @@ def init_db() -> None:
                 ADD COLUMN IF NOT EXISTS can_view_pricing BOOLEAN NOT NULL DEFAULT FALSE;
             """)
 
+            # ── Migracja: can_view_segmentation ────────────────────────────────
+            cur.execute("""
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS can_view_segmentation BOOLEAN NOT NULL DEFAULT FALSE;
+            """)
+
             # ── Tabela listy podwyżek ─────────────────────────────────────────
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS pricing_raises (
@@ -393,6 +399,61 @@ def init_db() -> None:
                 CREATE INDEX IF NOT EXISTS idx_isp_session
                 ON import_session_payments(session_id);
             """)
+
+            # ── Segmentacja klientów A–D (wolumen JP) ───────────────────────
+            # Realizacja (fakt: kto/kiedy/jaki model/ile sztuk) NIE ma własnej tabeli —
+            # korzysta wprost z devices (sn=1 pozycja, firma=klient, maszyna=model,
+            # prod_date=data_realizacji). Brak id_dokumentu i projekt_oemw w danych
+            # źródłowych na dziś (patrz CHANGELOG v2.7.0) — "liczba zamówień" i wykluczenie
+            # OEMW są więc poza zakresem etapu 1.
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS seg_models (
+                    id          SERIAL PRIMARY KEY,
+                    kod_modelu  VARCHAR NOT NULL,
+                    aliasy      VARCHAR[] NOT NULL DEFAULT '{}',
+                    nazwa_cennikowa VARCHAR NOT NULL DEFAULT '',
+                    jp_na_szt   NUMERIC(6,2) NOT NULL,
+                    typ         VARCHAR NOT NULL DEFAULT 'wlasne',  -- wlasne | oem
+                    wazny_od    VARCHAR NOT NULL DEFAULT '2000-01-01',
+                    wazny_do    VARCHAR,                            -- NULL = nadal obowiązuje
+                    created_at  TIMESTAMP NOT NULL DEFAULT NOW()
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS seg_thresholds (
+                    wersja              SERIAL PRIMARY KEY,
+                    wazny_od            VARCHAR NOT NULL DEFAULT '2000-01-01',
+                    prog_a              NUMERIC(8,2) NOT NULL,
+                    prog_b              NUMERIC(8,2) NOT NULL,
+                    prog_c              NUMERIC(8,2) NOT NULL,
+                    prog_profil_oem     NUMERIC(5,2) NOT NULL DEFAULT 50,  -- %
+                    prog_na_granicy     NUMERIC(5,2) NOT NULL DEFAULT 25,  -- %
+                    prog_trend          NUMERIC(5,2) NOT NULL DEFAULT 10,  -- %
+                    min_miesiecy_okresu INTEGER      NOT NULL DEFAULT 3,
+                    created_at          TIMESTAMP NOT NULL DEFAULT NOW()
+                );
+            """)
+            # Zrzuty miesięczne — schemat gotowy na etap 2 (historia, migracje, trend);
+            # na razie nic do niej nie zapisuje (brak jeszcze crona).
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS seg_snapshots (
+                    id              SERIAL PRIMARY KEY,
+                    firma           VARCHAR NOT NULL,
+                    data_zrzutu     VARCHAR NOT NULL,       -- YYYY-MM-DD, koniec miesiąca
+                    wersja_progow   INTEGER NOT NULL REFERENCES seg_thresholds(wersja),
+                    jp_okres        NUMERIC(10,2) NOT NULL,
+                    jp12            NUMERIC(10,2) NOT NULL,
+                    jp_oem          NUMERIC(10,2) NOT NULL,
+                    sztuki          INTEGER NOT NULL,
+                    liczba_modeli   INTEGER NOT NULL,
+                    segment         VARCHAR(12) NOT NULL,
+                    flagi           JSONB NOT NULL DEFAULT '{}',
+                    created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+                    UNIQUE (firma, data_zrzutu, wersja_progow)
+                );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_seg_snapshots_firma ON seg_snapshots(firma);")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_seg_snapshots_data  ON seg_snapshots(data_zrzutu);")
 
             # Seed domyślnych handlowców (idempotentne)
             for name in DEFAULT_REPS:
@@ -945,7 +1006,8 @@ def list_users() -> list:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
                 "SELECT id, email, name, is_active, is_admin, can_edit_devices,"
-                " can_view_commissions, can_view_pricing, created_at, last_login"
+                " can_view_commissions, can_view_pricing, can_view_segmentation,"
+                " created_at, last_login"
                 " FROM users ORDER BY id"
             )
             return [dict(r) for r in cur.fetchall()]
@@ -986,6 +1048,15 @@ def set_user_can_commission(user_id: int, can_view: bool) -> None:
         with conn.cursor() as cur:
             cur.execute(
                 "UPDATE users SET can_view_commissions = %s WHERE id = %s",
+                (can_view, user_id),
+            )
+
+
+def set_user_can_segmentation(user_id: int, can_view: bool) -> None:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE users SET can_view_segmentation = %s WHERE id = %s",
                 (can_view, user_id),
             )
 

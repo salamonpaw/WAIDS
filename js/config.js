@@ -382,20 +382,25 @@ function renderAdminUsers(users) {
     <td style="text-align:center">${permBadge(u.can_edit_devices, u.is_admin)}</td>
     <td style="text-align:center">${permBadge(u.can_view_commissions, u.is_admin)}</td>
     <td style="text-align:center">${permBadge(u.can_view_pricing, u.is_admin)}</td>
+    <td style="text-align:center">${permBadge(u.can_view_segmentation, u.is_admin)}</td>
     <td>${u.is_active ? '<span class="badge paid">Aktywny</span>' : '<span class="badge unpaid">Nieaktywny</span>'}</td>
     <td style="white-space:nowrap">
       ${!u.is_admin ? `
-        <button class="ghost sm" onclick="adminToggleEditPerm(${u.id},${!u.can_edit_devices},${!!u.can_view_commissions},${!!u.can_view_pricing})"
+        <button class="ghost sm" onclick="adminToggleEditPerm(${u.id},${!u.can_edit_devices},${!!u.can_view_commissions},${!!u.can_view_pricing},${!!u.can_view_segmentation})"
           title="${u.can_edit_devices?'Odbierz uprawnienie edycji':'Nadaj uprawnienie edycji urządzeń'}">
           ${u.can_edit_devices ? '✏ Odbierz edycję' : '✏ Nadaj edycję'}
         </button>
-        <button class="ghost sm" onclick="adminToggleCommPerm(${u.id},${!!u.can_edit_devices},${!u.can_view_commissions},${!!u.can_view_pricing})"
+        <button class="ghost sm" onclick="adminToggleCommPerm(${u.id},${!!u.can_edit_devices},${!u.can_view_commissions},${!!u.can_view_pricing},${!!u.can_view_segmentation})"
           title="${u.can_view_commissions?'Odbierz dostęp do prowizji':'Nadaj dostęp do prowizji'}">
           ${u.can_view_commissions ? '💸 Odbierz prowizje' : '💸 Nadaj prowizje'}
         </button>
-        <button class="ghost sm" onclick="adminTogglePricingPerm(${u.id},${!!u.can_edit_devices},${!!u.can_view_commissions},${!u.can_view_pricing})"
+        <button class="ghost sm" onclick="adminTogglePricingPerm(${u.id},${!!u.can_edit_devices},${!!u.can_view_commissions},${!u.can_view_pricing},${!!u.can_view_segmentation})"
           title="${u.can_view_pricing?'Odbierz dostęp do pricingu':'Nadaj dostęp do pricingu'}">
           ${u.can_view_pricing ? '📈 Odbierz pricing' : '📈 Nadaj pricing'}
+        </button>
+        <button class="ghost sm" onclick="adminToggleSegPerm(${u.id},${!!u.can_edit_devices},${!!u.can_view_commissions},${!!u.can_view_pricing},${!u.can_view_segmentation})"
+          title="${u.can_view_segmentation?'Odbierz dostęp do Segmentacji':'Nadaj dostęp do Segmentacji (tylko podgląd)'}">
+          ${u.can_view_segmentation ? '🎯 Odbierz segmentację' : '🎯 Nadaj segmentację'}
         </button>
       ` : ''}
       <button class="ghost sm" onclick="adminToggleActive(${u.id},${!u.is_active})" title="${u.is_active?'Dezaktywuj':'Aktywuj'}">
@@ -406,12 +411,24 @@ function renderAdminUsers(users) {
   </tr>`).join('');
 }
 
-async function adminToggleEditPerm(uid, canEdit, canComm, canPricing) {
+async function adminToggleEditPerm(uid, canEdit, canComm, canPricing, canSeg) {
   try {
     const r = await fetch(`${API}/admin/users/${uid}/permissions`, {
       method: 'PATCH',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ can_edit_devices: canEdit, can_view_commissions: canComm, can_view_pricing: canPricing })
+      body: JSON.stringify({ can_edit_devices: canEdit, can_view_commissions: canComm, can_view_pricing: canPricing, can_view_segmentation: canSeg })
+    });
+    if (!r.ok) throw new Error((await r.json()).detail);
+    await loadAdminUsers();
+  } catch(e) { alert('Błąd: '+e.message); }
+}
+
+async function adminToggleSegPerm(uid, canEdit, canComm, canPricing, canSeg) {
+  try {
+    const r = await fetch(`${API}/admin/users/${uid}/permissions`, {
+      method: 'PATCH',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ can_edit_devices: canEdit, can_view_commissions: canComm, can_view_pricing: canPricing, can_view_segmentation: canSeg })
     });
     if (!r.ok) throw new Error((await r.json()).detail);
     await loadAdminUsers();
@@ -431,12 +448,12 @@ async function cleanupOrphanedFirmReps() {
   } catch(e) { setMsg('msgReps', '❌ ' + e.message, 'err'); }
 }
 
-async function adminToggleCommPerm(uid, canEdit, canComm, canPricing) {
+async function adminToggleCommPerm(uid, canEdit, canComm, canPricing, canSeg) {
   try {
     const r = await fetch(`${API}/admin/users/${uid}/permissions`, {
       method: 'PATCH',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ can_edit_devices: canEdit, can_view_commissions: canComm, can_view_pricing: canPricing })
+      body: JSON.stringify({ can_edit_devices: canEdit, can_view_commissions: canComm, can_view_pricing: canPricing, can_view_segmentation: canSeg })
     });
     if (!r.ok) throw new Error((await r.json()).detail);
     await loadAdminUsers();
@@ -940,12 +957,12 @@ async function loadUnassignedFirms() {
   }
 }
 
-async function adminTogglePricingPerm(uid, canEdit, canComm, canPricing) {
+async function adminTogglePricingPerm(uid, canEdit, canComm, canPricing, canSeg) {
   try {
     const r = await fetch(`${API}/admin/users/${uid}/permissions`, {
       method: 'PATCH',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ can_edit_devices: canEdit, can_view_commissions: canComm, can_view_pricing: canPricing })
+      body: JSON.stringify({ can_edit_devices: canEdit, can_view_commissions: canComm, can_view_pricing: canPricing, can_view_segmentation: canSeg })
     });
     if (!r.ok) throw new Error((await r.json()).detail);
     await loadAdminUsers();

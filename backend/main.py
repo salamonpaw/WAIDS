@@ -42,7 +42,7 @@ from database import (
     get_or_create_secret_key, create_admin_if_needed,
     verify_user, get_user_by_id,
     list_users, create_user_db, set_user_status, reset_user_password, set_user_can_edit,
-    set_user_can_commission, set_user_can_pricing,
+    set_user_can_commission, set_user_can_pricing, set_user_can_segmentation,
     # commission
     get_commission_rates, upsert_commission_rate, delete_commission_rate,
     list_commission_periods, create_commission_period, delete_commission_period,
@@ -62,6 +62,12 @@ from database import (
     # bulk device update
     bulk_update_devices,
     bulk_suspend_devices,
+)
+from segmentation import (
+    seed_segmentation_defaults,
+    get_seg_models, add_seg_model, update_seg_model, delete_seg_model,
+    get_seg_thresholds, get_seg_thresholds_history, add_seg_threshold_version,
+    compute_customer_segments,
 )
 from version import APP_VERSION
 
@@ -125,6 +131,13 @@ def require_pricing(user: dict = Depends(get_auth_user)) -> dict:
     return user
 
 
+def require_segmentation(user: dict = Depends(get_auth_user)) -> dict:
+    """Admin lub użytkownik z uprawnieniem can_view_segmentation."""
+    if not (user.get("is_admin") or user.get("can_view_segmentation")):
+        raise HTTPException(403, "Brak uprawnienia do segmentacji klientów")
+    return user
+
+
 # ── auth middleware ───────────────────────────────────────────────────────────
 _PUBLIC = {"/auth/login", "/version", "/docs", "/openapi.json", "/redoc", "/changelog"}
 
@@ -158,6 +171,7 @@ async def auth_middleware(request: Request, call_next):
 def startup():
     global _SECRET_KEY
     init_db()
+    seed_segmentation_defaults()
     _SECRET_KEY = get_or_create_secret_key()
     # Create first admin from env vars if no admins exist
     email    = os.getenv("ADMIN_EMAIL", "p.salamon@asdsystems.pl")
@@ -199,6 +213,7 @@ def login(body: LoginIn):
         "email":            user["email"],
         "is_admin":         user["is_admin"],
         "can_edit_devices": user.get("can_edit_devices", False),
+        "can_view_segmentation": user.get("can_view_segmentation", False),
     }
 
 
@@ -254,9 +269,10 @@ def admin_set_active(uid: int, body: SetActiveIn, _: dict = Depends(require_admi
 
 
 class SetPermissionsIn(BaseModel):
-    can_edit_devices:    bool = False
-    can_view_commissions: bool = False
-    can_view_pricing:    bool = False
+    can_edit_devices:      bool = False
+    can_view_commissions:  bool = False
+    can_view_pricing:      bool = False
+    can_view_segmentation: bool = False
 
 
 @app.patch("/admin/users/{uid}/permissions")
@@ -264,6 +280,7 @@ def admin_set_permissions(uid: int, body: SetPermissionsIn, _: dict = Depends(re
     set_user_can_edit(uid, body.can_edit_devices)
     set_user_can_commission(uid, body.can_view_commissions)
     set_user_can_pricing(uid, body.can_view_pricing)
+    set_user_can_segmentation(uid, body.can_view_segmentation)
     return {"ok": True}
 
 
@@ -1587,6 +1604,108 @@ def get_revenue_analytics():
         "kpi_all":   kpi_all,
         "kpi_ytd":   kpi_ytd,
     }
+
+# ── segmentacja klientów A–D (wolumen JP) ───────────────────────────────────
+# Etap 1: tylko odczyt — tabela klientów + słownik modeli/progów (bez wykresów,
+# migracji, zrzutów miesięcznych i panelu admina — patrz segmentation.py).
+
+@app.get("/segmentation/customers")
+def segmentation_customers(
+    od: str, do: str,
+    model: Optional[str] = None,        # kody modeli po przecinku — filtruje tylko WYŚWIETLANE JP/sztuki
+    typ: Optional[str] = None,          # 'wlasne' | 'oem' — jw.
+    wersja_progow: Optional[int] = None,
+    _: dict = Depends(require_segmentation),
+):
+    """Tabela klientów z segmentem (A/B/C/D) dla wybranego okresu. Patrz spec
+    rozdz. 2 (wzory) i 7.2 (kolumny) — bez kolumn wymagających historii (lata,
+    migracja, trend), to etap 2."""
+    model_filter = [m.strip() for m in model.split(",") if m.strip()] if model else None
+    if typ and typ not in ("wlasne", "oem"):
+        raise HTTPException(400, "typ musi być 'wlasne' lub 'oem'")
+    try:
+        return compute_customer_segments(od, do, model_filter, typ, wersja_progow)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.get("/segmentation/models")
+def segmentation_models(_: dict = Depends(require_segmentation)):
+    """Słownik modeli (JP na sztukę) — do filtra i do panelu admina (etap 3)."""
+    return get_seg_models()
+
+
+class SegModelIn(BaseModel):
+    kod_modelu:      str
+    aliasy:          List[str] = []
+    nazwa_cennikowa: str = ""
+    jp_na_szt:       float
+    typ:             str                    # wlasne | oem
+    wazny_od:        str = "2000-01-01"
+
+
+class SegModelPatchIn(BaseModel):
+    kod_modelu:      Optional[str] = None
+    aliasy:          Optional[List[str]] = None
+    nazwa_cennikowa: Optional[str] = None
+    jp_na_szt:       Optional[float] = None
+    typ:             Optional[str] = None
+    wazny_od:        Optional[str] = None
+    wazny_do:        Optional[str] = None
+
+
+@app.post("/segmentation/models")
+def segmentation_add_model(body: SegModelIn, _: dict = Depends(require_admin)):
+    try:
+        model_id = add_seg_model(body.kod_modelu, body.aliasy, body.nazwa_cennikowa,
+                                  body.jp_na_szt, body.typ, body.wazny_od)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"id": model_id}
+
+
+@app.patch("/segmentation/models/{model_id}")
+def segmentation_update_model(model_id: int, body: SegModelPatchIn, _: dict = Depends(require_admin)):
+    try:
+        update_seg_model(model_id, **body.model_dump(exclude_none=True))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True}
+
+
+@app.delete("/segmentation/models/{model_id}")
+def segmentation_delete_model(model_id: int, _: dict = Depends(require_admin)):
+    delete_seg_model(model_id)
+    return {"ok": True}
+
+
+@app.get("/segmentation/thresholds")
+def segmentation_thresholds(_: dict = Depends(require_segmentation)):
+    """Aktualna wersja progów + pełna historia wersji (do panelu admina, etap 3)."""
+    return {"current": get_seg_thresholds(), "history": get_seg_thresholds_history()}
+
+
+class SegThresholdsIn(BaseModel):
+    prog_a:              float
+    prog_b:              float
+    prog_c:              float
+    prog_profil_oem:     float = 50
+    prog_na_granicy:     float = 25
+    prog_trend:          float = 10
+    min_miesiecy_okresu: int   = 3
+    wazny_od:            str
+
+
+@app.post("/segmentation/thresholds")
+def segmentation_add_thresholds(body: SegThresholdsIn, _: dict = Depends(require_admin)):
+    """Nowa wersja progów — historia zrzutów (etap 2) zostaje przy starej wersji,
+    dopóki admin świadomie jej nie przeliczy (spec rozdz. 4.1 pkt 3)."""
+    wersja = add_seg_threshold_version(
+        body.prog_a, body.prog_b, body.prog_c, body.prog_profil_oem,
+        body.prog_na_granicy, body.prog_trend, body.min_miesiecy_okresu, body.wazny_od,
+    )
+    return {"wersja": wersja}
+
 
 # ── production seasonality ────────────────────────────────────────────────────
 
