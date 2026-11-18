@@ -75,6 +75,15 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.6.0', date: '2026-11-18',
+    added: [
+      '<b>Wyliczenia — tabela „Przychody wg waluty"</b> — nowa sekcja pokazuje rozkład całego przychodu (PLN netto) wg waluty oryginalnej faktury: PLN, EUR, USD, GBP. Ujawnia że dotąd niewidoczny przychód w USD (≈19% wszystkich przychodów w danych na dzień wdrożenia) był wliczony w PLN netto, ale nigdzie nie pokazywany osobno.'
+    ],
+    fixed: [
+      '<b>Wyliczenia — mylące zestawienie PLN netto / EUR</b> — kafelek „Przychody EUR" obok „Przychody PLN netto" sugerował dwa osobne źródła przychodu; w rzeczywistości EUR (i USD, GBP) są już WLICZONE w PLN netto (IDS przelicza faktury walutowe na PLN wg kursu z dnia wystawienia). Dodano ostrzeżenie w opisie kafelka EUR i nową tabelę wg waluty, która pokazuje to jawnie — żeby nikt nie sumował PLN netto + EUR traktując to jako dodatkowy przychód.'
+    ]
+  },
+  {
     version: '2.5.1', date: '2026-11-02',
     fixed: [
       '<b>deploy.sh — nowa wersja skryptu nie była wykonywana</b> — <code>git pull</code> wewnątrz deploy.sh podmieniał skrypt w trakcie działania i dalej leciała stara wersja (bez instalacji crona diagnostyki). Teraz skrypt po pullu uruchamia się ponownie, jeśli się zmienił; całość w funkcji main(), więc nadpisanie pliku w trakcie nie psuje przebiegu.'

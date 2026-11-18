@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-  <link rel="stylesheet" href="css/main.css?v=2.5.1">
+  <link rel="stylesheet" href="css/main.css?v=2.6.0">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -649,16 +649,17 @@ Formuła: SUM(amount_netto) dla wszystkich płatności w wybranym roku.
       <div class="kpi-value" id="revKpiNetto">—</div>
     </div>
     <div class="kpi green">
-      <div class="kpi-label" id="revKpiEurLbl">Przychody YTD (EUR)
-        <i class="info-icon" data-info="SUMA przychodów w walucie EUR za wybrany okres.
+      <div class="kpi-label" id="revKpiEurLbl">w tym EUR (podzbiór PLN netto)
+        <i class="info-icon" data-info="SUMA przychodów w walucie EUR za wybrany okres — w kwocie oryginalnej, nieprzeliczonej.
 
-Źródło: kolumna ob_CenaWaluta z pliku IDS — kwota w walucie oryginalnej faktury.
-Dotyczy wyłącznie faktur z walutą EUR (pole nzf_IdWaluty = &#39;EUR&#39;).
-Faktury PLN, USD i inne waluty nie są tu wliczane.
+⚠️ To NIE jest przychód dodatkowy ponad „PLN netto" obok. Faktury EUR są już wliczone
+w kafelek PLN netto (IDS przelicza je na PLN wg kursu z dnia wystawienia) — tu widać
+tylko tę samą kwotę w walucie oryginalnej. Nie sumuj tych dwóch kafelków.
 
-Formuła: SUM(amount) WHERE currency = &#39;EUR&#39;.
+Pełny rozkład wg wszystkich walut (w tym USD, GBP) — patrz tabela „Przychody wg waluty" niżej.
 
-⚠️ Kwota w EUR nie jest przeliczana na PLN — to wartość oryginalna z faktury.">i</i>
+Źródło: kolumna ob_CenaWaluta z pliku IDS, dla faktur z nzf_IdWaluty = &#39;EUR&#39;.
+Formuła: SUM(amount) WHERE currency = &#39;EUR&#39;.">i</i>
       </div>
       <div class="kpi-value" id="revKpiEur">—</div>
     </div>
@@ -686,6 +687,36 @@ Puste wartości pola klienta są pomijane.">i</i>
       </div>
       <div class="kpi-value" id="revKpiCustomers">—</div>
     </div>
+  </div>
+
+  <!-- Currency breakdown — pokazuje że EUR/USD/GBP to PODZBIÓR PLN netto, nie wartość dodatkowa -->
+  <div class="rev-section" id="revCurrencySection" style="margin-bottom:1.25rem">
+    <div class="rev-section-title">
+      <span>💱 Przychody wg waluty (łącznie, wszystkie lata)
+        <i class="info-icon" data-info="Rozkład CAŁEGO przychodu (kolumna „PLN netto” z kafelków/wykresów powyżej) wg waluty oryginalnej faktury.
+
+Kolumna „Odpowiednik w PLN netto” sumuje się dokładnie do kafelka „Przychody (PLN netto)” — to te same pieniądze, tylko podzielone wg waluty. NIE dodawaj ich do kafelka EUR osobno.
+
+Kolumna „Kwota w walucie oryginalnej” to wartość z faktury przed przeliczeniem (informacyjnie — niutra do porównywania między walutami).
+
+Źródło: payments.currency (nzf_IdWaluty z pliku IDS), payments.amount_netto (zawsze PLN), payments.amount (kwota oryginalna).
+Zestawienie nieobjęte filtrem roku z nagłówka zakładki — zawsze łącznie, wszystkie lata (tak jak „Rozkład wg typu klienta” i „Top klienci”).">i</i>
+      </span>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="rev-table" id="revCurrencyTable">
+        <thead><tr>
+          <th>Waluta</th>
+          <th class="num">Kwota w walucie oryginalnej</th>
+          <th class="num">Odpowiednik w PLN netto</th>
+          <th class="num">% całości PLN netto</th>
+          <th class="num">Urządzeń</th>
+          <th class="num">Faktur</th>
+        </tr></thead>
+        <tbody id="revCurrencyTableBody"></tbody>
+      </table>
+    </div>
+    <div class="chart-hint">💡 Suma kolumny „Odpowiednik w PLN netto” = kafelek „Przychody (PLN netto)” powyżej. Waluty nie sumują się między sobą bez przeliczenia kursem.</div>
   </div>
 
   <!-- Row 1: trend + annual -->
@@ -2034,22 +2065,22 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.5.1"></script>
-<script src="js/auth.js?v=2.5.1"></script>
-<script src="js/app.js?v=2.5.1"></script>
-<script src="js/import.js?v=2.5.1"></script>
-<script src="js/report.js?v=2.5.1"></script>
-<script src="js/monitoring.js?v=2.5.1"></script>
-<script src="js/config.js?v=2.5.1"></script>
-<script src="js/firstpay.js?v=2.5.1"></script>
-<script src="js/device.js?v=2.5.1"></script>
-<script src="js/revenue.js?v=2.5.1"></script>
-<script src="js/bonus.js?v=2.5.1"></script>
-<script src="js/commissions.js?v=2.5.1"></script>
-<script src="js/pricing.js?v=2.5.1"></script>
-<script src="js/arrears.js?v=2.5.1"></script>
-<script src="js/sales.js?v=2.5.1"></script>
-<script src="js/tooltip.js?v=2.5.1"></script>
+<script src="js/utils.js?v=2.6.0"></script>
+<script src="js/auth.js?v=2.6.0"></script>
+<script src="js/app.js?v=2.6.0"></script>
+<script src="js/import.js?v=2.6.0"></script>
+<script src="js/report.js?v=2.6.0"></script>
+<script src="js/monitoring.js?v=2.6.0"></script>
+<script src="js/config.js?v=2.6.0"></script>
+<script src="js/firstpay.js?v=2.6.0"></script>
+<script src="js/device.js?v=2.6.0"></script>
+<script src="js/revenue.js?v=2.6.0"></script>
+<script src="js/bonus.js?v=2.6.0"></script>
+<script src="js/commissions.js?v=2.6.0"></script>
+<script src="js/pricing.js?v=2.6.0"></script>
+<script src="js/arrears.js?v=2.6.0"></script>
+<script src="js/sales.js?v=2.6.0"></script>
+<script src="js/tooltip.js?v=2.6.0"></script>
 
 </body>
 </html>

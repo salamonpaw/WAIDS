@@ -51,12 +51,42 @@ async function loadRevenue() {
   }
 
   renderRevKPI();
+  renderRevCurrency();
   renderRevTrend();
   renderRevAnnual();
   renderRevTop();
   renderRevType();
   renderRevRep();
   renderRevTable();
+}
+
+// ── Currency breakdown table ────────────────────────────────────────────────
+// Pokazuje że EUR/USD/GBP to PODZBIÓR "PLN netto", nie wartość dodatkowa —
+// patrz komentarz w backend/main.py get_revenue_analytics() (by_currency).
+function fmtCurFace(v, currency) {
+  try {
+    return new Intl.NumberFormat('pl-PL', { style: 'currency', currency, maximumFractionDigits: 0 }).format(v || 0);
+  } catch {
+    return fmtNum(v) + ' ' + currency;   // nieznany kod waluty — fallback bez formatowania walutowego
+  }
+}
+
+function renderRevCurrency() {
+  const rows = _revData.by_currency || [];
+  const body = document.getElementById('revCurrencyTableBody');
+  if (!body) return;
+
+  const totalNetto = rows.reduce((s, r) => s + r.netto_pln, 0) || 1;
+
+  body.innerHTML = rows.map(r => `
+    <tr>
+      <td><b>${r.currency}</b></td>
+      <td class="num">${fmtCurFace(r.face_amount, r.currency)}</td>
+      <td class="num">${fmtPLN(r.netto_pln)}</td>
+      <td class="num">${(r.netto_pln / totalNetto * 100).toFixed(1)}%</td>
+      <td class="num">${fmtNum(r.devices)}</td>
+      <td class="num">${fmtNum(r.payments)}</td>
+    </tr>`).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:1rem">Brak danych</td></tr>';
 }
 
 // ── KPI cards ──────────────────────────────────────────────────────────────

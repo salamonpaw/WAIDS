@@ -1428,8 +1428,12 @@ async def import_firms_excel(
 def get_revenue_analytics():
     """
     Aggregated revenue data for the Wyliczenia tab.
-    All amounts: amount_netto / amount_brutto always in PLN;
-                 'eur' = SUM(amount) WHERE currency='EUR'.
+    All amounts: amount_netto / amount_brutto always in PLN (IDS przelicza kwotę faktury
+                 na PLN wg kursu z dnia wystawienia, niezależnie od waluty oryginalnej);
+                 'eur' pola (KPI/monthly/annual/customers) = SUM(amount) WHERE currency='EUR' —
+                 to podzbiór tych samych pieniędzy co w netto/brutto, pokazany w walucie
+                 oryginalnej, NIE wartość dodatkowa ponad netto.
+    'by_currency' = pełny rozkład wg waluty (PLN/EUR/USD/GBP/…), patrz komentarz przy zapytaniu niżej.
     """
     cur_year = str(datetime.now().year)
 
@@ -1518,6 +1522,27 @@ def get_revenue_analytics():
             cols = ['type', 'netto', 'brutto', 'devices']
             by_type = [dict(zip(cols, r)) for r in cur.fetchall()]
 
+            # 5b. Revenue by original currency (łącznie, wszystkie lata).
+            # UWAGA: 'netto_pln' to PLN-owy odpowiednik (amount_netto jest ZAWSZE w PLN,
+            # także dla faktur EUR/USD — IDS przelicza wg kursu z dnia wystawienia).
+            # Suma netto_pln po wszystkich walutach = całościowe "PLN netto" z KPI/annual —
+            # to są te same pieniądze pokazane per-waluta, NIE dodatkowy przychód.
+            # 'face_amount' to kwota w walucie oryginalnej (informacyjnie, nieporównywalna
+            # między walutami bez przeliczenia kursem).
+            cur.execute("""
+                SELECT COALESCE(NULLIF(currency, ''), 'PLN')                            AS currency,
+                       COALESCE(SUM(amount_netto), 0)::float                            AS netto_pln,
+                       COALESCE(SUM(amount), 0)::float                                  AS face_amount,
+                       COUNT(DISTINCT sn)                                               AS devices,
+                       COUNT(*)                                                         AS payments
+                FROM payments
+                WHERE amount_netto > 0 OR amount_brutto > 0 OR amount > 0
+                GROUP BY COALESCE(NULLIF(currency, ''), 'PLN')
+                ORDER BY netto_pln DESC
+            """)
+            cols = ['currency', 'netto_pln', 'face_amount', 'devices', 'payments']
+            by_currency = [dict(zip(cols, r)) for r in cur.fetchall()]
+
             # 6. KPI: all-time totals
             cur.execute("""
                 SELECT COALESCE(SUM(amount_netto),  0)::float  AS total_netto,
@@ -1558,6 +1583,7 @@ def get_revenue_analytics():
         "customers": customers,
         "by_rep":    by_rep,
         "by_type":   by_type,
+        "by_currency": by_currency,
         "kpi_all":   kpi_all,
         "kpi_ytd":   kpi_ytd,
     }
