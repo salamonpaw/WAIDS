@@ -9,7 +9,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/driver.js@1/dist/driver.js.iife.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1/dist/driver.css">
-  <link rel="stylesheet" href="css/main.css?v=2.9.1">
+  <link rel="stylesheet" href="css/main.css?v=2.10.0">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -1690,6 +1690,83 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
     <div id="segAdminMsg" class="msg" style="margin-top:8px"></div>
   </div>
 
+  <!-- Panel admina: słownik modeli -->
+  <div class="rev-section" id="segModelsPanel" style="display:none;margin-top:1.25rem">
+    <div class="rev-section-title">
+      <span>📖 Słownik modeli — JP na sztukę (Admin)
+        <i class="info-icon" data-info="Każda pozycja z produkcji jest przeliczana na JP wg tego słownika, ważnego w dniu realizacji (wazny_od/wazny_do). Model spoza słownika zgłasza alert (widać go nad tabelą klientów) i jest pomijany w segmentacji — dodaj go tutaj.
+Aliasy to inne zapisy tego samego modelu w danych (np. bez spacji) — nie tworzą osobnej pozycji w raportach, tylko dopisują się do kodu głównego.">i</i>
+      </span>
+      <button class="primary sm" onclick="openSegModelModal()" style="margin-left:auto">+ Dodaj model</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="rev-table" id="segModelsTable">
+        <thead><tr>
+          <th>Kod modelu</th><th>Aliasy</th><th>Nazwa cennikowa</th>
+          <th class="num">JP/szt</th><th>Typ</th><th>Ważny od</th><th>Ważny do</th><th>Akcje</th>
+        </tr></thead>
+        <tbody id="segModelsTableBody">
+          <tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:1rem">Ładowanie…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Panel admina: progi segmentacji -->
+  <div class="rev-section" id="segThresholdsPanel" style="display:none;margin-top:1.25rem">
+    <div class="rev-section-title">
+      <span>📏 Progi segmentacji (Admin)
+        <i class="info-icon" data-info="Nowa wersja progów NIE nadpisuje poprzedniej — już zapisane zrzuty miesięczne (historia) zostają policzone starą wersją, dopóki świadomie nie uruchomisz ich ponownego przeliczenia. Segment w wybranym okresie na głównej tabeli liczy się zawsze aktualną (najnowszą) wersją.">i</i>
+      </span>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px">
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Próg A (JP/12mies)</label>
+        <input id="segThProgA" type="number" step="0.1" min="0" style="width:90px;height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Próg B</label>
+        <input id="segThProgB" type="number" step="0.1" min="0" style="width:90px;height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Próg C</label>
+        <input id="segThProgC" type="number" step="0.1" min="0" style="width:90px;height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Próg profilu OEM (%)</label>
+        <input id="segThProfilOem" type="number" step="1" min="0" max="100" style="width:90px;height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Próg „na granicy” (%)</label>
+        <input id="segThNaGranicy" type="number" step="1" min="0" max="100" style="width:90px;height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Próg trendu (%)</label>
+        <input id="segThTrend" type="number" step="1" min="0" max="100" style="width:90px;height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Min. miesięcy okresu</label>
+        <input id="segThMinMies" type="number" step="1" min="1" style="width:80px;height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Ważny od</label>
+        <input id="segThWaznyOd" type="date" style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+      </div>
+      <button class="primary" onclick="segSaveNewThresholdVersion()">💾 Zapisz jako nową wersję</button>
+    </div>
+    <div id="segThresholdsMsg" class="msg" style="margin-bottom:8px"></div>
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:6px">Historia wersji:</div>
+    <div style="overflow-x:auto">
+      <table class="rev-table" id="segThresholdsHistTable">
+        <thead><tr>
+          <th>Wersja</th><th>Ważny od</th><th class="num">A</th><th class="num">B</th><th class="num">C</th>
+          <th class="num">Profil OEM</th><th class="num">Na granicy</th><th class="num">Trend</th><th class="num">Min. mies.</th>
+        </tr></thead>
+        <tbody id="segThresholdsHistBody"></tbody>
+      </table>
+    </div>
+  </div>
+
 </div>
 </div>
 
@@ -1703,6 +1780,51 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
             style="margin-left:auto;font-size:18px;padding:0 6px;line-height:1">✕</button>
   </div>
   <div style="padding:1.25rem 1.5rem;overflow:auto;max-height:76vh" id="segModalBody"></div>
+</dialog>
+
+<!-- Dodaj/edytuj model (segmentacja, Admin) -->
+<dialog id="segModelModal"
+        style="border-radius:var(--radius-lg);border:0.5px solid var(--border-med);
+               background:var(--bg);color:var(--text);padding:0;width:440px;max-width:96vw">
+  <div style="display:flex;align-items:center;padding:1rem 1.5rem;border-bottom:0.5px solid var(--border)">
+    <span style="font-weight:700;font-size:15px" id="segModelModalTitle">Dodaj model</span>
+    <button class="ghost sm" onclick="document.getElementById('segModelModal').close()"
+            style="margin-left:auto;font-size:18px;padding:0 6px;line-height:1">✕</button>
+  </div>
+  <div style="padding:1.25rem 1.5rem;display:flex;flex-direction:column;gap:10px">
+    <input type="hidden" id="segModelEditId">
+    <div class="input-group">
+      <label>Kod modelu (jak w danych produkcji)</label>
+      <input type="text" id="segModelKod" placeholder="np. D1080 NEO">
+    </div>
+    <div class="input-group">
+      <label>Aliasy <span style="font-weight:400">(po przecinku, inne zapisy tego samego modelu)</span></label>
+      <input type="text" id="segModelAliasy" placeholder="np. D1080NEO, D1080 Neo">
+    </div>
+    <div class="input-group">
+      <label>Nazwa cennikowa <span style="font-weight:400">(opcjonalnie)</span></label>
+      <input type="text" id="segModelNazwa" placeholder="np. D1080 NEO">
+    </div>
+    <div style="display:flex;gap:10px">
+      <div class="input-group" style="flex:1">
+        <label>JP na sztukę</label>
+        <input type="number" id="segModelJp" step="0.01" min="0" placeholder="np. 1.00">
+      </div>
+      <div class="input-group" style="flex:1">
+        <label>Typ</label>
+        <select id="segModelTyp">
+          <option value="wlasne">Własne (master)</option>
+          <option value="oem">OEM (slave)</option>
+        </select>
+      </div>
+    </div>
+    <div class="input-group">
+      <label>Ważny od</label>
+      <input type="date" id="segModelWaznyOd" value="2000-01-01">
+    </div>
+    <div id="segModelModalMsg" class="msg"></div>
+    <button class="primary" style="width:100%;height:40px" onclick="saveSegModel()">💾 Zapisz</button>
+  </div>
 </dialog>
 
 <!-- ══════════════════ ZALEGŁOŚCI TAB ══════════════════ -->
@@ -2237,24 +2359,24 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.9.1"></script>
-<script src="js/auth.js?v=2.9.1"></script>
-<script src="js/app.js?v=2.9.1"></script>
-<script src="js/import.js?v=2.9.1"></script>
-<script src="js/report.js?v=2.9.1"></script>
-<script src="js/monitoring.js?v=2.9.1"></script>
-<script src="js/config.js?v=2.9.1"></script>
-<script src="js/firstpay.js?v=2.9.1"></script>
-<script src="js/device.js?v=2.9.1"></script>
-<script src="js/revenue.js?v=2.9.1"></script>
-<script src="js/bonus.js?v=2.9.1"></script>
-<script src="js/commissions.js?v=2.9.1"></script>
-<script src="js/pricing.js?v=2.9.1"></script>
-<script src="js/arrears.js?v=2.9.1"></script>
-<script src="js/sales.js?v=2.9.1"></script>
-<script src="js/segmentation.js?v=2.9.1"></script>
-<script src="js/tooltip.js?v=2.9.1"></script>
-<script src="js/tour.js?v=2.9.1"></script>
+<script src="js/utils.js?v=2.10.0"></script>
+<script src="js/auth.js?v=2.10.0"></script>
+<script src="js/app.js?v=2.10.0"></script>
+<script src="js/import.js?v=2.10.0"></script>
+<script src="js/report.js?v=2.10.0"></script>
+<script src="js/monitoring.js?v=2.10.0"></script>
+<script src="js/config.js?v=2.10.0"></script>
+<script src="js/firstpay.js?v=2.10.0"></script>
+<script src="js/device.js?v=2.10.0"></script>
+<script src="js/revenue.js?v=2.10.0"></script>
+<script src="js/bonus.js?v=2.10.0"></script>
+<script src="js/commissions.js?v=2.10.0"></script>
+<script src="js/pricing.js?v=2.10.0"></script>
+<script src="js/arrears.js?v=2.10.0"></script>
+<script src="js/sales.js?v=2.10.0"></script>
+<script src="js/segmentation.js?v=2.10.0"></script>
+<script src="js/tooltip.js?v=2.10.0"></script>
+<script src="js/tour.js?v=2.10.0"></script>
 
 </body>
 </html>

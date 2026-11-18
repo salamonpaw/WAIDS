@@ -101,6 +101,10 @@ const TOURS = {
       title: 'Macierz migracji', description: 'Wiersze = segment w okresie porównawczym, kolumny = segment teraz. Kliknij komórkę, żeby przefiltrować tabelę klientów do tej migracji.' } },
     { element: '#segCustomerTable', popover: {
       title: 'Tabela klientów', description: 'Kliknij dowolny wiersz, żeby otworzyć kartę klienta — historię segmentu, JP miesięcznie i miks modeli.' } },
+    { element: '#segModelsPanel', popover: {
+      title: 'Słownik modeli (Admin)', description: 'Tu dodajesz, edytujesz i usuwasz przelicznik JP dla każdego modelu maszyny. Model spoza słownika zgłasza czerwony alert nad tabelą klientów zamiast cicho zniknąć z wyliczeń.' } },
+    { element: '#segThresholdsPanel', popover: {
+      title: 'Progi segmentacji (Admin)', description: 'Zmiana progów A/B/C (i pozostałych) zapisuje się jako NOWA wersja — poprzednia zostaje w historii i nadal obowiązuje dla już zapisanych zrzutów miesięcznych, dopóki świadomie ich nie przeliczysz.' } },
   ],
 
   arrears: [
@@ -128,11 +132,12 @@ function _driverSteps(tabName) {
   // Selektory jak '.section-title' czy 'h2' powtarzają się na wielu zakładkach —
   // szukamy TYLKO wewnątrz panelu tej zakładki (scope.querySelector, nie document),
   // i przekazujemy do driver.js już rozwiązany element, nie string selektora.
-  // Pomija też kroki, których element nie istnieje na tej zakładce (np. panel
-  // admina widoczny tylko dla is_admin).
+  // Pomija też kroki, których element nie istnieje LUB jest ukryty (display:none) —
+  // np. panel admina do progów/słownika modeli widoczny tylko dla is_admin. Element
+  // istnieje wtedy w DOM, ale querySelector sam tego nie odfiltruje — stąd offsetParent.
   return steps
     .map(s => ({ el: scope.querySelector(s.element), popover: s.popover }))
-    .filter(s => s.el)
+    .filter(s => s.el && s.el.offsetParent !== null)
     .map(s => ({ element: s.el, popover: s.popover }));
 }
 

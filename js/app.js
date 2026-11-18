@@ -81,6 +81,13 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.10.0', date: '2026-11-18',
+    added: [
+      '<b>Segmentacja — Etap 3: panel admina do progów i słownika modeli</b>. „📖 Słownik modeli” — dodawanie/edycja/usuwanie przelicznika JP per model (kod, aliasy, nazwa cennikowa, JP/szt, typ własne/OEM, ważność), od razu odświeża filtr modeli w głównej tabeli. „📏 Progi segmentacji” — edycja progów A/B/C i pozostałych parametrów (profil OEM, na granicy, trend, min. miesięcy); zapis tworzy NOWĄ wersję zamiast nadpisywać poprzednią, więc już zapisane zrzuty miesięczne zostają policzone starą wersją, dopóki świadomie się ich nie przeliczy — z pełną historią wersji w tabeli niżej.',
+      'Przewodnik (❓ Pomoc) rozszerzony o kroki dla obu nowych paneli admina.',
+    ],
+  },
+  {
     version: '2.9.1', date: '2026-11-18',
     fixed: [
       '<b>Wyliczenia — prawdziwa przyczyna mylącego kafelka „Przychody EUR”</b>: JS nadpisywał `.textContent` całego diva z etykietą, kasując przy każdym renderze ikonkę ⓘ (tooltip z wyjaśnieniem nigdy nie był widoczny) i resetując tekst do ogólnego „Przychody {rok} (EUR)” — wcześniejsza poprawka tekstu w HTML (v2.8.1) nigdy realnie nie trafiała na ekran. Tekst etykiet jest teraz w osobnym `&lt;span&gt;`, JS dotyka tylko jego.',

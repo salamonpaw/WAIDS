@@ -33,8 +33,12 @@ const TREND_LABEL = { wzrost: '📈 wzrost', spadek: '📉 spadek', stabilny: '�
 // ── Init / presety dat ──────────────────────────────────────────────────────
 async function onTabSegmentation() {
   if (currentUser?.is_admin) {
-    const panel = document.getElementById('segAdminPanel');
-    if (panel) panel.style.display = 'block';
+    ['segAdminPanel', 'segModelsPanel', 'segThresholdsPanel'].forEach(id => {
+      const panel = document.getElementById(id);
+      if (panel) panel.style.display = 'block';
+    });
+    loadSegModelsAdmin();
+    loadSegThresholdsAdmin();
   }
   if (!_segYears.length) {
     const y = new Date().getFullYear();
@@ -561,5 +565,171 @@ async function openSegCustomerCard(firma) {
         scales: { x: { ticks: { font: { size: 9 }, maxRotation: 45 } }, y: { beginAtZero: true } },
       },
     });
+  }
+}
+
+// ── Etap 3 — panel admina: słownik modeli ───────────────────────────────────
+let _segModelsCache = [];
+
+async function loadSegModelsAdmin() {
+  const tbody = document.getElementById('segModelsTableBody');
+  try {
+    _segModelsCache = await (await fetch(`${API}/segmentation/models`)).json();
+  } catch (e) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--red)">❌ ${esc(e.message)}</td></tr>`;
+    return;
+  }
+  if (!tbody) return;
+  if (!_segModelsCache.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:1rem">Brak modeli w słowniku</td></tr>';
+    return;
+  }
+  tbody.innerHTML = _segModelsCache.map(m => `<tr>
+    <td><b>${esc(m.kod_modelu)}</b></td>
+    <td style="font-size:11px;color:var(--text-muted)">${(m.aliasy || []).map(esc).join(', ') || '—'}</td>
+    <td>${esc(m.nazwa_cennikowa) || '—'}</td>
+    <td class="num">${Number(m.jp_na_szt).toFixed(2)}</td>
+    <td>${m.typ === 'oem' ? 'OEM' : 'Własne'}</td>
+    <td style="font-size:11px">${esc(m.wazny_od)}</td>
+    <td style="font-size:11px">${m.wazny_do ? esc(m.wazny_do) : '—'}</td>
+    <td style="white-space:nowrap">
+      <button class="ghost sm" onclick="openSegModelModal(${m.id})">✏</button>
+      <button class="ghost sm" onclick="deleteSegModelRow(${m.id},'${esc(m.kod_modelu).replace(/'/g, "\\'")}')">✕</button>
+    </td>
+  </tr>`).join('');
+}
+
+function openSegModelModal(id) {
+  const modal = document.getElementById('segModelModal');
+  document.getElementById('segModelModalMsg').textContent = '';
+  if (id) {
+    const m = _segModelsCache.find(x => x.id === id);
+    if (!m) return;
+    document.getElementById('segModelModalTitle').textContent = 'Edytuj model';
+    document.getElementById('segModelEditId').value = m.id;
+    document.getElementById('segModelKod').value    = m.kod_modelu;
+    document.getElementById('segModelAliasy').value = (m.aliasy || []).join(', ');
+    document.getElementById('segModelNazwa').value  = m.nazwa_cennikowa || '';
+    document.getElementById('segModelJp').value     = m.jp_na_szt;
+    document.getElementById('segModelTyp').value    = m.typ;
+    document.getElementById('segModelWaznyOd').value = m.wazny_od;
+  } else {
+    document.getElementById('segModelModalTitle').textContent = 'Dodaj model';
+    document.getElementById('segModelEditId').value = '';
+    document.getElementById('segModelKod').value    = '';
+    document.getElementById('segModelAliasy').value = '';
+    document.getElementById('segModelNazwa').value  = '';
+    document.getElementById('segModelJp').value     = '';
+    document.getElementById('segModelTyp').value    = 'wlasne';
+    document.getElementById('segModelWaznyOd').value = '2000-01-01';
+  }
+  modal.showModal();
+}
+
+async function saveSegModel() {
+  const id = document.getElementById('segModelEditId').value;
+  const kod = document.getElementById('segModelKod').value.trim();
+  const jp = parseFloat(document.getElementById('segModelJp').value);
+  const msgEl = document.getElementById('segModelModalMsg');
+  if (!kod) { msgEl.textContent = 'Podaj kod modelu.'; msgEl.className = 'msg err'; return; }
+  if (!(jp > 0)) { msgEl.textContent = 'JP na sztukę musi być liczbą większą od zera.'; msgEl.className = 'msg err'; return; }
+
+  const body = {
+    kod_modelu: kod,
+    aliasy: document.getElementById('segModelAliasy').value.split(',').map(s => s.trim()).filter(Boolean),
+    nazwa_cennikowa: document.getElementById('segModelNazwa').value.trim(),
+    jp_na_szt: jp,
+    typ: document.getElementById('segModelTyp').value,
+    wazny_od: document.getElementById('segModelWaznyOd').value || '2000-01-01',
+  };
+
+  try {
+    const r = await fetch(`${API}/segmentation/models${id ? '/' + id : ''}`, {
+      method: id ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Błąd zapisu');
+    document.getElementById('segModelModal').close();
+    await loadSegModelsAdmin();
+    loadSegModelsFilter();   // odśwież listę modeli w filtrze tabeli klientów
+  } catch (e) {
+    msgEl.textContent = '❌ ' + e.message; msgEl.className = 'msg err';
+  }
+}
+
+async function deleteSegModelRow(id, kod) {
+  if (!confirm(`Usunąć model „${kod}” ze słownika? Pozycje z produkcji dopasowane do niego przestaną się liczyć do JP.`)) return;
+  try {
+    const r = await fetch(`${API}/segmentation/models/${id}`, { method: 'DELETE' });
+    if (!r.ok) throw new Error((await r.json()).detail || 'Błąd usuwania');
+    await loadSegModelsAdmin();
+    loadSegModelsFilter();
+  } catch (e) { alert('Błąd: ' + e.message); }
+}
+
+// ── Etap 3 — panel admina: progi segmentacji ────────────────────────────────
+async function loadSegThresholdsAdmin() {
+  let data;
+  try {
+    data = await (await fetch(`${API}/segmentation/thresholds`)).json();
+  } catch (e) {
+    setMsg('segThresholdsMsg', '❌ ' + e.message, 'err');
+    return;
+  }
+  const c = data.current;
+  document.getElementById('segThProgA').value       = c.prog_a;
+  document.getElementById('segThProgB').value       = c.prog_b;
+  document.getElementById('segThProgC').value       = c.prog_c;
+  document.getElementById('segThProfilOem').value   = c.prog_profil_oem;
+  document.getElementById('segThNaGranicy').value   = c.prog_na_granicy;
+  document.getElementById('segThTrend').value       = c.prog_trend;
+  document.getElementById('segThMinMies').value     = c.min_miesiecy_okresu;
+  document.getElementById('segThWaznyOd').value     = new Date().toISOString().slice(0, 10);
+
+  const histBody = document.getElementById('segThresholdsHistBody');
+  if (histBody) {
+    histBody.innerHTML = data.history.map(h => `<tr${h.wersja === c.wersja ? ' style="font-weight:700"' : ''}>
+      <td>${h.wersja}${h.wersja === c.wersja ? ' (aktualna)' : ''}</td>
+      <td style="font-size:11px">${esc(h.wazny_od)}</td>
+      <td class="num">${Number(h.prog_a).toFixed(1)}</td>
+      <td class="num">${Number(h.prog_b).toFixed(1)}</td>
+      <td class="num">${Number(h.prog_c).toFixed(1)}</td>
+      <td class="num">${Number(h.prog_profil_oem).toFixed(0)}%</td>
+      <td class="num">${Number(h.prog_na_granicy).toFixed(0)}%</td>
+      <td class="num">${Number(h.prog_trend).toFixed(0)}%</td>
+      <td class="num">${h.min_miesiecy_okresu}</td>
+    </tr>`).join('');
+  }
+}
+
+async function segSaveNewThresholdVersion() {
+  const body = {
+    prog_a: parseFloat(document.getElementById('segThProgA').value),
+    prog_b: parseFloat(document.getElementById('segThProgB').value),
+    prog_c: parseFloat(document.getElementById('segThProgC').value),
+    prog_profil_oem: parseFloat(document.getElementById('segThProfilOem').value),
+    prog_na_granicy: parseFloat(document.getElementById('segThNaGranicy').value),
+    prog_trend: parseFloat(document.getElementById('segThTrend').value),
+    min_miesiecy_okresu: parseInt(document.getElementById('segThMinMies').value, 10),
+    wazny_od: document.getElementById('segThWaznyOd').value,
+  };
+  if ([body.prog_a, body.prog_b, body.prog_c].some(v => !(v >= 0)) || !body.wazny_od) {
+    setMsg('segThresholdsMsg', 'Uzupełnij progi A/B/C i datę „ważny od”.', 'err');
+    return;
+  }
+  if (!confirm('Zapisać nową wersję progów? Poprzednia zostanie zachowana w historii i nadal będzie używana przez już zapisane zrzuty miesięczne.')) return;
+  try {
+    const r = await fetch(`${API}/segmentation/thresholds`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || 'Błąd zapisu');
+    setMsg('segThresholdsMsg', `✅ Zapisano jako wersję ${d.wersja}. Odśwież tabelę klientów, żeby zobaczyć efekt.`, 'ok');
+    await loadSegThresholdsAdmin();
+  } catch (e) {
+    setMsg('segThresholdsMsg', '❌ ' + e.message, 'err');
   }
 }
