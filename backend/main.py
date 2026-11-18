@@ -73,6 +73,10 @@ from segmentation import (
     get_customer_monthly_jp, get_customer_snapshot_history,
     get_customer_model_mix, get_customer_items,
 )
+from tours import (
+    seed_tour_steps, get_all_tours,
+    add_tour_step, update_tour_step, delete_tour_step, reorder_tour_steps,
+)
 from version import APP_VERSION
 
 app = FastAPI(title="Weryfikator Abonamentów API", version=APP_VERSION)
@@ -178,6 +182,7 @@ def startup():
     seed_segmentation_defaults()
     ensure_model_aliases()
     ensure_extra_models()
+    seed_tour_steps()
     _SECRET_KEY = get_or_create_secret_key()
     # Create first admin from env vars if no admins exist
     email    = os.getenv("ADMIN_EMAIL", "p.salamon@asdsystems.pl")
@@ -2590,3 +2595,55 @@ def api_sales_by_client(
     _: dict = Depends(get_auth_user),
 ):
     return get_sales_by_client(from_ym=from_ym, to_ym=to_ym)
+
+
+# ── Przewodnik po aplikacji (tury) — treść edytowalna przez Admina ──────────────
+
+@app.get("/tours")
+def api_get_tours(_: dict = Depends(get_auth_user)):
+    """Kroki tury per zakładka — pobierane przez js/tour.js dla KAŻDEGO zalogowanego
+    użytkownika (sama tura nie jest funkcją admina, tylko jej edycja)."""
+    return get_all_tours()
+
+
+class TourStepIn(BaseModel):
+    selector:    str
+    title:       str
+    description: str = ""
+
+
+class TourStepPatchIn(BaseModel):
+    selector:    Optional[str] = None
+    title:       Optional[str] = None
+    description: Optional[str] = None
+
+
+@app.post("/tours/{tab_name}/steps")
+def api_add_tour_step(tab_name: str, body: TourStepIn, _: dict = Depends(require_admin)):
+    try:
+        step_id = add_tour_step(tab_name, body.selector, body.title, body.description)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"id": step_id}
+
+
+@app.patch("/tours/steps/{step_id}")
+def api_update_tour_step(step_id: int, body: TourStepPatchIn, _: dict = Depends(require_admin)):
+    update_tour_step(step_id, **body.model_dump(exclude_none=True))
+    return {"ok": True}
+
+
+@app.delete("/tours/steps/{step_id}")
+def api_delete_tour_step(step_id: int, _: dict = Depends(require_admin)):
+    delete_tour_step(step_id)
+    return {"ok": True}
+
+
+class TourReorderIn(BaseModel):
+    ordered_ids: List[int]
+
+
+@app.post("/tours/{tab_name}/reorder")
+def api_reorder_tour_steps(tab_name: str, body: TourReorderIn, _: dict = Depends(require_admin)):
+    reorder_tour_steps(tab_name, body.ordered_ids)
+    return {"ok": True}

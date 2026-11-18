@@ -14,14 +14,22 @@ function switchTab(name) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
-  event.currentTarget.classList.add('active');
+  // switchTab bywa też wywoływane programowo (np. przez edytor przewodnika przy
+  // "wskaż element"), nie tylko z inline onclick — wtedy nie ma klikniętego
+  // przycisku do podświetlenia, więc sprawdzamy ostrożnie zamiast zakładać event.
+  if (typeof event !== 'undefined' && event?.currentTarget?.classList) {
+    event.currentTarget.classList.add('active');
+  } else {
+    const btn = document.querySelector(`.tab-btn[onclick*="switchTab('${name}')"]`);
+    if (btn) btn.classList.add('active');
+  }
   if (name === 'report')       loadReport();
   if (name === 'monitor')      loadMonitoringTab();
   if (name === 'firstpay')     loadFirstPayTab();
   if (name === 'device')       { /* data loaded on demand via searchBySN() */ }
   if (name === 'revenue')      { loadRevenue(); loadSeasonality(); }
   if (name === 'bonus')        { loadBonusTab(); }
-  if (name === 'config')       { loadConfig(); loadLicenseFees(); }
+  if (name === 'config')       { loadConfig(); loadLicenseFees(); if (typeof initTourAdminPanel === 'function') initTourAdminPanel(); }
   if (name === 'commissions')  { onTabCommissions(); }
   if (name === 'pricing')      { onTabPricing(); }
   if (name === 'segmentation') { onTabSegmentation(); }
@@ -80,6 +88,14 @@ async function refreshStatus() {
 // ── Changelog modal ────────────────────────────────────────────────────────
 
 const CHANGELOG_ENTRIES = [
+  {
+    version: '2.11.0', date: '2026-11-18',
+    added: [
+      '<b>🧭 Edytor przewodnika</b> (Konfiguracja → Przewodnik, Admin) — treść kroków przewodnika (❓ Pomoc) jest teraz w bazie, nie na sztywno w kodzie. Dla każdej zakładki: lista kroków z tytułem, opisem i selektorem elementu, dodawanie/edycja/usuwanie, zmiana kolejności (↑/↓).',
+      '<b>„🎯 Wskaż na ekranie”</b> — zamiast ręcznie wpisywać selektor CSS, przycisk w edytorze kroku przełącza na wybraną zakładkę, podświetla element pod kursorem, a kliknięcie zapisuje go jako cel kroku (Esc anuluje). Selektor liczy się od najbardziej stabilnego (ID elementu), przez unikalną klasę, po ścieżkę pozycyjną.',
+      'Zmiany w edytorze są widoczne natychmiast dla wszystkich użytkowników, bez wdrożenia — treść pobierana jest przy starcie tury (GET /tours).',
+    ],
+  },
   {
     version: '2.10.0', date: '2026-11-18',
     added: [

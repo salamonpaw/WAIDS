@@ -9,7 +9,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/driver.js@1/dist/driver.js.iife.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1/dist/driver.css">
-  <link rel="stylesheet" href="css/main.css?v=2.10.0">
+  <link rel="stylesheet" href="css/main.css?v=2.11.0">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -1827,6 +1827,40 @@ Aliasy to inne zapisy tego samego modelu w danych (np. bez spacji) — nie tworz
   </div>
 </dialog>
 
+<!-- Dodaj/edytuj krok przewodnika (Konfiguracja → Przewodnik, Admin) —
+     celowo POZA .tab-panel, żeby przetrwał przełączenie zakładki w trybie
+     "wskaż element" (pickTourStepElement zamyka ten modal i woła switchTab). -->
+<dialog id="tourStepModal"
+        style="border-radius:var(--radius-lg);border:0.5px solid var(--border-med);
+               background:var(--bg);color:var(--text);padding:0;width:480px;max-width:96vw">
+  <div style="display:flex;align-items:center;padding:1rem 1.5rem;border-bottom:0.5px solid var(--border)">
+    <span style="font-weight:700;font-size:15px" id="tourStepModalTitle">Nowy krok</span>
+    <button class="ghost sm" onclick="document.getElementById('tourStepModal').close()"
+            style="margin-left:auto;font-size:18px;padding:0 6px;line-height:1">✕</button>
+  </div>
+  <div style="padding:1.25rem 1.5rem;display:flex;flex-direction:column;gap:10px">
+    <div class="input-group">
+      <label>Selektor elementu</label>
+      <div style="display:flex;gap:6px">
+        <input type="text" id="tourStepSelector" placeholder="np. #segOd albo .section-title" style="flex:1">
+        <button class="ghost" onclick="pickTourStepElement()" title="Przełączy na wybraną zakładkę — kliknij element na ekranie">🎯 Wskaż na ekranie</button>
+      </div>
+    </div>
+    <div class="input-group">
+      <label>Tytuł</label>
+      <input type="text" id="tourStepTitle" placeholder="np. Okres porównawczy">
+    </div>
+    <div class="input-group">
+      <label>Opis</label>
+      <textarea id="tourStepDescription" rows="4" placeholder="Co użytkownik tu robi i dlaczego"
+                style="font-family:inherit;font-size:13px;padding:8px 10px;border-radius:var(--radius-md);
+                       border:0.5px solid var(--border-med);background:var(--bg);color:var(--text);resize:vertical"></textarea>
+    </div>
+    <div id="tourStepModalMsg" class="msg"></div>
+    <button class="primary" style="width:100%;height:40px" onclick="saveTourStep()">💾 Zapisz</button>
+  </div>
+</dialog>
+
 <!-- ══════════════════ ZALEGŁOŚCI TAB ══════════════════ -->
 <div class="tab-panel" id="tab-arrears">
 <div class="container">
@@ -1958,6 +1992,29 @@ Aliasy to inne zapisy tego samego modelu w danych (np. bez spacji) — nie tworz
         </tr></thead>
         <tbody id="adminUsersList">
           <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1rem">Ładowanie…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ══ PRZEWODNIK (tury) — tylko admin ══ -->
+  <div class="section-card" id="tourAdminSection" style="display:none;margin-bottom:1rem;border-color:var(--blue);border-width:1px">
+    <div class="section-title" style="color:var(--blue)">🧭 Przewodnik <span style="font-size:10px;font-weight:400;color:var(--text-muted)">(tylko administrator)</span></div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:1rem">
+      Kroki przewodnika (❓ Pomoc) widocznego dla wszystkich użytkowników. Zmiany są widoczne od razu — bez wdrożenia.
+    </p>
+    <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:12px;flex-wrap:wrap">
+      <div class="input-group">
+        <label>Zakładka</label>
+        <select id="tourAdminTabSelect" onchange="onTourAdminTabChange()" style="min-width:200px"></select>
+      </div>
+      <button class="primary" onclick="openTourStepModal()">+ Dodaj krok</button>
+    </div>
+    <div style="overflow-x:auto">
+      <table class="rev-table" id="tourAdminListTable">
+        <thead><tr><th>Selektor</th><th>Tytuł</th><th>Opis</th><th>Akcje</th></tr></thead>
+        <tbody id="tourAdminListBody">
+          <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:1rem">Wybierz zakładkę…</td></tr>
         </tbody>
       </table>
     </div>
@@ -2359,24 +2416,24 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.10.0"></script>
-<script src="js/auth.js?v=2.10.0"></script>
-<script src="js/app.js?v=2.10.0"></script>
-<script src="js/import.js?v=2.10.0"></script>
-<script src="js/report.js?v=2.10.0"></script>
-<script src="js/monitoring.js?v=2.10.0"></script>
-<script src="js/config.js?v=2.10.0"></script>
-<script src="js/firstpay.js?v=2.10.0"></script>
-<script src="js/device.js?v=2.10.0"></script>
-<script src="js/revenue.js?v=2.10.0"></script>
-<script src="js/bonus.js?v=2.10.0"></script>
-<script src="js/commissions.js?v=2.10.0"></script>
-<script src="js/pricing.js?v=2.10.0"></script>
-<script src="js/arrears.js?v=2.10.0"></script>
-<script src="js/sales.js?v=2.10.0"></script>
-<script src="js/segmentation.js?v=2.10.0"></script>
-<script src="js/tooltip.js?v=2.10.0"></script>
-<script src="js/tour.js?v=2.10.0"></script>
+<script src="js/utils.js?v=2.11.0"></script>
+<script src="js/auth.js?v=2.11.0"></script>
+<script src="js/app.js?v=2.11.0"></script>
+<script src="js/import.js?v=2.11.0"></script>
+<script src="js/report.js?v=2.11.0"></script>
+<script src="js/monitoring.js?v=2.11.0"></script>
+<script src="js/config.js?v=2.11.0"></script>
+<script src="js/firstpay.js?v=2.11.0"></script>
+<script src="js/device.js?v=2.11.0"></script>
+<script src="js/revenue.js?v=2.11.0"></script>
+<script src="js/bonus.js?v=2.11.0"></script>
+<script src="js/commissions.js?v=2.11.0"></script>
+<script src="js/pricing.js?v=2.11.0"></script>
+<script src="js/arrears.js?v=2.11.0"></script>
+<script src="js/sales.js?v=2.11.0"></script>
+<script src="js/segmentation.js?v=2.11.0"></script>
+<script src="js/tooltip.js?v=2.11.0"></script>
+<script src="js/tour.js?v=2.11.0"></script>
 
 </body>
 </html>

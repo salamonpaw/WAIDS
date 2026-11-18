@@ -455,6 +455,21 @@ def init_db() -> None:
             cur.execute("CREATE INDEX IF NOT EXISTS idx_seg_snapshots_firma ON seg_snapshots(firma);")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_seg_snapshots_data  ON seg_snapshots(data_zrzutu);")
 
+            # ── Przewodnik po aplikacji — treść tur edytowalna w bazie (Konfiguracja) ──
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS tour_steps (
+                    id          SERIAL PRIMARY KEY,
+                    tab_name    VARCHAR NOT NULL,
+                    position    INTEGER NOT NULL,
+                    selector    VARCHAR NOT NULL,
+                    title       VARCHAR NOT NULL,
+                    description TEXT NOT NULL DEFAULT '',
+                    created_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+                    updated_at  TIMESTAMP NOT NULL DEFAULT NOW()
+                );
+            """)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_tour_steps_tab ON tour_steps(tab_name, position);")
+
             # Seed domyślnych handlowców (idempotentne)
             for name in DEFAULT_REPS:
                 cur.execute(
