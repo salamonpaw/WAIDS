@@ -27,6 +27,7 @@ function switchTab(name) {
   if (name === 'segmentation') { onTabSegmentation(); }
   if (name === 'arrears')      { onTabArrears(); }
   if (name === 'sales')        { onTabSales(); }
+  if (typeof maybeAutoStartTour === 'function') maybeAutoStartTour(name);
 }
 
 function applyAdminTabs() {
@@ -79,6 +80,12 @@ async function refreshStatus() {
 // ── Changelog modal ────────────────────────────────────────────────────────
 
 const CHANGELOG_ENTRIES = [
+  {
+    version: '2.9.0', date: '2026-11-18',
+    added: [
+      '<b>❓ Przewodnik po aplikacji</b> (driver.js) — tura z opisami kluczowych elementów dla każdej zakładki, odpala się automatycznie przy pierwszym wejściu (zapamiętane, nie powtarza się) i ręcznie przyciskiem „❓ Pomoc” w nagłówku dla aktualnie otwartej zakładki.',
+    ],
+  },
   {
     version: '2.8.3', date: '2026-11-18',
     fixed: [

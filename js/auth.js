@@ -32,6 +32,9 @@ function showLoginOverlay(msg) {
 function hideLoginOverlay() {
   document.getElementById('loginOverlay').style.display = 'none';
   document.getElementById('appBody').style.display = 'block';
+  // Zakładka Import jest domyślna i nigdy nie przechodzi przez switchTab() — odpal
+  // dla niej przewodnik ręcznie (maybeAutoStartTour sam pilnuje żeby nie powtarzać).
+  if (typeof maybeAutoStartTour === 'function') maybeAutoStartTour('import');
 }
 
 async function doLogin() {

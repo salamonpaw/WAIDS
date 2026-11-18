@@ -7,7 +7,9 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-  <link rel="stylesheet" href="css/main.css?v=2.8.3">
+  <script src="https://cdn.jsdelivr.net/npm/driver.js@1/dist/driver.js.iife.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1/dist/driver.css">
+  <link rel="stylesheet" href="css/main.css?v=2.9.0">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -18,6 +20,10 @@
           style="font-size:11px;color:var(--text-muted);background:var(--bg-secondary);
                  border:0.5px solid var(--border);border-radius:99px;padding:2px 9px;
                  font-family:monospace;cursor:pointer;flex-shrink:0"></button>
+  <button id="tourHelpBtn" onclick="startTourForCurrentTab()" title="Pokaż przewodnik po tej zakładce"
+          style="font-size:12px;color:var(--text-muted);background:var(--bg-secondary);
+                 border:0.5px solid var(--border);border-radius:99px;padding:2px 10px;
+                 cursor:pointer;flex-shrink:0">❓ Pomoc</button>
   <div id="dbStatus">
     <div class="db-pill"><span class="db-dot" id="dbDot"></span><span id="dbDevices">Łączenie…</span></div>
     <div class="db-pill" id="dbMonthsPill" style="display:none"><span id="dbMonths"></span></div>
@@ -1542,7 +1548,7 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
 
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:1.25rem">
     <div style="flex:1">
-      <div style="font-size:15px;font-weight:600;margin-bottom:2px">🎯 Segmentacja klientów (A–D)</div>
+      <div id="segHeaderTitle" style="font-size:15px;font-weight:600;margin-bottom:2px">🎯 Segmentacja klientów (A–D)</div>
       <div style="font-size:12px;color:var(--text-muted)">Segment wg wolumenu w jednostkach produkcyjnych (JP), przeliczonego na 12 miesięcy. Migracje, trend i zrzuty miesięczne — etap 2. Karta klienta, panel admina do progów/słownika — etap 3.</div>
     </div>
   </div>
@@ -2232,23 +2238,24 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.8.3"></script>
-<script src="js/auth.js?v=2.8.3"></script>
-<script src="js/app.js?v=2.8.3"></script>
-<script src="js/import.js?v=2.8.3"></script>
-<script src="js/report.js?v=2.8.3"></script>
-<script src="js/monitoring.js?v=2.8.3"></script>
-<script src="js/config.js?v=2.8.3"></script>
-<script src="js/firstpay.js?v=2.8.3"></script>
-<script src="js/device.js?v=2.8.3"></script>
-<script src="js/revenue.js?v=2.8.3"></script>
-<script src="js/bonus.js?v=2.8.3"></script>
-<script src="js/commissions.js?v=2.8.3"></script>
-<script src="js/pricing.js?v=2.8.3"></script>
-<script src="js/arrears.js?v=2.8.3"></script>
-<script src="js/sales.js?v=2.8.3"></script>
-<script src="js/segmentation.js?v=2.8.3"></script>
-<script src="js/tooltip.js?v=2.8.3"></script>
+<script src="js/utils.js?v=2.9.0"></script>
+<script src="js/auth.js?v=2.9.0"></script>
+<script src="js/app.js?v=2.9.0"></script>
+<script src="js/import.js?v=2.9.0"></script>
+<script src="js/report.js?v=2.9.0"></script>
+<script src="js/monitoring.js?v=2.9.0"></script>
+<script src="js/config.js?v=2.9.0"></script>
+<script src="js/firstpay.js?v=2.9.0"></script>
+<script src="js/device.js?v=2.9.0"></script>
+<script src="js/revenue.js?v=2.9.0"></script>
+<script src="js/bonus.js?v=2.9.0"></script>
+<script src="js/commissions.js?v=2.9.0"></script>
+<script src="js/pricing.js?v=2.9.0"></script>
+<script src="js/arrears.js?v=2.9.0"></script>
+<script src="js/sales.js?v=2.9.0"></script>
+<script src="js/segmentation.js?v=2.9.0"></script>
+<script src="js/tooltip.js?v=2.9.0"></script>
+<script src="js/tour.js?v=2.9.0"></script>
 
 </body>
 </html>
