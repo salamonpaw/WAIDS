@@ -41,6 +41,14 @@ cat > /etc/cron.d/waids-health <<CRON
 CRON
 chmod 644 /etc/cron.d/waids-health
 
+# Segmentacja klientów — zrzut kroczących 12 mies. po zamknięciu miesiąca.
+# Dzień 2., 03:00 — zostawia margines na ew. spóźnione importy produkcji za ostatni dzień miesiąca.
+cat > /etc/cron.d/waids-segmentation <<CRON
+# WAIDS — zrzut segmentacji za zamknięty miesiąc (generowane przez deploy.sh)
+0 3 2 * * root cd $APP_DIR && docker compose exec -T backend python3 cron_segmentation_snapshot.py >> /var/log/waids-segmentation.log 2>&1
+CRON
+chmod 644 /etc/cron.d/waids-segmentation
+
 # 2. Przebuduj i uruchom kontenery
 echo "[2/5] Docker build + up..."
 # Zatrzymaj legacy systemd service (jeśli jeszcze działa)

@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-  <link rel="stylesheet" href="css/main.css?v=2.7.0">
+  <link rel="stylesheet" href="css/main.css?v=2.8.0">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -1542,7 +1542,7 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
   <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:1.25rem">
     <div style="flex:1">
       <div style="font-size:15px;font-weight:600;margin-bottom:2px">🎯 Segmentacja klientów (A–D)</div>
-      <div style="font-size:12px;color:var(--text-muted)">Segment wg wolumenu w jednostkach produkcyjnych (JP), przeliczonego na 12 miesięcy. Etap 1: tabela klientów dla wybranego okresu — bez historii lat, migracji i trendu (etap 2).</div>
+      <div style="font-size:12px;color:var(--text-muted)">Segment wg wolumenu w jednostkach produkcyjnych (JP), przeliczonego na 12 miesięcy. Migracje, trend i zrzuty miesięczne — etap 2. Karta klienta, panel admina do progów/słownika — etap 3.</div>
     </div>
   </div>
 
@@ -1567,6 +1567,14 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
         <button class="ghost sm" onclick="setSegPreset('last_q')">Ostatni kwartał</button>
       </div>
       <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Okres porównawczy</label>
+        <select id="segCmp" onchange="loadSegmentation()" style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+          <option value="">Brak</option>
+          <option value="prev_period">Poprzedni okres (ta sama długość)</option>
+          <option value="prev_year" selected>Ten sam okres rok wcześniej</option>
+        </select>
+      </div>
+      <div>
         <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Typ maszyn</label>
         <select id="segTyp" style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
           <option value="">Własne + OEM</option>
@@ -1581,8 +1589,12 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
       <button class="primary" onclick="loadSegmentation()">▶ Przelicz</button>
       <input type="text" id="segSearch" class="rev-search" placeholder="🔍 Szukaj klienta…" oninput="filterSegTable()" autocomplete="off" style="margin-left:auto">
     </div>
+    <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px">
+      <label style="font-size:11px;color:var(--text-muted)">Lata w tabeli:</label>
+      <div id="segYearPills" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+    </div>
     <div style="font-size:11px;color:var(--text-muted);margin-top:8px">
-      ⚠️ Typ maszyn / Modele zmieniają tylko wyświetlane JP i sztuki — <b>segment klienta liczony jest zawsze z pełnego wolumenu</b> (własne + OEM, wszystkie modele).
+      ⚠️ Typ maszyn / Modele zmieniają tylko wyświetlane JP i sztuki — <b>segment, migracja i trend liczone są zawsze z pełnego wolumenu</b> (własne + OEM, wszystkie modele).
     </div>
   </div>
 
@@ -1594,6 +1606,37 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
   <!-- KPI segmentów -->
   <div class="rev-kpi-grid" id="segKpiGrid" style="margin-bottom:1.25rem"></div>
 
+  <!-- Wykresy w czasie (z seg_snapshots — wymaga backfillu, patrz panel admina niżej) -->
+  <div class="charts-row col2" style="margin-bottom:1.25rem">
+    <div class="chart-card">
+      <div class="chart-title">JP w czasie wg segmentów
+        <i class="info-icon" data-info="Słupki skumulowane: suma JP kroczącego 12 mies. per segment, miesiąc po miesiącu — ze zrzutów miesięcznych (seg_snapshots). Wymaga wcześniejszego backfillu (panel admina niżej).">i</i>
+      </div>
+      <div style="position:relative;height:220px"><canvas id="chartSegJpTime"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Klienci w segmentach w czasie
+        <i class="info-icon" data-info="Liczba klientów per segment w każdym miesięcznym zrzucie kroczącym 12 mies.">i</i>
+      </div>
+      <div style="position:relative;height:220px"><canvas id="chartSegCountTime"></canvas></div>
+    </div>
+  </div>
+  <div id="segOverviewEmpty" class="msg" style="display:none;margin:-0.5rem 0 1.25rem">
+    ℹ️ Brak danych do wykresów w czasie — uruchom backfill zrzutów w panelu admina niżej (sekcja „Zrzuty miesięczne”).
+  </div>
+
+  <!-- Macierz migracji -->
+  <div class="rev-section" id="segMigrationSection" style="margin-bottom:1.25rem">
+    <div class="rev-section-title">
+      <span>🔀 Macierz migracji
+        <i class="info-icon" data-info="Wiersze = segment w okresie porównawczym (P0), kolumny = segment w wybranym okresie (P1). W komórce: liczba klientów i ich JP w P1. Przekątna = bez zmian, nad nią spadki, pod nią awanse. Kliknij komórkę, żeby zobaczyć listę klientów.">i</i>
+      </span>
+    </div>
+    <div id="segMigrationBody">
+      <div style="text-align:center;color:var(--text-muted);padding:1rem;font-size:12px">Ustaw „Okres porównawczy” powyżej, żeby zobaczyć migrację.</div>
+    </div>
+  </div>
+
   <!-- Tabela klientów -->
   <div class="rev-section">
     <div class="rev-section-title">
@@ -1601,30 +1644,51 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
     </div>
     <div style="overflow-x:auto">
       <table class="rev-table" id="segCustomerTable">
-        <thead><tr>
-          <th>#</th>
-          <th onclick="sortSegTable('firma')" class="rev-sort-icon">Klient ↕</th>
-          <th onclick="sortSegTable('segment')" class="rev-sort-icon">Segment ↕</th>
-          <th class="num rev-sort-icon" onclick="sortSegTable('jp_okres_filtr')">JP (okres) ↕</th>
-          <th class="num rev-sort-icon" onclick="sortSegTable('jp12')">JP/12mies ↕</th>
-          <th class="num rev-sort-icon" onclick="sortSegTable('jp_miesiecznie')">JP/mies ↕</th>
-          <th class="num rev-sort-icon" onclick="sortSegTable('sztuki_filtr')">Sztuki ↕</th>
-          <th class="num rev-sort-icon" onclick="sortSegTable('liczba_modeli')">Modele ↕</th>
-          <th class="num rev-sort-icon" onclick="sortSegTable('udzial_oem')">Udział OEM ↕</th>
-          <th class="num rev-sort-icon" onclick="sortSegTable('do_wyzszego_segmentu')">Do wyż. segmentu ↕</th>
-          <th class="num rev-sort-icon" onclick="sortSegTable('udzial_w_jp')">Udział w JP ↕</th>
-          <th class="num rev-sort-icon" onclick="sortSegTable('udzial_narastajaco')">Narastająco ↕</th>
-        </tr></thead>
+        <thead id="segTableHead"></thead>
         <tbody id="segTableBody">
-          <tr><td colspan="11" style="text-align:center;color:var(--text-muted);padding:2rem">Ustaw okres i kliknij „Przelicz”.</td></tr>
+          <tr><td colspan="12" style="text-align:center;color:var(--text-muted);padding:2rem">Ustaw okres i kliknij „Przelicz”.</td></tr>
         </tbody>
       </table>
     </div>
-    <div class="chart-hint">💡 Segment i „Do wyższego segmentu” liczone zawsze z pełnego wolumenu klienta — filtr Typ/Modele zmienia tylko kolumny JP (okres) i Sztuki.</div>
+    <div class="chart-hint">💡 Segment, migracja i trend liczone zawsze z pełnego wolumenu klienta — filtr Typ/Modele zmienia tylko kolumny JP (okres) i Sztuki. Kliknij wiersz, żeby zobaczyć kartę klienta.</div>
+  </div>
+
+  <!-- Panel admina: zrzuty miesięczne -->
+  <div class="rev-section" id="segAdminPanel" style="display:none;margin-top:1.25rem">
+    <div class="rev-section-title">
+      <span>⚙ Zrzuty miesięczne (Admin)
+        <i class="info-icon" data-info="Zrzut = segment i JP kroczące 12 mies. zapisane na koniec danego miesiąca (seg_snapshots). Potrzebne do wykresów 'w czasie', historii na karcie klienta i trendu. Backfill generuje zrzuty wstecz — na start zrób to od 2024-01. Operacja jest idempotentna, bezpiecznie uruchomić ponownie.">i</i>
+      </span>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Backfill od (RRRR-MM)</label>
+        <input id="segBackfillFrom" type="month" value="2024-01" style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+      </div>
+      <div>
+        <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:2px">Do (RRRR-MM, puste = ostatni zamknięty)</label>
+        <input id="segBackfillTo" type="month" style="height:32px;font-size:12px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+      </div>
+      <button class="primary" onclick="segRunBackfill()">▶ Uruchom backfill</button>
+      <button class="ghost" onclick="segGenerateLastMonth()">🔄 Przelicz ostatni miesiąc</button>
+    </div>
+    <div id="segAdminMsg" class="msg" style="margin-top:8px"></div>
   </div>
 
 </div>
 </div>
+
+<!-- Karta klienta (segmentacja) -->
+<dialog id="segCustomerModal"
+        style="border-radius:var(--radius-lg);border:0.5px solid var(--border-med);
+               background:var(--bg);color:var(--text);padding:0;width:760px;max-width:96vw;max-height:88vh">
+  <div style="display:flex;align-items:center;padding:1rem 1.5rem;border-bottom:0.5px solid var(--border)">
+    <span style="font-weight:700;font-size:15px" id="segModalTitle">Klient</span>
+    <button class="ghost sm" onclick="document.getElementById('segCustomerModal').close()"
+            style="margin-left:auto;font-size:18px;padding:0 6px;line-height:1">✕</button>
+  </div>
+  <div style="padding:1.25rem 1.5rem;overflow:auto;max-height:76vh" id="segModalBody"></div>
+</dialog>
 
 <!-- ══════════════════ ZALEGŁOŚCI TAB ══════════════════ -->
 <div class="tab-panel" id="tab-arrears">
@@ -2158,23 +2222,23 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.7.0"></script>
-<script src="js/auth.js?v=2.7.0"></script>
-<script src="js/app.js?v=2.7.0"></script>
-<script src="js/import.js?v=2.7.0"></script>
-<script src="js/report.js?v=2.7.0"></script>
-<script src="js/monitoring.js?v=2.7.0"></script>
-<script src="js/config.js?v=2.7.0"></script>
-<script src="js/firstpay.js?v=2.7.0"></script>
-<script src="js/device.js?v=2.7.0"></script>
-<script src="js/revenue.js?v=2.7.0"></script>
-<script src="js/bonus.js?v=2.7.0"></script>
-<script src="js/commissions.js?v=2.7.0"></script>
-<script src="js/pricing.js?v=2.7.0"></script>
-<script src="js/arrears.js?v=2.7.0"></script>
-<script src="js/sales.js?v=2.7.0"></script>
-<script src="js/segmentation.js?v=2.7.0"></script>
-<script src="js/tooltip.js?v=2.7.0"></script>
+<script src="js/utils.js?v=2.8.0"></script>
+<script src="js/auth.js?v=2.8.0"></script>
+<script src="js/app.js?v=2.8.0"></script>
+<script src="js/import.js?v=2.8.0"></script>
+<script src="js/report.js?v=2.8.0"></script>
+<script src="js/monitoring.js?v=2.8.0"></script>
+<script src="js/config.js?v=2.8.0"></script>
+<script src="js/firstpay.js?v=2.8.0"></script>
+<script src="js/device.js?v=2.8.0"></script>
+<script src="js/revenue.js?v=2.8.0"></script>
+<script src="js/bonus.js?v=2.8.0"></script>
+<script src="js/commissions.js?v=2.8.0"></script>
+<script src="js/pricing.js?v=2.8.0"></script>
+<script src="js/arrears.js?v=2.8.0"></script>
+<script src="js/sales.js?v=2.8.0"></script>
+<script src="js/segmentation.js?v=2.8.0"></script>
+<script src="js/tooltip.js?v=2.8.0"></script>
 
 </body>
 </html>

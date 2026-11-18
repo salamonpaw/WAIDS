@@ -67,7 +67,11 @@ from segmentation import (
     seed_segmentation_defaults,
     get_seg_models, add_seg_model, update_seg_model, delete_seg_model,
     get_seg_thresholds, get_seg_thresholds_history, add_seg_threshold_version,
-    compute_customer_segments,
+    compute_customer_segments, compute_customer_segments_with_trend,
+    get_segments_by_year, compute_migration,
+    generate_snapshot_for_month, backfill_snapshots, get_segments_overview,
+    get_customer_monthly_jp, get_customer_snapshot_history,
+    get_customer_model_mix, get_customer_items,
 )
 from version import APP_VERSION
 
@@ -1615,18 +1619,110 @@ def segmentation_customers(
     model: Optional[str] = None,        # kody modeli po przecinku — filtruje tylko WYŚWIETLANE JP/sztuki
     typ: Optional[str] = None,          # 'wlasne' | 'oem' — jw.
     wersja_progow: Optional[int] = None,
+    cmp: Optional[str] = None,          # '' | 'prev_period' | 'prev_year' — trend + migracja (rozdz. 4.2-4.3)
+    years: Optional[str] = None,        # lata po przecinku — kolumny "Segmenty w latach" (rozdz. 7.2)
     _: dict = Depends(require_segmentation),
 ):
-    """Tabela klientów z segmentem (A/B/C/D) dla wybranego okresu. Patrz spec
-    rozdz. 2 (wzory) i 7.2 (kolumny) — bez kolumn wymagających historii (lata,
-    migracja, trend), to etap 2."""
+    """Tabela klientów z segmentem (A/B/C/D) dla wybranego okresu. Patrz spec rozdz. 2
+    (wzory) i 7.2 (kolumny). Z `cmp` dochodzą trend/migracja per klient, z `years`
+    kolumny segmentów w latach — Migracja/Trend liczone ZAWSZE z pełnego wolumenu,
+    niezależnie od model/typ (jak sam segment)."""
     model_filter = [m.strip() for m in model.split(",") if m.strip()] if model else None
     if typ and typ not in ("wlasne", "oem"):
         raise HTTPException(400, "typ musi być 'wlasne' lub 'oem'")
     try:
-        return compute_customer_segments(od, do, model_filter, typ, wersja_progow)
+        result = compute_customer_segments_with_trend(
+            od, do, model_filter, typ, wersja_progow, cmp or "",
+        )
+        if years:
+            year_list = [y.strip() for y in years.split(",") if y.strip()]
+            by_year = get_segments_by_year(year_list, wersja_progow)
+            for c in result["customers"]:
+                c["segments_by_year"] = {
+                    y: by_year[y]["segmenty"].get(c["firma"], "brak") for y in by_year
+                }
+            result["segments_by_year_meta"] = {
+                y: {"pelny_rok": by_year[y]["pelny_rok"]} for y in by_year
+            }
+        return result
     except ValueError as e:
         raise HTTPException(409, str(e))
+
+
+@app.get("/segmentation/migration")
+def segmentation_migration(
+    od0: str, do0: str, od1: str, do1: str,
+    wersja_progow: Optional[int] = None,
+    _: dict = Depends(require_segmentation),
+):
+    """Macierz migracji P0 → P1 — spec rozdz. 4.2."""
+    try:
+        return compute_migration(od0, do0, od1, do1, wersja_progow)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+
+
+@app.get("/segmentation/overview")
+def segmentation_overview(
+    months: int = 24, wersja_progow: Optional[int] = None,
+    _: dict = Depends(require_segmentation),
+):
+    """Agregat miesięczny po segmentach (z seg_snapshots) do wykresów dashboardu —
+    pusto dopóki admin nie uruchomi backfillu (POST /segmentation/snapshots/backfill)."""
+    return get_segments_overview(months, wersja_progow)
+
+
+@app.get("/segmentation/customer/monthly-jp")
+def segmentation_customer_monthly_jp(firma: str, months: int = 24,
+                                      _: dict = Depends(require_segmentation)):
+    """JP wyprodukowane w danym miesiącu (nie kroczące) — wykres na karcie klienta."""
+    return get_customer_monthly_jp(firma, months)
+
+
+@app.get("/segmentation/customer/history")
+def segmentation_customer_history(firma: str, months: int = 24,
+                                   wersja_progow: Optional[int] = None,
+                                   _: dict = Depends(require_segmentation)):
+    """Historia zrzutów kroczących 12 mies. — pasek segmentów + linia JP12 na karcie klienta."""
+    return get_customer_snapshot_history(firma, months, wersja_progow)
+
+
+@app.get("/segmentation/customer/model-mix")
+def segmentation_customer_model_mix(firma: str, od: str, do: str,
+                                     _: dict = Depends(require_segmentation)):
+    """Miks modeli klienta w okresie — model/sztuki/JP/typ, karta klienta."""
+    return get_customer_model_mix(firma, od, do)
+
+
+@app.get("/segmentation/customer/items")
+def segmentation_customer_items(firma: str, od: str, do: str, limit: int = 500,
+                                 _: dict = Depends(require_segmentation)):
+    """Lista pozycji realizacji klienta w okresie — karta klienta."""
+    return get_customer_items(firma, od, do, limit)
+
+
+class SegSnapshotGenerateIn(BaseModel):
+    month: str                           # 'YYYY-MM'
+    wersja_progow: Optional[int] = None
+
+
+@app.post("/segmentation/snapshots/generate")
+def segmentation_snapshots_generate(body: SegSnapshotGenerateIn, _: dict = Depends(require_admin)):
+    """Przelicza/nadpisuje zrzut dla jednego miesiąca (idempotentne)."""
+    return generate_snapshot_for_month(body.month, body.wersja_progow)
+
+
+class SegSnapshotBackfillIn(BaseModel):
+    from_month: str                      # 'YYYY-MM'
+    to_month: Optional[str] = None       # domyślnie: ostatni zamknięty miesiąc
+    wersja_progow: Optional[int] = None
+
+
+@app.post("/segmentation/snapshots/backfill")
+def segmentation_snapshots_backfill(body: SegSnapshotBackfillIn, _: dict = Depends(require_admin)):
+    """Generuje zrzuty wstecz — na start np. od 2024-01 (spec rozdz. 4.1 pkt 4).
+    Może potrwać kilka-kilkanaście sekund na kilkadziesiąt miesięcy."""
+    return backfill_snapshots(body.from_month, body.to_month, body.wersja_progow)
 
 
 @app.get("/segmentation/models")

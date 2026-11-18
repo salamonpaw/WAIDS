@@ -80,6 +80,15 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.8.0', date: '2026-11-18',
+    added: [
+      '<b>🎯 Segmentacja — etap 2</b>: filtr „Okres porównawczy” (brak / poprzedni okres / rok wcześniej) dodaje do tabeli kolumny Migracja i Zmiana r/r per klient; kolumny „Segmenty w latach” (wybieralne pilkami) pokazują segment klienta w każdym roku kalendarzowym (bieżący rok oznaczony gwiazdką — niepełny).',
+      '<b>Macierz migracji</b> — P0 (okres porównawczy) × P1 (wybrany okres), z liczbą klientów i JP w każdej komórce; kliknięcie komórki filtruje tabelę klientów do tej migracji.',
+      '<b>Zrzuty miesięczne</b> (<code>seg_snapshots</code>) — kroczące 12 mies. zapisywane co miesiąc (cron dzień 2., 3:00) i wykorzystywane do wykresów „JP w czasie wg segmentów” / „Klienci w segmentach w czasie” oraz do karty klienta. Panel admina do ręcznego backfillu i przeliczenia ostatniego miesiąca.',
+      '<b>Karta klienta</b> (kliknięcie wiersza w tabeli) — segment i flagi, pasek historii segmentu, wykres JP miesięcznie z linią JP kroczącego 12 mies., miks modeli w okresie.',
+    ],
+  },
+  {
     version: '2.7.0', date: '2026-11-18',
     added: [
       '<b>🎯 Segmentacja klientów A–D</b> (etap 1, nowe uprawnienie <code>can_view_segmentation</code> — podgląd dla Admina i wyznaczonych osób, konfiguracja progów/słownika modeli na razie wyłącznie przez Admina) — nowa zakładka liczy segment klienta wg wolumenu w jednostkach produkcyjnych (JP), przeliczonego na 12 miesięcy: A ≥30 JP, B ≥8, C ≥3, D <3. Tabela klientów z JP (okres/12mies/miesięcznie), udziałem OEM, flagami „profil OEM” i „blisko progu”, dystansem do wyższego segmentu oraz udziałem w JP/narastająco. Filtry: zakres dat (z presetami), typ maszyn (własne/OEM), modele — zmieniają tylko wyświetlane JP/sztuki, segment zawsze liczony z pełnego wolumenu klienta.',
