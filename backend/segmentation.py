@@ -56,6 +56,29 @@ SEED_THRESHOLDS = dict(
 
 VALID_MODEL_TYPES = {"wlasne", "oem"}
 
+# Aliasy dopisywane do ISTNIEJĄCEGO słownika przy każdym starcie (idempotentne —
+# dopisuje tylko brakujące, bezpieczne dla bazy zasianej dawniej przez seed powyżej).
+# Znalezione w prawdziwych danych produkcyjnych po wdrożeniu (18.11.2026):
+# "D810NEO"/"D810Neo" bez spacji — oczywisty wariant zapisu "D810 NEO", bez ryzyka
+# pomyłki z innym modelem. Pozostałe niezmapowane (L40 PRO, D540, T10, D810M NEO,
+# D540M) wymagają potwierdzenia wartości JP — patrz rozmowa z 18.11.2026.
+EXTRA_ALIASES = {
+    "D810 NEO": ["D810NEO"],
+}
+
+
+def ensure_model_aliases() -> None:
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            for kod, aliasy in EXTRA_ALIASES.items():
+                cur.execute("SELECT id, aliasy FROM seg_models WHERE kod_modelu = %s", (kod,))
+                for row in cur.fetchall():
+                    existing = row["aliasy"] or []
+                    missing = [a for a in aliasy if a not in existing]
+                    if missing:
+                        cur.execute("UPDATE seg_models SET aliasy = aliasy || %s::varchar[] WHERE id = %s",
+                                    (missing, row["id"]))
+
 
 def seed_segmentation_defaults() -> None:
     """Idempotentne — wstawia dane startowe tylko gdy tabele są puste."""

@@ -75,6 +75,18 @@ for i in $(seq 1 30); do
   sleep 2
 done
 
+# 3b. Segmentacja klientów — dociągnij zrzuty miesięczne (od 2024-01) po każdym
+# deployu, żeby wykresy "w czasie" nigdy nie stały puste czekając na ręczny backfill
+# admina. Idempotentne (ON CONFLICT upsert) — kilkadziesiąt miesięcy liczy się sekundy.
+echo "      Segmentacja: dociągam zrzuty miesięczne..."
+if docker compose exec -T backend python3 -c \
+  "from segmentation import backfill_snapshots; r = backfill_snapshots('2024-01'); print(f'      {r[\"months\"]} miesięcy ({r[\"from\"]} -> {r[\"to\"]})')"
+then
+  :
+else
+  echo "      UWAGA: backfill segmentacji nie powiódł się — sprawdź docker compose logs backend"
+fi
+
 # 4. Skopiuj frontend do nginx (rm+cp zamiast cp -r — unika problemu z nadpisywaniem)
 echo "[4/5] Kopiowanie frontendu..."
 cp "$APP_DIR/index.html" "$WEB_DIR/index.html"

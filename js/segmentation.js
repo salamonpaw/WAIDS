@@ -383,9 +383,10 @@ function segFilterMigrationCell(s0, s1) {
 
 // ── Wykresy w czasie (seg_snapshots) ────────────────────────────────────────
 async function loadSegOverview() {
+  const monthsParam = document.getElementById('segOverviewMonths')?.value || 24;
   let rows = [];
   try {
-    rows = await (await fetch(`${API}/segmentation/overview?months=24`)).json();
+    rows = await (await fetch(`${API}/segmentation/overview?months=${monthsParam}`)).json();
   } catch { /* cicho — wykresy po prostu zostaną puste */ }
 
   const emptyEl = document.getElementById('segOverviewEmpty');

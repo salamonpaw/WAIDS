@@ -64,7 +64,7 @@ from database import (
     bulk_suspend_devices,
 )
 from segmentation import (
-    seed_segmentation_defaults,
+    seed_segmentation_defaults, ensure_model_aliases,
     get_seg_models, add_seg_model, update_seg_model, delete_seg_model,
     get_seg_thresholds, get_seg_thresholds_history, add_seg_threshold_version,
     compute_customer_segments, compute_customer_segments_with_trend,
@@ -176,6 +176,7 @@ def startup():
     global _SECRET_KEY
     init_db()
     seed_segmentation_defaults()
+    ensure_model_aliases()
     _SECRET_KEY = get_or_create_secret_key()
     # Create first admin from env vars if no admins exist
     email    = os.getenv("ADMIN_EMAIL", "p.salamon@asdsystems.pl")

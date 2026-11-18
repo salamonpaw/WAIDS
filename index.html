@@ -7,7 +7,7 @@
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-  <link rel="stylesheet" href="css/main.css?v=2.8.1">
+  <link rel="stylesheet" href="css/main.css?v=2.8.2">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -1608,6 +1608,15 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
   <div class="rev-kpi-grid" id="segKpiGrid" style="margin-bottom:1.25rem"></div>
 
   <!-- Wykresy w czasie (z seg_snapshots — wymaga backfillu, patrz panel admina niżej) -->
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+    <label style="font-size:11px;color:var(--text-muted)">Zakres wykresów w czasie:</label>
+    <select id="segOverviewMonths" onchange="loadSegOverview()" style="height:28px;font-size:11px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+      <option value="12">Ostatnie 12 mies.</option>
+      <option value="24" selected>Ostatnie 24 mies.</option>
+      <option value="36">Ostatnie 36 mies.</option>
+      <option value="999">Wszystkie zrzuty</option>
+    </select>
+  </div>
   <div class="charts-row col2" style="margin-bottom:1.25rem">
     <div class="chart-card">
       <div class="chart-title">JP w czasie wg segmentów
@@ -2223,23 +2232,23 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.8.1"></script>
-<script src="js/auth.js?v=2.8.1"></script>
-<script src="js/app.js?v=2.8.1"></script>
-<script src="js/import.js?v=2.8.1"></script>
-<script src="js/report.js?v=2.8.1"></script>
-<script src="js/monitoring.js?v=2.8.1"></script>
-<script src="js/config.js?v=2.8.1"></script>
-<script src="js/firstpay.js?v=2.8.1"></script>
-<script src="js/device.js?v=2.8.1"></script>
-<script src="js/revenue.js?v=2.8.1"></script>
-<script src="js/bonus.js?v=2.8.1"></script>
-<script src="js/commissions.js?v=2.8.1"></script>
-<script src="js/pricing.js?v=2.8.1"></script>
-<script src="js/arrears.js?v=2.8.1"></script>
-<script src="js/sales.js?v=2.8.1"></script>
-<script src="js/segmentation.js?v=2.8.1"></script>
-<script src="js/tooltip.js?v=2.8.1"></script>
+<script src="js/utils.js?v=2.8.2"></script>
+<script src="js/auth.js?v=2.8.2"></script>
+<script src="js/app.js?v=2.8.2"></script>
+<script src="js/import.js?v=2.8.2"></script>
+<script src="js/report.js?v=2.8.2"></script>
+<script src="js/monitoring.js?v=2.8.2"></script>
+<script src="js/config.js?v=2.8.2"></script>
+<script src="js/firstpay.js?v=2.8.2"></script>
+<script src="js/device.js?v=2.8.2"></script>
+<script src="js/revenue.js?v=2.8.2"></script>
+<script src="js/bonus.js?v=2.8.2"></script>
+<script src="js/commissions.js?v=2.8.2"></script>
+<script src="js/pricing.js?v=2.8.2"></script>
+<script src="js/arrears.js?v=2.8.2"></script>
+<script src="js/sales.js?v=2.8.2"></script>
+<script src="js/segmentation.js?v=2.8.2"></script>
+<script src="js/tooltip.js?v=2.8.2"></script>
 
 </body>
 </html>

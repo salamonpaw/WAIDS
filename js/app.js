@@ -80,6 +80,16 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.8.2', date: '2026-11-18',
+    added: [
+      '<b>Segmentacja — filtr zakresu wykresów „w czasie”</b> (12/24/36 mies. / wszystkie zrzuty) nad wykresami „JP wg segmentów” i „Klienci w segmentach”.',
+      '<b>deploy.sh dociąga zrzuty segmentacji automatycznie</b> po każdym wdrożeniu (backfill od 2024-01, idempotentny) — wykresy w czasie nie stoją już puste czekając na ręczne kliknięcie w panelu admina.',
+    ],
+    fixed: [
+      '<b>Segmentacja — alias „D810NEO”/„D810Neo” (bez spacji)</b> dopisany do modelu „D810 NEO” w już zasianym słowniku (nie tylko dla nowej instalacji) — znaleziony w prawdziwych danych produkcyjnych jako „niezmapowany model”.',
+    ],
+  },
+  {
     version: '2.8.1', date: '2026-11-18',
     fixed: [
       '<b>Wyliczenia — błędna notka pod tabelą „Przychody wg waluty”</b> — napis twierdził, że suma kolumny „Odpowiednik w PLN netto” równa się kafelkowi „Przychody (PLN netto)” u góry. Nieprawda przy filtrze roku: tabela jest zawsze za wszystkie lata łącznie (jak „Top klienci”), a kafelek pokazuje tylko wybrany rok. Poprawiono opis, dodano wyjaśnienie że „Kwota w walucie oryginalnej” to cena referencyjna z faktury (ob_CenaWaluta) — przy rabatach bywa wyższa niż rzeczywiście zafakturowana wartość, więc dzielenie jej przez netto nie daje realnego kursu wymiany.',
