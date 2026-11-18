@@ -70,8 +70,11 @@ function startTourForCurrentTab() {
   startTour(_currentTabName, true);
 }
 
+let _suppressAutoTour = false;   // patrz pickTourStepElement() — switchTab() programowy w trakcie wskazywania elementu nie powinien odpalać prawdziwej tury ani oznaczać jej jako "widzianą"
+
 async function maybeAutoStartTour(tabName) {
   _currentTabName = tabName;
+  if (_suppressAutoTour) return;
   const key = 'waids_tour_seen_' + tabName;
   if (localStorage.getItem(key)) return;
   localStorage.setItem(key, '1');
@@ -159,7 +162,7 @@ function openTourStepModal(id) {
   document.getElementById('tourStepModalMsg').textContent = '';
   _tourEditingId = id || null;
   if (id) {
-    const s = (_tourStepsCache[_tourAdminTab] || []).find(x => x.id === id);
+    const s = ((_tourStepsCache && _tourStepsCache[_tourAdminTab]) || []).find(x => x.id === id);
     if (!s) return;
     document.getElementById('tourStepModalTitle').textContent = 'Edytuj krok';
     document.getElementById('tourStepSelector').value    = s.selector;
@@ -237,6 +240,7 @@ function pickTourStepElement() {
 
   document.getElementById('tourStepModal').close();
   _tourReturnTab = 'config';
+  _suppressAutoTour = true;
   switchTab(_tourAdminTab);
 
   const banner = document.createElement('div');
@@ -269,13 +273,32 @@ function pickTourStepElement() {
   function finish(selector) {
     cleanup();
     switchTab(_tourReturnTab);
-    openTourStepModal(_tourEditingId);
+    _suppressAutoTour = false;   // koniec roundtripu — dalsze zwykłe przełączenia zakładek znów normalne
+    // Celowo NIE wołamy tu openTourStepModal(_tourEditingId) ponownie — dwa powody:
+    // 1) wyzerowałoby tytuł/opis, które admin już wpisał przed kliknięciem "Wskaż",
+    //    bo dla nowego kroku (id=null) ta funkcja czyści formularz od zera;
+    // 2) switchTab() wyżej odpala initTourAdminPanel() -> renderTourAdminList(),
+    //    która asynchronicznie invaliduje i na nowo ładuje _tourStepsCache — więc
+    //    w tym miejscu cache bywa chwilowo `null`, a openTourStepModal(id) dla
+    //    EDYTOWANEGO kroku rzuciłby wyjątkiem na _tourStepsCache[_tourAdminTab].
+    // .close() nie czyści wartości pól — ten sam dialog po prostu pokazujemy
+    // ponownie z tym, co w nim już było, i dopisujemy tylko selektor.
+    document.getElementById('tourStepModal').showModal();
     if (selector) document.getElementById('tourStepSelector').value = selector;
   }
   function onClick(e) {
     e.preventDefault(); e.stopPropagation();
     const el = elAt(e);
     if (!el || el === banner) return;
+    if (!scope.contains(el)) {
+      // np. nagłówek appki czy przycisk "❓ Pomoc" nad paskiem — selektor liczony
+      // względem scope i tak by się tam nigdy nie dopasował, więc nie przyjmujemy
+      // kliknięcia, tylko prosimy o inne (bez przerywania trybu wskazywania).
+      const prev = banner.textContent;
+      banner.textContent = '⚠️ To poza tą zakładką — kliknij element wewnątrz jej zawartości.';
+      setTimeout(() => { banner.textContent = prev; }, 1500);
+      return;
+    }
     finish(_computeSelector(el, scope));
   }
   function onKey(e) { if (e.key === 'Escape') { e.preventDefault(); finish(null); } }

@@ -89,6 +89,12 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.11.1', date: '2026-11-18',
+    fixed: [
+      '<b>Edytor przewodnika — 3 błędy znalezione przy weryfikacji „Wskaż na ekranie”</b> (żaden nie dotarł jeszcze na produkcję): (1) po wskazaniu elementu formularz resetował się do pustego, kasując już wpisany tytuł/opis nowego kroku; (2) wyścig asynchroniczny mógł wysypać całą operację wyjątkiem przy edycji istniejącego kroku (cache bywał `null` w momencie odczytu); (3) programowe przełączenie zakładki w trakcie wskazywania mogło przypadkiem odpalić PRAWDZIWY samouczek tej zakładki na wierzchu trybu wskazywania, a nawet trwale oznaczyć go jako „widziany” bez realnego pokazania. Dodatkowo: kliknięcie poza aktywną zakładką (np. w przycisk „❓ Pomoc” nad paskiem) nie jest już ciche — pokazuje ostrzeżenie i pozwala kliknąć ponownie.',
+    ],
+  },
+  {
     version: '2.11.0', date: '2026-11-18',
     added: [
       '<b>🧭 Edytor przewodnika</b> (Konfiguracja → Przewodnik, Admin) — treść kroków przewodnika (❓ Pomoc) jest teraz w bazie, nie na sztywno w kodzie. Dla każdej zakładki: lista kroków z tytułem, opisem i selektorem elementu, dodawanie/edycja/usuwanie, zmiana kolejności (↑/↓).',
