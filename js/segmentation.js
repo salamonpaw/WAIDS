@@ -59,7 +59,13 @@ function _segLastClosedMonthEnd() {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), 0);   // dzień 0 = ostatni dzień poprz. mies.
 }
-function _segFmtD(d) { return d.toISOString().slice(0, 10); }
+function _segFmtD(d) {
+  // NIE używać d.toISOString() — konwertuje na UTC, a lokalna północ w Polsce to
+  // 22:00/23:00 UTC dnia poprzedniego, więc wszystkie presety wysyłałyby zakres
+  // przesunięty o jeden dzień wstecz (potwierdzony błąd, code review 19.11.2026).
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
 
 function setSegPreset(p) {
   const end = _segLastClosedMonthEnd();
@@ -153,10 +159,14 @@ async function loadSegmentation() {
     warnEl.style.display = 'none';
   }
 
+  // Ostrzeżenie o niekompletnych danych pokazujemy KAŻDEMU kto widzi tę zakładkę —
+  // nie tylko adminowi. Każdy patrzący na te liczby powinien wiedzieć że są
+  // niepełne, nawet jeśli tylko admin może to naprawić (dodać model do słownika).
   const unmappedEl = document.getElementById('segUnmapped');
-  if (currentUser?.is_admin && _segData.unmapped_models.length) {
+  if (_segData.unmapped_models.length) {
     const total = _segData.unmapped_models.reduce((s, m) => s + m.sztuki, 0);
-    unmappedEl.innerHTML = `⚠️ <b>${total} szt.</b> z modelami spoza słownika JP (pominięte z segmentacji — dodaj je w słowniku modeli): ` +
+    const hint = currentUser?.is_admin ? ' — dodaj je w słowniku modeli niżej' : ' — zgłoś administratorowi';
+    unmappedEl.innerHTML = `⚠️ <b>${total} szt.</b> z modelami spoza słownika JP (pominięte z segmentacji${hint}): ` +
       _segData.unmapped_models.slice(0, 8).map(m => `${esc(m.maszyna)} (${m.sztuki})`).join(', ') +
       (_segData.unmapped_models.length > 8 ? '…' : '');
     unmappedEl.style.display = 'block';
@@ -496,12 +506,21 @@ async function openSegCustomerCard(firma) {
   const doV = document.getElementById('segDo').value;
   const cust = _segData?.customers?.find(c => c.firma === firma);
 
+  // Rzuca zamiast cicho zwrócić treść błędu ({detail:...}) jako "dane" — bez tego
+  // np. wygasła sesja dawała puste .length zamiast widocznego komunikatu błędu.
+  const _fetchJson = async (url) => {
+    const r = await fetch(url);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+    return d;
+  };
+
   let monthlyJp = [], history = [], mix = [];
   try {
     [monthlyJp, history, mix] = await Promise.all([
-      fetch(`${API}/segmentation/customer/monthly-jp?${new URLSearchParams({ firma, months: 24 })}`).then(r => r.json()),
-      fetch(`${API}/segmentation/customer/history?${new URLSearchParams({ firma, months: 24 })}`).then(r => r.json()),
-      fetch(`${API}/segmentation/customer/model-mix?${new URLSearchParams({ firma, od, do: doV })}`).then(r => r.json()),
+      _fetchJson(`${API}/segmentation/customer/monthly-jp?${new URLSearchParams({ firma, months: 24 })}`),
+      _fetchJson(`${API}/segmentation/customer/history?${new URLSearchParams({ firma, months: 24 })}`),
+      _fetchJson(`${API}/segmentation/customer/model-mix?${new URLSearchParams({ firma, od, do: doV })}`),
     ]);
   } catch (e) {
     body.innerHTML = `<div style="color:var(--red);padding:1rem">❌ ${esc(e.message)}</div>`;
@@ -654,6 +673,9 @@ async function saveSegModel() {
     document.getElementById('segModelModal').close();
     await loadSegModelsAdmin();
     loadSegModelsFilter();   // odśwież listę modeli w filtrze tabeli klientów
+    // Tabela klientów (jeśli już wczytana) liczyła segmenty ze starego JP —
+    // bez tego admin widziałby nieaktualne wyniki bez żadnego ostrzeżenia.
+    if (_segData) loadSegmentation();
   } catch (e) {
     msgEl.textContent = '❌ ' + e.message; msgEl.className = 'msg err';
   }
@@ -666,6 +688,7 @@ async function deleteSegModelRow(id, kod) {
     if (!r.ok) throw new Error((await r.json()).detail || 'Błąd usuwania');
     await loadSegModelsAdmin();
     loadSegModelsFilter();
+    if (_segData) loadSegmentation();
   } catch (e) { alert('Błąd: ' + e.message); }
 }
 
@@ -673,7 +696,9 @@ async function deleteSegModelRow(id, kod) {
 async function loadSegThresholdsAdmin() {
   let data;
   try {
-    data = await (await fetch(`${API}/segmentation/thresholds`)).json();
+    const r = await fetch(`${API}/segmentation/thresholds`);
+    data = await r.json();
+    if (!r.ok) throw new Error(data.detail || `HTTP ${r.status}`);
   } catch (e) {
     setMsg('segThresholdsMsg', '❌ ' + e.message, 'err');
     return;
@@ -686,7 +711,7 @@ async function loadSegThresholdsAdmin() {
   document.getElementById('segThNaGranicy').value   = c.prog_na_granicy;
   document.getElementById('segThTrend').value       = c.prog_trend;
   document.getElementById('segThMinMies').value     = c.min_miesiecy_okresu;
-  document.getElementById('segThWaznyOd').value     = new Date().toISOString().slice(0, 10);
+  document.getElementById('segThWaznyOd').value     = _segFmtD(new Date());
 
   const histBody = document.getElementById('segThresholdsHistBody');
   if (histBody) {
@@ -717,6 +742,13 @@ async function segSaveNewThresholdVersion() {
   };
   if ([body.prog_a, body.prog_b, body.prog_c].some(v => !(v >= 0)) || !body.wazny_od) {
     setMsg('segThresholdsMsg', 'Uzupełnij progi A/B/C i datę „ważny od”.', 'err');
+    return;
+  }
+  // Silnik liczy segment przez sekwencyjne porównania zakładając A ≥ B ≥ C
+  // (_segment() w segmentation.py) — zamienione progi po cichu źle klasyfikują
+  // każdego klienta z JP12 pomiędzy nimi, bez żadnego błędu przy zapisie.
+  if (!(body.prog_a >= body.prog_b && body.prog_b >= body.prog_c)) {
+    setMsg('segThresholdsMsg', 'Progi muszą być malejące: A ≥ B ≥ C.', 'err');
     return;
   }
   if (!confirm('Zapisać nową wersję progów? Poprzednia zostanie zachowana w historii i nadal będzie używana przez już zapisane zrzuty miesięczne.')) return;

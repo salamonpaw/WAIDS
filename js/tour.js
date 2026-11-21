@@ -18,9 +18,18 @@ function _ensureToursLoaded() {
   if (_tourStepsCache) return Promise.resolve(_tourStepsCache);
   if (_tourLoadPromise) return _tourLoadPromise;
   _tourLoadPromise = fetch(`${API}/tours`)
-    .then(r => r.ok ? r.json() : {})
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(d => { _tourStepsCache = d; return d; })
-    .catch(() => { _tourStepsCache = {}; return _tourStepsCache; });
+    .catch(() => {
+      // NIE zapisujemy porażki do _tourStepsCache — np. przejściowy błąd sieci
+      // albo backend jeszcze wstaje po restarcie (deploy.sh czeka na niego do 60s).
+      // Gdyby zapisać {}, to jest "prawdziwe" (truthy) i funkcja nigdy więcej nie
+      // spróbuje ponownie w tej sesji przeglądarki — tura zostałaby wyłączona do
+      // ręcznego przeładowania strony. Zamiast tego oddajemy pustą turę TERAZ,
+      // ale kolejne wywołanie (następna zakładka, kolejna próba) spróbuje od nowa.
+      return {};
+    })
+    .finally(() => { _tourLoadPromise = null; });
   return _tourLoadPromise;
 }
 
@@ -141,20 +150,28 @@ async function renderTourAdminList() {
   </tr>`).join('');
 }
 
+let _tourMoveBusy = false;   // blokuje kolejny klik ↑/↓ dopóki poprzedni nie dokończy roundtripu
+
 async function moveTourStep(index, dir) {
-  const steps = [..._tourStepsCache[_tourAdminTab]];
-  const j = index + dir;
-  if (j < 0 || j >= steps.length) return;
-  [steps[index], steps[j]] = [steps[j], steps[index]];
-  const orderedIds = steps.map(s => s.id);
+  if (_tourMoveBusy) return;   // dwa szybkie kliki liczone z tej samej (nieodświeżonej) tablicy nadpisałyby się wzajemnie
+  _tourMoveBusy = true;
   try {
+    const steps = [..._tourStepsCache[_tourAdminTab]];
+    const j = index + dir;
+    if (j < 0 || j >= steps.length) return;
+    [steps[index], steps[j]] = [steps[j], steps[index]];
+    const orderedIds = steps.map(s => s.id);
     const r = await fetch(`${API}/tours/${_tourAdminTab}/reorder`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ordered_ids: orderedIds }),
     });
     if (!r.ok) throw new Error((await r.json()).detail || 'Błąd zmiany kolejności');
     await renderTourAdminList();
-  } catch (e) { alert('Błąd: ' + e.message); }
+  } catch (e) {
+    alert('Błąd: ' + e.message);
+  } finally {
+    _tourMoveBusy = false;
+  }
 }
 
 function openTourStepModal(id) {
@@ -241,7 +258,7 @@ function pickTourStepElement() {
   document.getElementById('tourStepModal').close();
   _tourReturnTab = 'config';
   _suppressAutoTour = true;
-  switchTab(_tourAdminTab);
+  switchTab(_tourAdminTab, true);
 
   const banner = document.createElement('div');
   banner.id = 'tourPickerBanner';
@@ -272,7 +289,7 @@ function pickTourStepElement() {
   }
   function finish(selector) {
     cleanup();
-    switchTab(_tourReturnTab);
+    switchTab(_tourReturnTab, true);
     _suppressAutoTour = false;   // koniec roundtripu — dalsze zwykłe przełączenia zakładek znów normalne
     // Celowo NIE wołamy tu openTourStepModal(_tourEditingId) ponownie — dwa powody:
     // 1) wyzerowałoby tytuł/opis, które admin już wpisał przed kliknięciem "Wskaż",
@@ -282,7 +299,10 @@ function pickTourStepElement() {
     //    w tym miejscu cache bywa chwilowo `null`, a openTourStepModal(id) dla
     //    EDYTOWANEGO kroku rzuciłby wyjątkiem na _tourStepsCache[_tourAdminTab].
     // .close() nie czyści wartości pól — ten sam dialog po prostu pokazujemy
-    // ponownie z tym, co w nim już było, i dopisujemy tylko selektor.
+    // ponownie z tym, co w nim już było, i dopisujemy tylko selektor. Komunikat
+    // błędu z ewentualnej wcześniejszej nieudanej próby zapisu czyścimy ręcznie —
+    // openTourStepModal() robi to normalnie, ale celowo go tu nie wołamy (wyżej).
+    document.getElementById('tourStepModalMsg').textContent = '';
     document.getElementById('tourStepModal').showModal();
     if (selector) document.getElementById('tourStepSelector').value = selector;
   }

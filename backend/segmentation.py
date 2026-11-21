@@ -200,6 +200,11 @@ def add_seg_threshold_version(prog_a: float, prog_b: float, prog_c: float,
                                wazny_od: str) -> int:
     """Nowa wersja progów NIE nadpisuje poprzedniej — historyczne seg_snapshots
     zostają przypisane do starej wersji (spec rozdz. 4.1 pkt 3)."""
+    # _segment() niżej klasyfikuje przez sekwencyjne porównania zakładając A ≥ B ≥ C —
+    # walidacja też we frontendzie, ale bezpośrednie wywołanie API ją omija, więc
+    # sprawdzamy tu jeszcze raz (frontend można pominąć, baza nie powinna na to pozwolić).
+    if not (prog_a >= prog_b >= prog_c):
+        raise ValueError("Progi muszą być malejące: prog_a ≥ prog_b ≥ prog_c")
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(

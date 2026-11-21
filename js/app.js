@@ -3,7 +3,7 @@
 // ── Tab switching ──────────────────────────────────────────────────────────
 const ADMIN_TABS = ['revenue', 'config'];
 
-function switchTab(name) {
+function switchTab(name, programmatic) {
   if (ADMIN_TABS.includes(name) && !currentUser?.is_admin) return;
   if (name === 'commissions' &&
       !currentUser?.is_admin && !currentUser?.can_view_commissions) return;
@@ -14,10 +14,13 @@ function switchTab(name) {
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
-  // switchTab bywa też wywoływane programowo (np. przez edytor przewodnika przy
-  // "wskaż element"), nie tylko z inline onclick — wtedy nie ma klikniętego
-  // przycisku do podświetlenia, więc sprawdzamy ostrożnie zamiast zakładać event.
-  if (typeof event !== 'undefined' && event?.currentTarget?.classList) {
+  // switchTab bywa też wywoływane programowo (np. edytor przewodnika przy "wskaż
+  // element" woła switchTab z WNĘTRZA handlera kliknięcia przycisku "Wskaż na
+  // ekranie" — wtedy globalny `event` wciąż wskazuje na TEN przycisk, nie na kartę
+  // nawigacji, więc samo sprawdzenie "czy event istnieje" by się myliło). Wywołania
+  // programowe przekazują programmatic=true, żeby wymusić wyszukanie właściwego
+  // przycisku zamiast ufać event.currentTarget.
+  if (!programmatic && typeof event !== 'undefined' && event?.currentTarget?.classList) {
     event.currentTarget.classList.add('active');
   } else {
     const btn = document.querySelector(`.tab-btn[onclick*="switchTab('${name}')"]`);
@@ -88,6 +91,17 @@ async function refreshStatus() {
 // ── Changelog modal ────────────────────────────────────────────────────────
 
 const CHANGELOG_ENTRIES = [
+  {
+    version: '2.11.2', date: '2026-11-21',
+    fixed: [
+      '<b>Segmentacja — zakres dat przesunięty o 1 dzień we wszystkich presetach</b> (poważny). Presety „Ostatnie 12 mies.”, „Bieżący/Poprzedni rok”, „Ostatni kwartał” liczyły datę przez <code>toISOString()</code>, co konwertuje na UTC — lokalna północ w Polsce to 22:00/23:00 UTC dnia poprzedniego, więc KAŻDY zakres wysyłany do API był o jeden dzień za wcześnie na obu końcach. Znalezione i zweryfikowane (test w strefie Europe/Warsaw, zima i lato) pełnym audytem kodu 21.11.2026.',
+      'Walidacja progów segmentacji (A ≥ B ≥ C) — zamiana wartości przy zapisie nowej wersji progów błędnie klasyfikowała klientów bez żadnego ostrzeżenia. Walidacja teraz i we frontendzie, i w backendzie (bezpośrednie wywołanie API omija frontend).',
+      'Ostrzeżenie o niezmapowanych modelach (dane niepełne) pokazywane tylko adminowi — teraz widoczne dla każdego z dostępem do zakładki, bo dotyczy ich liczb tak samo.',
+      'Edycja/usunięcie modelu w słowniku JP nie odświeżało już wczytanej tabeli klientów — pokazywała nieaktualne segmenty do czasu ręcznego odświeżenia.',
+      '4 miejsca połykające błędy HTTP jako dane: panel progów, karta klienta (3 równoległe zapytania) i endpoint GET progów nie sprawdzały kodu odpowiedzi przed użyciem treści — błąd 401/500 renderował się jako puste dane zamiast czytelnego komunikatu.',
+      'Edytor przewodnika: cache tur trwale się "zatruwał" po jednym nieudanym pobraniu (np. restart backendu) — wymagał przeładowania strony. Podwójne kliknięcie strzałki ↑/↓ w kolejności kroków mogło nadpisać własną zmianę. Tryb "Wskaż na ekranie" podświetlał w nawigacji zły przycisk podczas przełączania zakładek. Stary komunikat błędu z nieudanego zapisu zostawał widoczny po powrocie z pickera.',
+    ],
+  },
   {
     version: '2.11.1', date: '2026-11-18',
     fixed: [

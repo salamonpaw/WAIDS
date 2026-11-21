@@ -1785,7 +1785,10 @@ def segmentation_delete_model(model_id: int, _: dict = Depends(require_admin)):
 @app.get("/segmentation/thresholds")
 def segmentation_thresholds(_: dict = Depends(require_segmentation)):
     """Aktualna wersja progów + pełna historia wersji (do panelu admina, etap 3)."""
-    return {"current": get_seg_thresholds(), "history": get_seg_thresholds_history()}
+    try:
+        return {"current": get_seg_thresholds(), "history": get_seg_thresholds_history()}
+    except ValueError as e:
+        raise HTTPException(409, str(e))
 
 
 class SegThresholdsIn(BaseModel):
@@ -1803,10 +1806,13 @@ class SegThresholdsIn(BaseModel):
 def segmentation_add_thresholds(body: SegThresholdsIn, _: dict = Depends(require_admin)):
     """Nowa wersja progów — historia zrzutów (etap 2) zostaje przy starej wersji,
     dopóki admin świadomie jej nie przeliczy (spec rozdz. 4.1 pkt 3)."""
-    wersja = add_seg_threshold_version(
-        body.prog_a, body.prog_b, body.prog_c, body.prog_profil_oem,
-        body.prog_na_granicy, body.prog_trend, body.min_miesiecy_okresu, body.wazny_od,
-    )
+    try:
+        wersja = add_seg_threshold_version(
+            body.prog_a, body.prog_b, body.prog_c, body.prog_profil_oem,
+            body.prog_na_granicy, body.prog_trend, body.min_miesiecy_okresu, body.wazny_od,
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     return {"wersja": wersja}
 
 
