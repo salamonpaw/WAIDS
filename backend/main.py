@@ -35,7 +35,7 @@ from database import (
     get_firm_suspensions, add_firm_suspension, delete_firm_suspension,
     get_active_suspensions, get_all_suspensions_map,
     # firm-rep export/import
-    get_firms_with_reps, get_firms_without_reps, import_firm_reps,
+    get_firms_with_reps, get_firms_without_reps, get_new_firms_in_month, import_firm_reps,
     get_rep_first_ids_check,
     VALID_FIRM_TYPES, VALID_CYCLES,
     # auth
@@ -2122,6 +2122,16 @@ def firms_unassigned():
         return {"firms": get_firms_without_reps()}
     except Exception as e:
         raise HTTPException(500, str(e))
+
+
+@app.get("/firms/new-in-month")
+def firms_new_in_month(year_month: str, _: dict = Depends(get_auth_user)):
+    """Firmy, których pierwsze urządzenie w historii powstało w danym miesiącu
+    (YYYY-MM) — nowi klienci do szybkiego przypisania opiekuna, zanim narosną
+    zaległości (nikt się nimi nie zajmuje od pierwszego dnia)."""
+    if not re.match(r'^\d{4}-\d{2}$', year_month):
+        raise HTTPException(400, "year_month musi być w formacie YYYY-MM")
+    return {"firms": get_new_firms_in_month(year_month)}
 
 
 # ── rep bonus check ────────────────────────────────────────────────────────────

@@ -7,6 +7,91 @@ async function loadConfig() {
   loadMergeFirmaLists();
   loadMergeHistory();
   loadFirmsList();
+  initNewFirmsPanel();
+}
+
+// ── Nowe firmy wg miesiąca produkcji — szybkie przypisanie opiekuna ─────────
+let _newFirmsReps = [];
+
+function initNewFirmsPanel() {
+  const input = document.getElementById('newFirmsMonth');
+  if (!input) return;
+  if (!input.value) {
+    const now = new Date();
+    input.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }
+  loadNewFirmsInMonth();
+}
+
+function shiftNewFirmsMonth(delta) {
+  const input = document.getElementById('newFirmsMonth');
+  if (!input.value) { initNewFirmsPanel(); return; }
+  const [y, m] = input.value.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  input.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  loadNewFirmsInMonth();
+}
+
+async function loadNewFirmsInMonth() {
+  const ym = document.getElementById('newFirmsMonth')?.value;
+  const tbody = document.getElementById('newFirmsTableBody');
+  if (!ym || !tbody) return;
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1rem">⏳ Ładowanie…</td></tr>';
+  setMsg('msgNewFirms', '', '');
+
+  try {
+    const [firmsRes, repsRes] = await Promise.all([
+      fetch(`${API}/firms/new-in-month?year_month=${ym}`),
+      fetch(`${API}/reps`),
+    ]);
+    const firmsData = await firmsRes.json();
+    if (!firmsRes.ok) throw new Error(firmsData.detail || `HTTP ${firmsRes.status}`);
+    const repsData = await repsRes.json();
+    _newFirmsReps = Array.isArray(repsData) ? repsData : (repsData.reps || []);
+
+    const firms = firmsData.firms || [];
+    if (!firms.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1rem">Brak nowych firm w tym miesiącu.</td></tr>';
+      return;
+    }
+    const repOptions = _newFirmsReps.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('');
+    tbody.innerHTML = firms.map(f => {
+      const hasRep = !!f.reps;
+      const repCell = hasRep
+        ? esc(f.reps)
+        : '<span class="badge unpaid" style="font-size:10px">⚠ Brak opiekuna</span>';
+      return `<tr>
+        <td><b>${esc(f.firma)}</b></td>
+        <td style="font-size:12px">${esc(f.first_prod_date)}</td>
+        <td class="num">${fmtNum(f.devices_in_month)}</td>
+        <td>${repCell}</td>
+        <td style="white-space:nowrap">
+          <select id="newFirmRepSel_${esc(f.firma).replace(/[^a-zA-Z0-9]/g,'_')}" style="height:30px;font-size:12px">
+            <option value="">— wybierz handlowca —</option>
+            ${repOptions}
+          </select>
+          <button class="sm primary" onclick="assignRepToNewFirm('${esc(f.firma).replace(/'/g, "\\'")}')">+ Przypisz</button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--red);padding:1rem">❌ ${esc(e.message)}</td></tr>`;
+  }
+}
+
+async function assignRepToNewFirm(firma) {
+  const sel = document.getElementById(`newFirmRepSel_${firma.replace(/[^a-zA-Z0-9]/g, '_')}`);
+  const repId = sel?.value;
+  if (!repId) { setMsg('msgNewFirms', 'Wybierz handlowca przed przypisaniem.', 'err'); return; }
+  try {
+    const r = await fetch(`${API}/reps/${repId}/firms`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ firma }),
+    });
+    if (!r.ok) throw new Error((await r.json()).detail || 'Błąd przypisania');
+    setMsg('msgNewFirms', `✓ Przypisano „${firma}".`, 'ok');
+    await loadNewFirmsInMonth();
+    loadReps();   // odśwież też główną listę handlowców niżej na stronie
+  } catch (e) { setMsg('msgNewFirms', '❌ ' + e.message, 'err'); }
 }
 
 // ── Firm config table ──────────────────────────────────────────────────────

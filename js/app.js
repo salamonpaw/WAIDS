@@ -92,6 +92,12 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.12.0', date: '2026-11-21',
+    added: [
+      '<b>🆕 Nowe firmy wg miesiąca produkcji</b> (Konfiguracja → nad sekcją Handlowcy) — pokazuje firmy, których PIERWSZE urządzenie w historii powstało w wybranym miesiącu (prawdziwi nowi klienci, nie każdy kto coś zamówił), z liczbą urządzeń z tego miesiąca i obecnym opiekunem. Firmy bez opiekuna oznaczone czerwoną etykietą „⚠ Brak opiekuna” — przypisanie handlowca jednym kliknięciem, bez przechodzenia do listy niżej. Ma zapobiegać narastaniu zaległości u klientów, którymi od pierwszego dnia nikt się nie zajął.',
+    ],
+  },
+  {
     version: '2.11.2', date: '2026-11-21',
     fixed: [
       '<b>Segmentacja — zakres dat przesunięty o 1 dzień we wszystkich presetach</b> (poważny). Presety „Ostatnie 12 mies.”, „Bieżący/Poprzedni rok”, „Ostatni kwartał” liczyły datę przez <code>toISOString()</code>, co konwertuje na UTC — lokalna północ w Polsce to 22:00/23:00 UTC dnia poprzedniego, więc KAŻDY zakres wysyłany do API był o jeden dzień za wcześnie na obu końcach. Znalezione i zweryfikowane (test w strefie Europe/Warsaw, zima i lato) pełnym audytem kodu 21.11.2026.',

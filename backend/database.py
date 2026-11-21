@@ -1411,6 +1411,39 @@ def get_firms_without_reps() -> list:
             return [r[0] for r in cur.fetchall()]
 
 
+def get_new_firms_in_month(year_month: str) -> list:
+    """Firmy, których PIERWSZE urządzenie w historii zostało wyprodukowane w danym
+    miesiącu (prawdziwi nowi klienci, nie tylko 'coś zamówili w tym miesiącu') —
+    razem z liczbą urządzeń z tego miesiąca i już przypisanymi handlowcami (jeśli
+    są), żeby od razu było widać komu brakuje opiekuna. Zapobiega narastaniu
+    zaległości u klientów, którymi nikt się nie zajął od pierwszego dnia."""
+    od = f"{year_month}-01"
+    y, m = int(year_month[:4]), int(year_month[5:7])
+    do = f"{y + (m // 12)}-{(m % 12) + 1:02d}-01"   # pierwszy dzień NASTĘPNEGO miesiąca
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                WITH first_prod AS (
+                    SELECT firma, MIN(prod_date) AS first_prod_date
+                    FROM devices
+                    WHERE firma <> '' AND prod_date <> ''
+                    GROUP BY firma
+                )
+                SELECT fp.firma, fp.first_prod_date,
+                       COUNT(d.sn)                                        AS devices_in_month,
+                       COALESCE(STRING_AGG(DISTINCT sr.name, ', '), '')    AS reps
+                FROM first_prod fp
+                JOIN devices d ON d.firma = fp.firma
+                             AND d.prod_date >= %(od)s AND d.prod_date < %(do)s
+                LEFT JOIN firm_reps  fr ON fr.firma = fp.firma
+                LEFT JOIN sales_reps sr ON sr.id    = fr.rep_id
+                WHERE fp.first_prod_date >= %(od)s AND fp.first_prod_date < %(do)s
+                GROUP BY fp.firma, fp.first_prod_date
+                ORDER BY fp.first_prod_date, fp.firma
+            """, {"od": od, "do": do})
+            return [dict(r) for r in cur.fetchall()]
+
+
 def import_firm_reps(rows: list) -> dict:
     """
     Nadpisz przypisania handlowców dla firm z listy.

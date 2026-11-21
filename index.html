@@ -9,7 +9,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/driver.js@1/dist/driver.js.iife.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1/dist/driver.css">
-  <link rel="stylesheet" href="css/main.css?v=2.11.2">
+  <link rel="stylesheet" href="css/main.css?v=2.12.0">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -2078,6 +2078,40 @@ Aliasy to inne zapisy tego samego modelu w danych (np. bez spacji) — nie tworz
       </table>
     </div>
 
+    <!-- Nowe firmy wg miesiąca produkcji -->
+    <div class="section-card" style="margin-bottom:1rem">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:.25rem">
+        <div class="section-title" style="margin:0">🆕 Nowe firmy wg miesiąca produkcji</div>
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:.75rem">
+        Firmy, których pierwsze urządzenie w historii zostało wyprodukowane w wybranym miesiącu — żeby od razu
+        przypisać opiekuna i nie dopuścić do narastania zaległości u klienta, którym nikt się nie zajął.
+      </p>
+      <div class="input-row" style="margin-bottom:.75rem;align-items:flex-end">
+        <div class="input-group">
+          <label>Miesiąc produkcji</label>
+          <input type="month" id="newFirmsMonth" onchange="loadNewFirmsInMonth()">
+        </div>
+        <button class="ghost sm" onclick="shiftNewFirmsMonth(-1)" style="align-self:flex-end;height:34px">◀ Poprzedni</button>
+        <button class="ghost sm" onclick="shiftNewFirmsMonth(1)" style="align-self:flex-end;height:34px">Następny ▶</button>
+      </div>
+      <div class="msg" id="msgNewFirms"></div>
+      <div style="overflow-x:auto">
+        <table class="rev-table" id="newFirmsTable">
+          <thead><tr>
+            <th>Firma</th>
+            <th>Pierwsza produkcja</th>
+            <th class="num">Urządzeń w tym miesiącu</th>
+            <th>Opiekun</th>
+            <th>Przypisz handlowca</th>
+          </tr></thead>
+          <tbody id="newFirmsTableBody">
+            <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1rem">Wybierz miesiąc.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
     <!-- Reps -->
     <div class="section-card">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:.25rem">
@@ -2416,24 +2450,24 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.11.2"></script>
-<script src="js/auth.js?v=2.11.2"></script>
-<script src="js/app.js?v=2.11.2"></script>
-<script src="js/import.js?v=2.11.2"></script>
-<script src="js/report.js?v=2.11.2"></script>
-<script src="js/monitoring.js?v=2.11.2"></script>
-<script src="js/config.js?v=2.11.2"></script>
-<script src="js/firstpay.js?v=2.11.2"></script>
-<script src="js/device.js?v=2.11.2"></script>
-<script src="js/revenue.js?v=2.11.2"></script>
-<script src="js/bonus.js?v=2.11.2"></script>
-<script src="js/commissions.js?v=2.11.2"></script>
-<script src="js/pricing.js?v=2.11.2"></script>
-<script src="js/arrears.js?v=2.11.2"></script>
-<script src="js/sales.js?v=2.11.2"></script>
-<script src="js/segmentation.js?v=2.11.2"></script>
-<script src="js/tooltip.js?v=2.11.2"></script>
-<script src="js/tour.js?v=2.11.2"></script>
+<script src="js/utils.js?v=2.12.0"></script>
+<script src="js/auth.js?v=2.12.0"></script>
+<script src="js/app.js?v=2.12.0"></script>
+<script src="js/import.js?v=2.12.0"></script>
+<script src="js/report.js?v=2.12.0"></script>
+<script src="js/monitoring.js?v=2.12.0"></script>
+<script src="js/config.js?v=2.12.0"></script>
+<script src="js/firstpay.js?v=2.12.0"></script>
+<script src="js/device.js?v=2.12.0"></script>
+<script src="js/revenue.js?v=2.12.0"></script>
+<script src="js/bonus.js?v=2.12.0"></script>
+<script src="js/commissions.js?v=2.12.0"></script>
+<script src="js/pricing.js?v=2.12.0"></script>
+<script src="js/arrears.js?v=2.12.0"></script>
+<script src="js/sales.js?v=2.12.0"></script>
+<script src="js/segmentation.js?v=2.12.0"></script>
+<script src="js/tooltip.js?v=2.12.0"></script>
+<script src="js/tour.js?v=2.12.0"></script>
 
 </body>
 </html>
