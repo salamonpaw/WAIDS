@@ -274,6 +274,13 @@ def compute_customer_segments(
                 WHERE firma <> '' AND prod_date BETWEEN %s AND %s
             """, (od, do))
             rows = [dict(r) for r in cur.fetchall()]
+            cur.execute("""
+                SELECT fr.firma, sr.name
+                FROM firm_reps fr JOIN sales_reps sr ON fr.rep_id = sr.id
+            """)
+            rep_map: dict = {}
+            for r in cur.fetchall():
+                rep_map.setdefault(r["firma"], []).append(r["name"])
 
     unmapped: dict = {}
     full: dict = {}   # firma -> pełny wolumen (podstawa segmentu)
@@ -314,6 +321,9 @@ def compute_customer_segments(
 
     total_jp = sum(f["jp"] for f in full.values()) or 0.0
     next_threshold_key = {"B": "prog_a", "C": "prog_b", "D": "prog_c"}
+    # Próg, poniżej którego klient SPADA z obecnego segmentu (symetria do "na granicy"
+    # awansu powyżej) — A i B/C trzymają się na progu wejścia do własnego segmentu.
+    own_threshold_key = {"A": "prog_a", "B": "prog_b", "C": "prog_c"}
 
     def _segment(jp12: float) -> str:
         if jp12 <= 0:
@@ -340,6 +350,13 @@ def compute_customer_segments(
             do_wyzszego = round(prog_wyzszy - jp12, 2)
             na_granicy = do_wyzszego <= (float(progi["prog_na_granicy"]) / 100) * prog_wyzszy
 
+        do_nizszego = None
+        zagrozony_spadkiem = False
+        if segment in own_threshold_key:
+            prog_wlasny = float(progi[own_threshold_key[segment]])
+            do_nizszego = round(jp12 - prog_wlasny, 2)
+            zagrozony_spadkiem = 0 <= do_nizszego <= (float(progi["prog_na_granicy"]) / 100) * prog_wlasny
+
         disp = filt.get(firma, {"jp": 0.0, "sztuki": 0}) if has_filter \
             else {"jp": f["jp"], "sztuki": f["sztuki"]}
 
@@ -356,6 +373,9 @@ def compute_customer_segments(
             "liczba_modeli": len(f["modele"]),
             "do_wyzszego_segmentu": do_wyzszego,
             "na_granicy": na_granicy,
+            "do_nizszego_segmentu": do_nizszego,
+            "zagrozony_spadkiem": zagrozony_spadkiem,
+            "handlowcy": rep_map.get(firma, []),
             "udzial_w_jp": round((f["jp"] / total_jp) * 100, 1) if total_jp else 0.0,
             # kolumny do wyświetlenia pod filtrem model/typ — segment powyżej z tego NIE korzysta
             "jp_okres_filtr": round(disp["jp"], 2),
@@ -577,6 +597,7 @@ def generate_snapshot_for_month(ym: str, wersja_progow: Optional[int] = None) ->
         flagi = {
             "profil_oem": c["profil_oem"], "na_granicy": c["na_granicy"],
             "udzial_oem": c["udzial_oem"], "do_wyzszego_segmentu": c["do_wyzszego_segmentu"],
+            "zagrozony_spadkiem": c["zagrozony_spadkiem"], "do_nizszego_segmentu": c["do_nizszego_segmentu"],
         }
         rows.append((c["firma"], do, wersja, c["jp_okres"], c["jp12"], c["jp_oem"],
                      c["sztuki"], c["liczba_modeli"], c["segment"], psycopg2.extras.Json(flagi)))

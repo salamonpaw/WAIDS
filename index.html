@@ -9,7 +9,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/driver.js@1/dist/driver.js.iife.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1/dist/driver.css">
-  <link rel="stylesheet" href="css/main.css?v=2.12.0">
+  <link rel="stylesheet" href="css/main.css?v=2.13.0">
 </head>
 <body>
 <div id="appBody" style="display:none">
@@ -1602,6 +1602,7 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
     <div style="font-size:11px;color:var(--text-muted);margin-top:8px">
       ⚠️ Typ maszyn / Modele zmieniają tylko wyświetlane JP i sztuki — <b>segment, migracja i trend liczone są zawsze z pełnego wolumenu</b> (własne + OEM, wszystkie modele).
     </div>
+    <div id="segFilterChips" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:0.5px solid var(--border)"></div>
   </div>
 
   <div id="segWarnShort" class="msg warn" style="display:none;margin-bottom:12px">
@@ -1613,13 +1614,19 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
   <div class="rev-kpi-grid" id="segKpiGrid" style="margin-bottom:1.25rem"></div>
 
   <!-- Wykresy w czasie (z seg_snapshots — wymaga backfillu, patrz panel admina niżej) -->
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
     <label style="font-size:11px;color:var(--text-muted)">Zakres wykresów w czasie:</label>
     <select id="segOverviewMonths" onchange="loadSegOverview()" style="height:28px;font-size:11px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
       <option value="12">Ostatnie 12 mies.</option>
       <option value="24" selected>Ostatnie 24 mies.</option>
       <option value="36">Ostatnie 36 mies.</option>
       <option value="999">Wszystkie zrzuty</option>
+    </select>
+    <label style="font-size:11px;color:var(--text-muted);margin-left:8px">Ziarno:</label>
+    <select id="segOverviewGran" onchange="setSegOverviewGranularity(this.value)" style="height:28px;font-size:11px;padding:0 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+      <option value="month">Miesiąc</option>
+      <option value="quarter">Kwartał</option>
+      <option value="year">Rok</option>
     </select>
   </div>
   <div class="charts-row col2" style="margin-bottom:1.25rem">
@@ -1652,10 +1659,21 @@ Pasek graficzny pokazuje proporcję względem klienta #1 (maksimum = 100% szerok
     </div>
   </div>
 
+  <!-- Pareto -->
+  <div class="rev-section" style="margin-bottom:1.25rem">
+    <div class="rev-section-title">
+      <span>📊 Pareto — koncentracja JP wśród klientów
+        <i class="info-icon" data-info="Słupki: udział pojedynczego klienta w całkowitym JP okresu. Linia: narastająco od góry listy. Pokazuje, jak mocno wolumen zależy od kilku największych klientów. Top 30 wg JP, zgodnie z aktualnymi filtrami tabeli poniżej.">i</i>
+      </span>
+    </div>
+    <div style="position:relative;height:240px"><canvas id="chartSegPareto"></canvas></div>
+  </div>
+
   <!-- Tabela klientów -->
   <div class="rev-section">
     <div class="rev-section-title">
       <span>Klienci wg segmentu — okres: <span id="segPeriodLbl">—</span></span>
+      <button class="ghost sm" onclick="exportSegCsv()" style="margin-left:auto">⬇ Eksportuj CSV (Excel)</button>
     </div>
     <div style="overflow-x:auto">
       <table class="rev-table" id="segCustomerTable">
@@ -2450,24 +2468,24 @@ W zakładce Wyliczenia system automatycznie przeliczy:
 <!-- global info tooltip popup -->
 <div id="infoTooltipPopup"></div>
 
-<script src="js/utils.js?v=2.12.0"></script>
-<script src="js/auth.js?v=2.12.0"></script>
-<script src="js/app.js?v=2.12.0"></script>
-<script src="js/import.js?v=2.12.0"></script>
-<script src="js/report.js?v=2.12.0"></script>
-<script src="js/monitoring.js?v=2.12.0"></script>
-<script src="js/config.js?v=2.12.0"></script>
-<script src="js/firstpay.js?v=2.12.0"></script>
-<script src="js/device.js?v=2.12.0"></script>
-<script src="js/revenue.js?v=2.12.0"></script>
-<script src="js/bonus.js?v=2.12.0"></script>
-<script src="js/commissions.js?v=2.12.0"></script>
-<script src="js/pricing.js?v=2.12.0"></script>
-<script src="js/arrears.js?v=2.12.0"></script>
-<script src="js/sales.js?v=2.12.0"></script>
-<script src="js/segmentation.js?v=2.12.0"></script>
-<script src="js/tooltip.js?v=2.12.0"></script>
-<script src="js/tour.js?v=2.12.0"></script>
+<script src="js/utils.js?v=2.13.0"></script>
+<script src="js/auth.js?v=2.13.0"></script>
+<script src="js/app.js?v=2.13.0"></script>
+<script src="js/import.js?v=2.13.0"></script>
+<script src="js/report.js?v=2.13.0"></script>
+<script src="js/monitoring.js?v=2.13.0"></script>
+<script src="js/config.js?v=2.13.0"></script>
+<script src="js/firstpay.js?v=2.13.0"></script>
+<script src="js/device.js?v=2.13.0"></script>
+<script src="js/revenue.js?v=2.13.0"></script>
+<script src="js/bonus.js?v=2.13.0"></script>
+<script src="js/commissions.js?v=2.13.0"></script>
+<script src="js/pricing.js?v=2.13.0"></script>
+<script src="js/arrears.js?v=2.13.0"></script>
+<script src="js/sales.js?v=2.13.0"></script>
+<script src="js/segmentation.js?v=2.13.0"></script>
+<script src="js/tooltip.js?v=2.13.0"></script>
+<script src="js/tour.js?v=2.13.0"></script>
 
 </body>
 </html>

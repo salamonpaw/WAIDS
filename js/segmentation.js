@@ -10,11 +10,18 @@ let _segSortAsc  = false;
 let _segSearch   = '';
 let _segYears    = [];          // lata wybrane do kolumn "Segmenty w latach"
 let _segMigFilter = null;       // {segment_p0, segment_p1} po kliknięciu komórki macierzy
+let _segFlagFilter = '';        // '' | 'na_granicy' | 'zagrozony_spadkiem' | 'oem'
+let _segSegFilter  = [];        // podzbiór ['A','B','C','D','brak'] — puste = wszystkie
+let _segTrendFilter = '';       // '' | 'wzrost' | 'spadek' | 'stabilny' | 'nowy'
+let _segKierunekFilter = '';    // '' | 'awans' | 'spadek' | 'bez_zmian' | 'nowy' | 'utracony'
+let _segOverviewGranularity = 'month';  // 'month' | 'quarter' | 'year'
+let _segRestoringFromUrl = false;       // true podczas odtwarzania stanu z URL — tłumi zapętlone zapisy
 
 let chartSegJpTime    = null;
 let chartSegCountTime = null;
 let chartSegCustMonthly = null;
 let chartSegCustHistory = null;
+let chartSegPareto    = null;
 
 const SEG_LABELS = {
   A: 'partner strategiczny', B: 'partner rozwojowy',
@@ -43,16 +50,90 @@ async function onTabSegmentation() {
   if (!_segYears.length) {
     const y = new Date().getFullYear();
     _segYears = [y, y - 1, y - 2];
-    renderSegYearPills();
   }
   if (document.getElementById('segModel').options.length === 0) {
     await loadSegModelsFilter();
   }
+  const hadUrlState = _segRestoreFromUrl();
+  renderSegYearPills();
+  renderSegFilterChips();
   if (!document.getElementById('segOd').value || !document.getElementById('segDo').value) {
     setSegPreset('last12');   // woła loadSegmentation()
-  } else {
+  } else if (!hadUrlState) {
     loadSegmentation();
+  } else {
+    loadSegmentation();       // stan z URL już ustawiony w polach — po prostu przelicz
   }
+}
+
+// ── Stan filtrów w URL (hash) — żeby dało się wysłać/zapisać konkretny widok ──
+const SEG_URL_KEYS = ['od', 'doV', 'cmp', 'typ', 'models', 'years', 'search',
+  'flag', 'segs', 'trend', 'kierunek', 'gran'];
+
+function _segCurrentState() {
+  return {
+    od: document.getElementById('segOd').value,
+    doV: document.getElementById('segDo').value,
+    cmp: document.getElementById('segCmp').value,
+    typ: document.getElementById('segTyp').value,
+    models: [...document.getElementById('segModel').selectedOptions].map(o => o.value).join('|'),
+    years: _segYears.join('|'),
+    search: _segSearch,
+    flag: _segFlagFilter,
+    segs: _segSegFilter.join('|'),
+    trend: _segTrendFilter,
+    kierunek: _segKierunekFilter,
+    gran: _segOverviewGranularity,
+  };
+}
+
+function _segSyncUrl() {
+  if (_segRestoringFromUrl) return;
+  const st = _segCurrentState();
+  const qs = new URLSearchParams();
+  for (const k of SEG_URL_KEYS) if (st[k]) qs.set(k, st[k]);
+  const hash = '#seg=' + qs.toString();
+  history.replaceState(null, '', location.pathname + location.search + hash);
+}
+
+function _segRestoreFromUrl() {
+  if (!location.hash.startsWith('#seg=')) return false;
+  const qs = new URLSearchParams(location.hash.slice(5));
+  if ([...qs.keys()].length === 0) return false;
+  _segRestoringFromUrl = true;
+  try {
+    if (qs.get('od'))  document.getElementById('segOd').value = qs.get('od');
+    if (qs.get('doV')) document.getElementById('segDo').value = qs.get('doV');
+    if (qs.has('cmp')) document.getElementById('segCmp').value = qs.get('cmp');
+    if (qs.has('typ')) document.getElementById('segTyp').value = qs.get('typ');
+    if (qs.get('models')) {
+      const want = new Set(qs.get('models').split('|'));
+      [...document.getElementById('segModel').options].forEach(o => { o.selected = want.has(o.value); });
+    }
+    if (qs.get('years')) _segYears = qs.get('years').split('|').map(Number).filter(Boolean);
+    if (qs.has('search')) { _segSearch = qs.get('search'); document.getElementById('segSearch').value = _segSearch; }
+    if (qs.has('flag')) _segFlagFilter = qs.get('flag');
+    if (qs.get('segs')) _segSegFilter = qs.get('segs').split('|').filter(Boolean);
+    if (qs.has('trend')) _segTrendFilter = qs.get('trend');
+    if (qs.has('kierunek')) _segKierunekFilter = qs.get('kierunek');
+    if (qs.has('gran')) _segOverviewGranularity = qs.get('gran');
+  } finally {
+    _segRestoringFromUrl = false;
+  }
+  return true;
+}
+
+function clearSegFilters() {
+  _segFlagFilter = ''; _segSegFilter = []; _segTrendFilter = ''; _segKierunekFilter = '';
+  _segMigFilter = null; _segSearch = '';
+  document.getElementById('segSearch').value = '';
+  document.getElementById('segTyp').value = '';
+  [...document.getElementById('segModel').options].forEach(o => { o.selected = false; });
+  renderSegFilterChips();
+  renderSegTableHead();
+  renderSegTable();
+  if (_segData?.okres_porownawczy) renderSegMigration();
+  _segSyncUrl();
 }
 
 function _segLastClosedMonthEnd() {
@@ -104,7 +185,7 @@ function toggleSegYear(y) {
   if (i >= 0) _segYears.splice(i, 1); else _segYears.push(y);
   _segYears.sort();
   renderSegYearPills();
-  loadSegmentation();
+  loadSegmentation();   // woła _segSyncUrl() na końcu
 }
 
 async function loadSegModelsFilter() {
@@ -175,6 +256,7 @@ async function loadSegmentation() {
   }
 
   renderSegKPI();
+  renderSegFilterChips();
   renderSegTableHead();
   renderSegTable();
   loadSegOverview();
@@ -186,6 +268,7 @@ async function loadSegmentation() {
     document.getElementById('segMigrationBody').innerHTML =
       '<div style="text-align:center;color:var(--text-muted);padding:1rem;font-size:12px">Ustaw „Okres porównawczy” powyżej, żeby zobaczyć migrację.</div>';
   }
+  _segSyncUrl();
 }
 
 // ── KPI ──────────────────────────────────────────────────────────────────
@@ -252,6 +335,14 @@ function _segRows() {
   if (_segMigFilter) {
     rows = rows.filter(c => c.segment_p0 === _segMigFilter.segment_p0 && c.segment === _segMigFilter.segment_p1);
   }
+  if (_segSegFilter.length) {
+    rows = rows.filter(c => _segSegFilter.includes(c.segment));
+  }
+  if (_segFlagFilter === 'na_granicy') rows = rows.filter(c => c.na_granicy);
+  else if (_segFlagFilter === 'zagrozony_spadkiem') rows = rows.filter(c => c.zagrozony_spadkiem);
+  else if (_segFlagFilter === 'oem') rows = rows.filter(c => c.profil_oem);
+  if (_segTrendFilter) rows = rows.filter(c => c.trend === _segTrendFilter);
+  if (_segKierunekFilter) rows = rows.filter(c => c.kierunek_migracji === _segKierunekFilter);
   return [...rows].sort((a, b) => {
     const va = a[_segSortKey], vb = b[_segSortKey];
     const na = typeof va === 'number' ? va : (va ?? '').toString().toLowerCase();
@@ -270,13 +361,15 @@ function renderSegTable() {
   const colCount = 12 + _segYears.length + (hasCmp ? 2 : 0);
   if (!rows.length) {
     tbody.innerHTML = `<tr><td colspan="${colCount}" style="text-align:center;color:var(--text-muted);padding:2rem">Brak klientów w wybranym okresie${_segMigFilter ? ' dla tej komórki migracji' : ''}.</td></tr>`;
+    renderSegPareto();
     return;
   }
   const zaKrotki = _segData.okres_za_krotki;
   tbody.innerHTML = rows.map((c, i) => {
     const flags =
       (c.profil_oem ? '<span class="seg-flag oem" title="Udział OEM w JP ≥ progu profilu OEM">OEM</span>' : '') +
-      (c.na_granicy ? '<span class="seg-flag granica" title="Blisko wyższego segmentu">↑ blisko progu</span>' : '');
+      (c.na_granicy ? '<span class="seg-flag granica" title="Blisko wyższego segmentu">↑ blisko progu</span>' : '') +
+      (c.zagrozony_spadkiem ? '<span class="seg-flag risk" title="Blisko spadku do niższego segmentu">↓ ryzyko spadku</span>' : '');
     const label = c.segment === 'brak' ? '—' : c.segment;
     const segBadge = `<span class="seg-badge seg-${c.segment}${zaKrotki ? ' seg-za-krotki' : ''}"` +
       (zaKrotki ? ` title="Okres krótszy niż ${_segData.min_miesiecy_okresu} mies. — ostrożnie z wynikiem"` : '') +
@@ -316,6 +409,7 @@ function renderSegTable() {
       <td class="num">${c.udzial_narastajaco.toFixed(1)}%</td>
     </tr>`;
   }).join('');
+  renderSegPareto();
 }
 
 function sortSegTable(key) {
@@ -327,6 +421,150 @@ function sortSegTable(key) {
 function filterSegTable() {
   _segSearch = document.getElementById('segSearch').value.trim();
   renderSegTable();
+  _segSyncUrl();
+}
+
+// ── Chipy filtrów: segment / flagi / trend / kierunek migracji ─────────────
+function toggleSegSegmentFilter(seg) {
+  const i = _segSegFilter.indexOf(seg);
+  if (i >= 0) _segSegFilter.splice(i, 1); else _segSegFilter.push(seg);
+  renderSegFilterChips();
+  renderSegTable();
+  _segSyncUrl();
+}
+
+function setSegFlagFilter(flag) {
+  _segFlagFilter = _segFlagFilter === flag ? '' : flag;
+  renderSegFilterChips();
+  renderSegTable();
+  _segSyncUrl();
+}
+
+function setSegTrendFilter(v) {
+  _segTrendFilter = v;
+  renderSegTable();
+  _segSyncUrl();
+}
+
+function setSegKierunekFilter(v) {
+  _segKierunekFilter = v;
+  renderSegTable();
+  _segSyncUrl();
+}
+
+function renderSegFilterChips() {
+  const wrap = document.getElementById('segFilterChips');
+  if (!wrap) return;
+  const segChips = ['A', 'B', 'C', 'D', 'brak'].map(s => {
+    const active = _segSegFilter.includes(s);
+    const lbl = s === 'brak' ? '—' : s;
+    return `<button class="seg-chip${active ? ' active' : ''}" onclick="toggleSegSegmentFilter('${s}')">${lbl}</button>`;
+  }).join('');
+  const flagChips = [
+    ['na_granicy', '↑ blisko progu'],
+    ['zagrozony_spadkiem', '↓ ryzyko spadku'],
+    ['oem', 'profil OEM'],
+  ].map(([k, lbl]) => {
+    const active = _segFlagFilter === k;
+    return `<button class="seg-chip${active ? ' active' : ''}" onclick="setSegFlagFilter('${k}')">${lbl}</button>`;
+  }).join('');
+
+  const hasCmp = !!(_segData && _segData.okres_porownawczy);
+  const trendSel = hasCmp ? `
+    <select id="segTrendFilterSel" onchange="setSegTrendFilter(this.value)" style="height:26px;font-size:11px;padding:0 6px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+      <option value="">Trend: wszystkie</option>
+      <option value="wzrost">📈 wzrost</option>
+      <option value="spadek">📉 spadek</option>
+      <option value="stabilny">➖ stabilny</option>
+      <option value="nowy">🆕 nowy</option>
+    </select>` : '';
+  const kierunekSel = hasCmp ? `
+    <select id="segKierunekFilterSel" onchange="setSegKierunekFilter(this.value)" style="height:26px;font-size:11px;padding:0 6px;border-radius:var(--radius-md);border:0.5px solid var(--border-med);background:var(--bg);color:var(--text)">
+      <option value="">Migracja: wszystkie</option>
+      <option value="awans">▲ awans</option>
+      <option value="spadek">▼ spadek</option>
+      <option value="bez_zmian">▬ bez zmian</option>
+      <option value="nowy">● nowy</option>
+      <option value="utracony">✕ utracony</option>
+    </select>` : '';
+
+  wrap.innerHTML = `
+    <span style="font-size:11px;color:var(--text-muted)">Segment:</span> ${segChips}
+    <span style="font-size:11px;color:var(--text-muted);margin-left:6px">Flagi:</span> ${flagChips}
+    ${trendSel} ${kierunekSel}
+    <button class="ghost sm" onclick="clearSegFilters()" style="margin-left:auto">✕ Wyczyść filtry</button>
+  `;
+  if (hasCmp) {
+    const trendEl = document.getElementById('segTrendFilterSel');
+    if (trendEl) trendEl.value = _segTrendFilter;
+    const kierEl = document.getElementById('segKierunekFilterSel');
+    if (kierEl) kierEl.value = _segKierunekFilter;
+  }
+}
+
+// ── Eksport CSV (Excel) ─────────────────────────────────────────────────────
+function exportSegCsv() {
+  if (!_segData) return;
+  const rows = _segRows();
+  const hasCmp = !!_segData.okres_porownawczy;
+  const head = ['Klient', ..._segYears.map(y => `Segment ${y}`), 'Segment',
+    ...(hasCmp ? ['Segment P0', 'Migracja', 'Trend', 'Zmiana r/r %'] : []),
+    'JP (okres)', 'JP/12mies', 'JP/mies', 'Sztuki', 'Modele', 'Udział OEM %',
+    'Do wyższego segmentu', 'Do niższego segmentu', 'Blisko progu', 'Ryzyko spadku',
+    'Udział w JP %', 'Narastająco %', 'Handlowcy'];
+  const csvEsc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const lines = [head.map(csvEsc).join(';')];
+  for (const c of rows) {
+    const row = [
+      c.firma,
+      ..._segYears.map(y => c.segments_by_year?.[y] ?? ''),
+      c.segment,
+      ...(hasCmp ? [c.segment_p0, c.kierunek_migracji, c.trend, c.zmiana_rr] : []),
+      c.jp_okres_filtr, c.jp12, c.jp_miesiecznie, c.sztuki_filtr, c.liczba_modeli, c.udzial_oem,
+      c.do_wyzszego_segmentu, c.do_nizszego_segmentu, c.na_granicy ? 'tak' : 'nie',
+      c.zagrozony_spadkiem ? 'tak' : 'nie', c.udzial_w_jp, c.udzial_narastajaco,
+      (c.handlowcy || []).join(', '),
+    ];
+    lines.push(row.map(csvEsc).join(';'));
+  }
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  const od = document.getElementById('segOd').value, doV = document.getElementById('segDo').value;
+  a.href = URL.createObjectURL(blob);
+  a.download = `segmentacja_${od}_${doV}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ── Wykres Pareto (udział pojedynczego klienta vs narastająco, wg _segRows()) ─
+function renderSegPareto() {
+  const ctx = document.getElementById('chartSegPareto');
+  if (!ctx) return;
+  if (chartSegPareto) { chartSegPareto.destroy(); chartSegPareto = null; }
+  if (!_segData) return;
+  const top = _segRows().slice(0, 30);   // top 30, żeby wykres zostawał czytelny
+  if (!top.length) return;
+  chartSegPareto = new Chart(ctx, {
+    data: {
+      labels: top.map(c => c.firma),
+      datasets: [
+        { type: 'bar', label: 'Udział w JP (%)', data: top.map(c => c.udzial_w_jp),
+          backgroundColor: '#2563EBaa', yAxisID: 'y' },
+        { type: 'line', label: 'Narastająco (%)', data: top.map(c => c.udzial_narastajaco),
+          borderColor: '#F59E0B', backgroundColor: 'transparent', tension: 0.15, yAxisID: 'y1' },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } },
+      scales: {
+        x: { ticks: { font: { size: 9 }, maxRotation: 60, autoSkip: true } },
+        y:  { position: 'left',  beginAtZero: true, title: { display: true, text: 'Udział w JP (%)', font: { size: 10 } } },
+        y1: { position: 'right', beginAtZero: true, max: 100, grid: { drawOnChartArea: false },
+              title: { display: true, text: 'Narastająco (%)', font: { size: 10 } } },
+      },
+    },
+  });
 }
 
 // ── Macierz migracji ─────────────────────────────────────────────────────
@@ -396,8 +634,38 @@ function segFilterMigrationCell(s0, s1) {
 }
 
 // ── Wykresy w czasie (seg_snapshots) ────────────────────────────────────────
+function _segOverviewBucketKey(ymd, gran) {
+  const y = ymd.slice(0, 4), m = parseInt(ymd.slice(5, 7), 10);
+  if (gran === 'year') return y;
+  if (gran === 'quarter') return `${y}-Q${Math.ceil(m / 3)}`;
+  return ymd.slice(0, 7);
+}
+
+// JP12 jest już kroczące (roczne), więc agregacja NIE sumuje miesięcy w kwartale/roku —
+// bierze ostatni zrzut danego okresu (tak jak w karcie klienta czytamy stan "na koniec").
+function _segAggregateOverview(rows, gran) {
+  if (gran === 'month') return rows;
+  const best = {};
+  for (const r of rows) {
+    const bucket = _segOverviewBucketKey(r.data_zrzutu, gran);
+    const key = `${bucket}|${r.segment}`;
+    if (!best[key] || r.data_zrzutu > best[key].data_zrzutu) {
+      best[key] = { ...r, data_zrzutu: bucket };
+    }
+  }
+  return Object.values(best);
+}
+
+function setSegOverviewGranularity(v) {
+  _segOverviewGranularity = v;
+  loadSegOverview();
+  _segSyncUrl();
+}
+
 async function loadSegOverview() {
   const monthsParam = document.getElementById('segOverviewMonths')?.value || 24;
+  const granSel = document.getElementById('segOverviewGran');
+  if (granSel) granSel.value = _segOverviewGranularity;
   let rows = [];
   try {
     rows = await (await fetch(`${API}/segmentation/overview?months=${monthsParam}`)).json();
@@ -412,6 +680,7 @@ async function loadSegOverview() {
   }
   if (emptyEl) emptyEl.style.display = 'none';
 
+  rows = _segAggregateOverview(rows, _segOverviewGranularity);
   const months = [...new Set(rows.map(r => r.data_zrzutu))].sort();
   const bySeg = s => months.map(mo => {
     const r = rows.find(x => x.data_zrzutu === mo && x.segment === s);
@@ -515,12 +784,13 @@ async function openSegCustomerCard(firma) {
     return d;
   };
 
-  let monthlyJp = [], history = [], mix = [];
+  let monthlyJp = [], history = [], mix = [], items = [];
   try {
-    [monthlyJp, history, mix] = await Promise.all([
+    [monthlyJp, history, mix, items] = await Promise.all([
       _fetchJson(`${API}/segmentation/customer/monthly-jp?${new URLSearchParams({ firma, months: 24 })}`),
       _fetchJson(`${API}/segmentation/customer/history?${new URLSearchParams({ firma, months: 24 })}`),
       _fetchJson(`${API}/segmentation/customer/model-mix?${new URLSearchParams({ firma, od, do: doV })}`),
+      _fetchJson(`${API}/segmentation/customer/items?${new URLSearchParams({ firma, od, do: doV, limit: 200 })}`),
     ]);
   } catch (e) {
     body.innerHTML = `<div style="color:var(--red);padding:1rem">❌ ${esc(e.message)}</div>`;
@@ -532,10 +802,27 @@ async function openSegCustomerCard(firma) {
     : '';
   const flags = cust
     ? (cust.profil_oem ? '<span class="seg-flag oem">OEM</span>' : '') +
-      (cust.na_granicy ? '<span class="seg-flag granica">↑ blisko progu</span>' : '')
+      (cust.na_granicy ? '<span class="seg-flag granica">↑ blisko progu</span>' : '') +
+      (cust.zagrozony_spadkiem ? '<span class="seg-flag risk">↓ ryzyko spadku</span>' : '')
     : '';
   const doWyz = cust?.do_wyzszego_segmentu != null
     ? `Do wyższego segmentu: <b>${cust.do_wyzszego_segmentu.toFixed(1)} JP</b>` : '';
+  const doNiz = cust?.do_nizszego_segmentu != null
+    ? `Do niższego segmentu: <b>${cust.do_nizszego_segmentu.toFixed(1)} JP</b>` : '';
+
+  const opiekun = cust?.handlowcy?.length
+    ? `Opiekun: <b>${cust.handlowcy.map(esc).join(', ')}</b>`
+    : 'Opiekun: <span style="color:var(--text-muted)">brak przypisanego handlowca</span>';
+
+  const segYearsStrip = _segYears.length && cust
+    ? `<div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-top:4px">
+        <span style="font-size:11px;color:var(--text-muted)">Segmenty w latach:</span>` +
+      _segYears.map(y => {
+        const s = cust.segments_by_year?.[y] ?? 'brak';
+        const lbl = s === 'brak' ? '—' : s;
+        return `<span class="seg-badge seg-${s}" style="font-size:10px;padding:1px 6px" title="${y}">${y}: ${lbl}</span>`;
+      }).join('') + `</div>`
+    : '';
 
   const historyStrip = history.length
     ? `<div style="display:flex;gap:2px;flex-wrap:wrap;margin-top:4px">` +
@@ -549,19 +836,34 @@ async function openSegCustomerCard(firma) {
         <td class="num">${fmtNum(m.sztuki)}</td><td class="num">${m.jp.toFixed(1)}</td></tr>`).join('')
     : '<tr><td colspan="4" style="text-align:center;color:var(--text-muted)">Brak pozycji w okresie</td></tr>';
 
+  const itemRows = items.length
+    ? items.map(it => `<tr><td style="font-size:11px">${esc(it.data)}</td><td>${esc(it.sn)}</td>
+        <td>${esc(it.maszyna)}${it.kod_modelu && it.kod_modelu !== it.maszyna ? ` <span style="color:var(--text-muted);font-size:10px">(${esc(it.kod_modelu)})</span>` : ''}</td>
+        <td class="num">${it.jp != null ? it.jp.toFixed(2) : '—'}</td></tr>`).join('')
+    : '<tr><td colspan="4" style="text-align:center;color:var(--text-muted)">Brak pozycji w okresie</td></tr>';
+  const itemsNote = items.length >= 200
+    ? '<div style="font-size:11px;color:var(--text-muted);margin-top:4px">Pokazano pierwsze 200 pozycji (okres zawiera więcej).</div>' : '';
+
   body.innerHTML = `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
       ${segBadge} <b style="font-size:14px">${esc(firma)}</b> ${flags}
     </div>
-    <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">Okres: ${od} → ${doV} ${doWyz ? '· ' + doWyz : ''}</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:2px">Okres: ${od} → ${doV} ${doWyz ? '· ' + doWyz : ''} ${doNiz ? '· ' + doNiz : ''}</div>
+    <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">${opiekun}</div>
+    ${segYearsStrip}
     <div style="margin-bottom:12px">${historyStrip}</div>
 
-    <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin:14px 0 6px">JP MIESIĘCZNIE (24 MIES.)</div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin:14px 0 6px">JP MIESIĘCZNIE (24 MIES.) — linie przerywane: progi A/B/C</div>
     <div style="position:relative;height:160px"><canvas id="chartSegCustMonthly"></canvas></div>
 
     <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin:16px 0 6px">MIKS MODELI W OKRESIE</div>
     <table class="rev-table"><thead><tr><th>Model</th><th>Typ</th><th class="num">Sztuki</th><th class="num">JP</th></tr></thead>
       <tbody>${mixRows}</tbody></table>
+
+    <div style="font-size:12px;font-weight:600;color:var(--text-muted);margin:16px 0 6px">POZYCJE REALIZACJI W OKRESIE</div>
+    <table class="rev-table"><thead><tr><th>Data</th><th>SN</th><th>Maszyna</th><th class="num">JP</th></tr></thead>
+      <tbody>${itemRows}</tbody></table>
+    ${itemsNote}
   `;
 
   if (chartSegCustMonthly) { chartSegCustMonthly.destroy(); chartSegCustMonthly = null; }
@@ -569,6 +871,16 @@ async function openSegCustomerCard(firma) {
   if (ctx && monthlyJp.length) {
     const jp12Map = {};
     history.forEach(h => { jp12Map[h.data_zrzutu.slice(0, 7)] = Number(h.jp12); });
+    const progi = _segData?.progi || {};
+    const thresholdDatasets = [
+      ['prog_a', 'Próg A', '#006100'],
+      ['prog_b', 'Próg B', '#4F6228'],
+      ['prog_c', 'Próg C', '#7F6000'],
+    ].filter(([k]) => progi[k] != null).map(([k, label, color]) => ({
+      type: 'line', label, data: monthlyJp.map(() => Number(progi[k])),
+      borderColor: color, borderDash: [4, 4], borderWidth: 1, pointRadius: 0,
+      backgroundColor: 'transparent',
+    }));
     chartSegCustMonthly = new Chart(ctx, {
       data: {
         labels: monthlyJp.map(m => m.month),
@@ -576,6 +888,7 @@ async function openSegCustomerCard(firma) {
           { type: 'bar', label: 'JP (miesiąc)', data: monthlyJp.map(m => m.jp), backgroundColor: '#2563EBcc' },
           { type: 'line', label: 'JP kroczące 12 mies.', data: monthlyJp.map(m => jp12Map[m.month] ?? null),
             borderColor: '#F59E0B', backgroundColor: 'transparent', tension: 0.2, spanGaps: true },
+          ...thresholdDatasets,
         ],
       },
       options: {

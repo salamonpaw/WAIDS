@@ -92,6 +92,17 @@ async function refreshStatus() {
 
 const CHANGELOG_ENTRIES = [
   {
+    version: '2.13.0', date: '2026-11-23',
+    added: [
+      '<b>Segmentacja — karta klienta rozbudowana</b>: lista pozycji realizacji w okresie (data/SN/maszyna/JP), linie progów A/B/C na wykresie JP miesięcznie, opiekun (handlowiec) i segmenty w latach w nagłówku karty.',
+      '<b>Nowa flaga „↓ ryzyko spadku”</b> — symetryczna do istniejącej „↑ blisko progu”: ostrzega, gdy klient jest blisko spadku do NIŻSZEGO segmentu (nie tylko blisko awansu).',
+      '<b>Wykres Pareto</b> w Segmentacji — koncentracja JP wśród klientów (udział + narastająco), top 30 wg aktualnych filtrów.',
+      '<b>Filtry tabeli klientów</b>: chipy segmentu (A/B/C/D/brak), flag (blisko progu / ryzyko spadku / profil OEM), rozwijane filtry trendu i kierunku migracji (gdy ustawiony okres porównawczy), przycisk „✕ Wyczyść filtry”. Cały stan filtrów i zakresu dat zapisuje się w adresie URL — link do konkretnego widoku można wysłać dalej.',
+      '<b>Eksport CSV (Excel)</b> tabeli klientów — z uwzględnieniem aktualnych filtrów i sortowania.',
+      '<b>Ziarno wykresów „w czasie”</b> (miesiąc/kwartał/rok) — JP12 jest już kroczące roczne, więc agregacja bierze ostatni zrzut okresu, nie sumuje miesięcy.',
+    ],
+  },
+  {
     version: '2.12.0', date: '2026-11-21',
     added: [
       '<b>🆕 Nowe firmy wg miesiąca produkcji</b> (Konfiguracja → nad sekcją Handlowcy) — pokazuje firmy, których PIERWSZE urządzenie w historii powstało w wybranym miesiącu (prawdziwi nowi klienci, nie każdy kto coś zamówił), z liczbą urządzeń z tego miesiąca i obecnym opiekunem. Firmy bez opiekuna oznaczone czerwoną etykietą „⚠ Brak opiekuna” — przypisanie handlowca jednym kliknięciem, bez przechodzenia do listy niżej. Ma zapobiegać narastaniu zaległości u klientów, którymi od pierwszego dnia nikt się nie zajął.',

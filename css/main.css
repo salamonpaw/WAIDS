@@ -385,6 +385,11 @@
             font-weight:600; margin-left:4px; white-space:nowrap; }
 .seg-flag.oem      { background:var(--gray-light);  color:var(--gray); }
 .seg-flag.granica  { background:var(--green-light); color:var(--green); }
+.seg-flag.risk     { background:var(--red-light);   color:var(--red); }
+.seg-chip { font-size:11px; padding:3px 10px; border-radius:99px; border:0.5px solid var(--border-med);
+            background:var(--bg); color:var(--text-muted); cursor:pointer; white-space:nowrap; }
+.seg-chip:hover  { background:var(--bg-secondary); color:var(--text); }
+.seg-chip.active { background:var(--text); color:var(--bg); border-color:transparent; }
 
 /* ── Bulk-select toolbar ────────────────────────────────────────── */
 #bulkToolbar {
